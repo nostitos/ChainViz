@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Layout Test</title>
+</head>
+<body>
+    <pre id="output"></pre>
+    <script>
+        // Simulate the exact data from backend
+        const data = {
+            nodes: [
+                {id: 'addr_bc1qexk...', type: 'address'},
+                {id: 'tx_11cc2cb2...', type: 'transaction', metadata: {timestamp: 1760112377}},
+                {id: 'tx_4ea56164...', type: 'transaction', metadata: {timestamp: 1760112000}},
+                {id: 'addr_bc1qj2vqhe...', type: 'address'},
+                {id: 'addr_bc1qz3p7af...', type: 'address'},
+            ],
+            edges: [
+                {source: 'tx_11cc2cb2...', target: 'addr_bc1qexk...'},
+                {source: 'addr_bc1qj2vqhe...', target: 'tx_11cc2cb2...'},
+                {source: 'addr_bc1qexk...', target: 'tx_4ea56164...'},
+                {source: 'tx_4ea56164...', target: 'addr_bc1qz3p7af...'},
+            ]
+        };
+
+        // Test the edge-to-TX assignment logic
+        const txInputs = new Map();
+        const txOutputs = new Map();
+        
+        // Init
+        data.nodes.filter(n => n.type === 'transaction').forEach(tx => {
+            txInputs.set(tx.id, []);
+            txOutputs.set(tx.id, []);
+        });
+        
+        // Process edges
+        let output = 'EDGE PROCESSING:\n\n';
+        data.edges.forEach(edge => {
+            output += `${edge.source} → ${edge.target}\n`;
+            
+            if (edge.source.startsWith('addr_') && edge.target.startsWith('tx_')) {
+                output += `  ✅ INPUT to ${edge.target}\n`;
+                const inputs = txInputs.get(edge.target) || [];
+                inputs.push(edge.source);
+                txInputs.set(edge.target, inputs);
+            }
+            
+            if (edge.source.startsWith('tx_') && edge.target.startsWith('addr_')) {
+                output += `  ✅ OUTPUT from ${edge.source}\n`;
+                const outputs = txOutputs.get(edge.source) || [];
+                outputs.push(edge.target);
+                txOutputs.set(edge.source, outputs);
+            }
+        });
+        
+        output += '\n\nRESULTS:\n\n';
+        txInputs.forEach((inputs, txId) => {
+            output += `${txId}:\n`;
+            output += `  Inputs (${inputs.length}): ${inputs.join(', ')}\n`;
+            const outputs = txOutputs.get(txId) || [];
+            output += `  Outputs (${outputs.length}): ${outputs.join(', ')}\n\n`;
+        });
+        
+        document.getElementById('output').textContent = output;
+    </script>
+</body>
+</html>
+
+
+
+

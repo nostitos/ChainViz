@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChainViz - Bitcoin Analysis Demo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px;
+            background: rgba(30, 41, 59, 0.5);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tab {
+            flex: 1;
+            padding: 15px;
+            background: rgba(51, 65, 85, 0.3);
+            border: 2px solid transparent;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            font-weight: 600;
+        }
+        .tab:hover { background: rgba(51, 65, 85, 0.5); }
+        .tab.active {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: #3b82f6;
+            color: #60a5fa;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .search-box {
+            background: rgba(30, 41, 59, 0.8);
+            padding: 30px;
+            border-radius: 16px;
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+        }
+        .input-group { margin-bottom: 20px; }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #cbd5e1;
+        }
+        .help-text {
+            font-size: 0.85em;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px 16px;
+            background: #0f172a;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        button {
+            width: 100%;
+            padding: 14px 24px;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(59, 130, 246, 0.4);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .info-box {
+            background: rgba(59, 130, 246, 0.1);
+            border: 2px solid rgba(59, 130, 246, 0.3);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .info-box h4 {
+            color: #60a5fa;
+            margin-bottom: 8px;
+        }
+        .result-box {
+            background: rgba(30, 41, 59, 0.8);
+            padding: 30px;
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat {
+            background: rgba(15, 23, 42, 0.5);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2em;
+            font-weight: 700;
+            color: #3b82f6;
+        }
+        pre {
+            background: #0f172a;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.6;
+            border: 1px solid #334155;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+        .spinner {
+            border: 3px solid #334155;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 2px solid #ef4444;
+            padding: 20px;
+            border-radius: 8px;
+            color: #fca5a5;
+        }
+        .success {
+            background: rgba(34, 197, 94, 0.1);
+            border: 2px solid #22c55e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            color: #86efac;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔗 ChainViz</h1>
+            <p style="font-size: 1.1em; color: #cbd5e1;">Bitcoin Blockchain Analysis Platform</p>
+            <p style="margin-top: 10px; font-size: 0.9em; color: #64748b;">
+                Backend: <strong style="color: #22c55e;">● ONLINE</strong> | 
+                Electrum: fulcrum.sethforprivacy.com:50002
+            </p>
+        </header>
+
+        <div class="search-box">
+            <h2 style="margin-bottom: 20px; color: #cbd5e1;">Trace Bitcoin Funds</h2>
+            
+            <!-- Tabs -->
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('address')">
+                    📍 From Address<br>
+                    <small style="opacity: 0.7;">Easiest option</small>
+                </div>
+                <div class="tab" onclick="switchTab('utxo')">
+                    🎯 From UTXO<br>
+                    <small style="opacity: 0.7;">Advanced</small>
+                </div>
+            </div>
+
+            <!-- Address Tab -->
+            <div id="tab-address" class="tab-content active">
+                <div class="info-box">
+                    <h4>💡 What is this?</h4>
+                    <p style="font-size: 0.9em; line-height: 1.6;">
+                        Enter any Bitcoin address and we'll trace where the most recent funds came from.
+                        This uses blockchain analysis to follow the money trail backwards through the transaction history.
+                    </p>
+                </div>
+
+                <div class="input-group">
+                    <label for="address">Bitcoin Address</label>
+                    <input 
+                        type="text" 
+                        id="address" 
+                        placeholder="e.g., 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
+                        value="">
+                    <div class="help-text">
+                        Example: Satoshi's famous genesis address or any Bitcoin address
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="addr-depth">Max Trace Depth</label>
+                    <input 
+                        type="range" 
+                        id="addr-depth" 
+                        min="5" 
+                        max="50" 
+                        value="10" 
+                        oninput="document.getElementById('addrDepthValue').textContent = this.value">
+                    <div style="text-align: center; color: #94a3b8; margin-top: 5px;">
+                        <span id="addrDepthValue">10</span> hops backwards
+                    </div>
+                </div>
+
+                <button onclick="traceFromAddress()" id="addrBtn">🔍 Trace from Address</button>
+            </div>
+
+            <!-- UTXO Tab -->
+            <div id="tab-utxo" class="tab-content">
+                <div class="info-box">
+                    <h4>💡 What is a UTXO?</h4>
+                    <p style="font-size: 0.9em; line-height: 1.6;">
+                        <strong>UTXO</strong> = Unspent Transaction Output<br>
+                        Each Bitcoin transaction can have multiple outputs (like giving change).
+                        <strong>vout</strong> is the output number (0, 1, 2, etc.)<br><br>
+                        <strong>Example:</strong> If a transaction sends to 2 addresses:<br>
+                        - vout 0 = First recipient<br>
+                        - vout 1 = Second recipient (often "change" back to sender)
+                    </p>
+                </div>
+
+                <div class="input-group">
+                    <label for="txid">Transaction ID (txid)</label>
+                    <input 
+                        type="text" 
+                        id="txid" 
+                        placeholder="64 hex characters"
+                        value="">
+                    <div class="help-text">
+                        Example: abcd1234...ef5678 (64 characters)
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="vout">Output Index (vout)</label>
+                    <input 
+                        type="number" 
+                        id="vout" 
+                        min="0" 
+                        value="0">
+                    <div class="help-text">
+                        Usually 0 or 1. Check on block explorer if unsure.
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="utxo-depth">Max Trace Depth</label>
+                    <input 
+                        type="range" 
+                        id="utxo-depth" 
+                        min="5" 
+                        max="50" 
+                        value="10" 
+                        oninput="document.getElementById('utxoDepthValue').textContent = this.value">
+                    <div style="text-align: center; color: #94a3b8; margin-top: 5px;">
+                        <span id="utxoDepthValue">10</span> hops backwards
+                    </div>
+                </div>
+
+                <button onclick="traceFromUTXO()" id="utxoBtn">🔍 Trace from UTXO</button>
+            </div>
+        </div>
+
+        <div id="result" style="display: none;">
+            <div class="result-box">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="color: #3b82f6;">Analysis Results</h3>
+                    <button onclick="clearResults()" style="width: auto; padding: 8px 16px; background: #334155;">
+                        Clear
+                    </button>
+                </div>
+                <div id="resultContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+
+        function switchTab(tab) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.closest('.tab').classList.add('active');
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('tab-' + tab).classList.add('active');
+        }
+
+        async function traceFromAddress() {
+            const address = document.getElementById('address').value.trim();
+            const maxDepth = parseInt(document.getElementById('addr-depth').value);
+
+            if (!address) {
+                alert('Please enter a Bitcoin address');
+                return;
+            }
+
+            const btn = document.getElementById('addrBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Tracing...';
+
+            showLoading();
+
+            try {
+                const response = await fetch(`${API_BASE}/api/trace/address?address=${encodeURIComponent(address)}&max_depth=${maxDepth}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                displayResults(data, `Address: ${address}`);
+
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔍 Trace from Address';
+            }
+        }
+
+        async function traceFromUTXO() {
+            const txid = document.getElementById('txid').value.trim();
+            const vout = parseInt(document.getElementById('vout').value);
+            const maxDepth = parseInt(document.getElementById('utxo-depth').value);
+
+            if (!txid || txid.length !== 64) {
+                alert('Please enter a valid 64-character transaction ID');
+                return;
+            }
+
+            const btn = document.getElementById('utxoBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Tracing...';
+
+            showLoading();
+
+            try {
+                const response = await fetch(`${API_BASE}/api/trace/utxo`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        txid,
+                        vout,
+                        max_depth: maxDepth,
+                        include_coinjoin: false,
+                        confidence_threshold: 0.5
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                displayResults(data, `UTXO: ${txid}:${vout}`);
+
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔍 Trace from UTXO';
+            }
+        }
+
+        function showLoading() {
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('resultContent').innerHTML = '<div class="loading"><div class="spinner"></div>Analyzing blockchain data...</div>';
+        }
+
+        function showError(message) {
+            document.getElementById('resultContent').innerHTML = `
+                <div class="error">
+                    <strong>Error:</strong> ${message}
+                    <p style="margin-top: 10px; font-size: 0.9em;">
+                        Make sure the backend is running at ${API_BASE}
+                    </p>
+                </div>
+            `;
+        }
+
+        function displayResults(data, source) {
+            const content = `
+                <div class="success">
+                    ✓ Successfully traced from <strong>${source}</strong>
+                </div>
+
+                <div class="stats">
+                    <div class="stat">
+                        <div class="stat-value">${data.total_nodes}</div>
+                        <div style="color: #94a3b8; font-size: 0.9em;">Nodes</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">${data.total_edges}</div>
+                        <div style="color: #94a3b8; font-size: 0.9em;">Edges</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">${data.depth_reached}</div>
+                        <div style="color: #94a3b8; font-size: 0.9em;">Depth</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">${data.clusters.length}</div>
+                        <div style="color: #94a3b8; font-size: 0.9em;">Clusters</div>
+                    </div>
+                </div>
+
+                ${data.coinjoins.length > 0 ? `
+                    <div style="background: rgba(251, 191, 36, 0.1); border: 2px solid #fbbf24; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                        <strong style="color: #fbbf24;">⚠️ ${data.coinjoins.length} CoinJoin(s) detected</strong>
+                        <p style="margin-top: 5px; font-size: 0.9em; color: #fcd34d;">
+                            Clustering heuristics break at CoinJoin transactions
+                        </p>
+                    </div>
+                ` : ''}
+
+                <h4 style="margin-top: 30px; margin-bottom: 15px; color: #cbd5e1;">Graph Data</h4>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+
+            document.getElementById('resultContent').innerHTML = content;
+        }
+
+        function clearResults() {
+            document.getElementById('result').style.display = 'none';
+        }
+
+        // Check backend health on load
+        async function checkBackend() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                if (response.ok) {
+                    console.log('✓ Backend is online');
+                }
+            } catch (error) {
+                alert('⚠️ Backend not accessible. Please start the backend server first.');
+            }
+        }
+
+        checkBackend();
+    </script>
+</body>
+</html>

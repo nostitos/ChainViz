@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Dark background -->
+  <rect width="100" height="100" fill="#0a0a0a"/>
+  
+  <!-- Chain link 1 (left) -->
+  <rect x="15" y="35" width="25" height="30" rx="8" fill="none" stroke="#00bcd4" stroke-width="5"/>
+  
+  <!-- Chain link 2 (right) -->
+  <rect x="60" y="35" width="25" height="30" rx="8" fill="none" stroke="#00bcd4" stroke-width="5"/>
+  
+  <!-- Connecting horizontal bar -->
+  <rect x="35" y="47" width="30" height="6" rx="3" fill="#00bcd4"/>
+</svg>
+
+
+

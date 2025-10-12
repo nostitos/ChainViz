@@ -1,0 +1,33 @@
+# ChainViz - Bitcoin Blockchain Analysis Platform
+
+## Project Overview
+A comprehensive Bitcoin blockchain analysis platform for tracing UTXOs, visualizing transaction flows, and identifying patterns using on-chain data only.
+
+## Architecture
+- **Monorepo**: Backend (Python/FastAPI) + Frontend (React/TypeScript)
+- **Data Source**: Electrum server (fulcrum.sethforprivacy.com:50002) with batching support
+- **Backend**: FastAPI, async Electrum client, NetworkX for graph analysis, Redis caching
+- **Frontend**: React, Sigma.js (WebGL) for graph visualization, TailwindCSS
+- **Analysis**: Multiple heuristics with confidence scoring for UTXO tracing
+
+## Key Features
+1. **UTXO Backward Tracing**: Recursive tracing with configurable depth
+2. **Heuristics Engine**: Common-input clustering, change detection, peel chains, CoinJoin detection
+3. **Bulk Import**: Support for address lists and xpub derivation (multiple standards)
+4. **Visualization**: Interactive graphs with 1000+ nodes, WebGL rendering
+5. **Real-time Updates**: Live block monitoring via Electrum subscriptions
+
+## Code Style
+- **Python**: Type hints, async/await, Pydantic models, docstrings
+- **TypeScript**: Strict mode, explicit types, functional components with hooks
+- **API**: RESTful design, clear error messages, confidence scores in responses
+- **Performance**: Batching, caching, parallel requests, WebGL rendering
+
+## Important Notes
+- All blockchain data is on-chain only (no external attribution databases)
+- Confidence scores (0.0-1.0) must accompany all heuristic-based inferences
+- Electrum server supports batching - use it for multiple transaction requests
+- Graph rendering must handle 1000+ nodes smoothly (60fps target)
+- CoinJoins break heuristics - flag them clearly in UI
+
+

@@ -1,0 +1,56 @@
+[tool.poetry]
+name = "chainviz-backend"
+version = "0.1.0"
+description = "Bitcoin blockchain analysis platform backend"
+authors = ["ChainViz Team"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.109.0"
+uvicorn = {extras = ["standard"], version = "^0.27.0"}
+pydantic = "^2.5.0"
+pydantic-settings = "^2.1.0"
+python-bitcoinlib = "^0.12.2"
+networkx = "^3.2.1"
+redis = "^5.0.1"
+aioredis = "^2.0.1"
+httpx = "^0.26.0"
+python-json-logger = "^2.0.7"
+bip32utils = "^0.3.post4"
+mnemonic = "^0.20"
+ecdsa = "^0.18.0"
+base58 = "^2.1.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+pytest-asyncio = "^0.23.0"
+pytest-cov = "^4.1.0"
+black = "^24.1.0"
+isort = "^5.13.0"
+mypy = "^1.8.0"
+pylint = "^3.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+

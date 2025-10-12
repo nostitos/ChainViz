@@ -1,0 +1,21 @@
+# Development Dockerfile - runs Vite dev server
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install dependencies first (for better caching)
+COPY package*.json ./
+RUN npm install
+
+# Copy rest of the application
+COPY . .
+
+# Expose Vite dev server port
+EXPOSE 5173
+
+# Run dev server with host flag to allow external access
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+
+
+
+
