@@ -19,38 +19,18 @@ services:
     networks:
       - chainviz
 
-  # Frontend (Development)
-  frontend-dev:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.dev
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    environment:
-      - VITE_API_URL=http://localhost:8000
-    depends_on:
-      - backend
-    restart: unless-stopped
-    networks:
-      - chainviz
-
-  # Frontend (Production build)
-  frontend-prod:
+  # Frontend (Production build with Nginx built-in)
+  frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "3001:80"
+      - "80:80"
     depends_on:
       - backend
     restart: unless-stopped
     networks:
       - chainviz
-    profiles:
-      - production
 
   # Redis Cache
   redis:
