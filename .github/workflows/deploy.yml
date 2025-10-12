@@ -1,56 +1,113 @@
-name: Deploy to AWS
+name: Deploy to Server
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Deploy to EC2
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Deploy to server
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: us-east-1
-          INSTANCE_ID: i-0df3ff5363c6514f5
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
         run: |
-          # Install AWS CLI
-          pip install awscli
+          # Install sshpass for password authentication
+          sudo apt-get update
+          sudo apt-get install -y sshpass
           
-          # Send deployment command via SSM
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids $INSTANCE_ID \
-            --document-name "AWS-RunShellScript" \
-            --parameters 'commands=[
-              "echo \"🚀 GitHub deployment triggered at $(date)\"",
-              "cd /home/ubuntu/ChainViz",
-              "git fetch origin",
-              "git reset --hard origin/main",
-              "echo",
-              "echo \"📦 Rebuilding containers...\"",
-              "sudo docker-compose build --no-cache",
-              "sudo docker-compose up -d",
-              "sleep 15",
-              "echo",
-              "echo \"✅ Deployment complete!\"",
-              "sudo docker-compose ps"
-            ]' \
-            --timeout-seconds 900 \
-            --region $AWS_REGION \
-            --query 'Command.CommandId' \
-            --output text)
+          # Create SSH directory
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           
-          echo "Deployment command sent: $COMMAND_ID"
-          echo "Waiting 60 seconds for deployment to start..."
-          sleep 60
+          # Disable strict host key checking for this deployment
+          cat > ~/.ssh/config << 'EOF'
+          Host deployment-server
+            HostName ${{ secrets.SERVER_HOST }}
+            User ${{ secrets.SERVER_USER }}
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+          EOF
           
-          # Check deployment status
-          aws ssm get-command-invocation \
-            --command-id $COMMAND_ID \
-            --instance-id $INSTANCE_ID \
-            --region $AWS_REGION \
-            --query 'Status' \
-            --output text
-
+          echo "🚀 Starting deployment to ${{ secrets.SERVER_HOST }}..."
+          
+          # Create deployment package
+          echo "📦 Creating deployment package..."
+          tar czf chainviz-deploy.tar.gz \
+            --exclude='node_modules' \
+            --exclude='venv' \
+            --exclude='.git' \
+            --exclude='__pycache__' \
+            --exclude='*.log' \
+            --exclude='backend/venv' \
+            --exclude='frontend/node_modules' \
+            .
+          
+          # Upload to server
+          echo "📤 Uploading to server..."
+          sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no \
+            chainviz-deploy.tar.gz ${SERVER_USER}@${SERVER_HOST}:/tmp/
+          
+          # Deploy on server
+          echo "🔧 Deploying on server..."
+          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no \
+            ${SERVER_USER}@${SERVER_HOST} << 'ENDSSH'
+          set -e
+          
+          echo "📂 Extracting package..."
+          cd /tmp
+          rm -rf ChainViz-new
+          mkdir -p ChainViz-new
+          tar xzf chainviz-deploy.tar.gz -C ChainViz-new
+          
+          echo "🔄 Updating deployment directory..."
+          cd ChainViz-new
+          mkdir -p ~/ChainViz
+          rsync -a --delete \
+            --exclude='*.log' \
+            --exclude='.env' \
+            --exclude='backend/.env' \
+            ./ ~/ChainViz/
+          
+          cd ~/ChainViz
+          rm -rf /tmp/ChainViz-new /tmp/chainviz-deploy.tar.gz
+          
+          # Ensure .env exists
+          if [ ! -f backend/.env ]; then
+            echo "⚙️  Creating backend configuration..."
+            cat > backend/.env << 'EOF'
+          ELECTRUM_HOST=fulcrum.sethforprivacy.com
+          ELECTRUM_PORT=50002
+          ELECTRUM_USE_SSL=true
+          REDIS_HOST=redis
+          REDIS_PORT=6379
+          EOF
+          fi
+          
+          echo "🐳 Rebuilding and restarting containers..."
+          sudo docker compose down
+          sudo docker compose up -d --build
+          
+          echo "⏳ Waiting for services to start..."
+          sleep 15
+          
+          echo "✅ Deployment complete!"
+          echo ""
+          echo "📊 Service Status:"
+          sudo docker compose ps
+          
+          echo ""
+          echo "🏥 Health Check:"
+          curl -s http://localhost:8000/health || echo "Backend starting..."
+          ENDSSH
+          
+          echo "✅ Deployment completed successfully!"
