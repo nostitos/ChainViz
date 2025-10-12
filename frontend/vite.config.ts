@@ -15,7 +15,9 @@ export default defineConfig({
     exclude: [],
   },
   server: {
+    host: '0.0.0.0',
     port: 5173,
+    allowedHosts: ['utxo.link', 'www.utxo.link', 'localhost'],
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
