@@ -25,20 +25,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y sshpass
           
-          # Create SSH directory
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          
-          # Disable strict host key checking for this deployment
-          cat > ~/.ssh/config << EOF
-          Host deployment-server
-            HostName ${SERVER_HOST}
-            User ${SERVER_USER}
-            StrictHostKeyChecking no
-            UserKnownHostsFile /dev/null
-          EOF
-          
-          echo "🚀 Starting deployment to ${{ secrets.SERVER_HOST }}..."
+          echo "🚀 Starting deployment to ${SERVER_HOST}..."
           
           # Create deployment package
           echo "📦 Creating deployment package..."
