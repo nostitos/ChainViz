@@ -79,6 +79,3 @@ echo "   sudo certbot --nginx -d utxo.link -d www.utxo.link"
 echo ""
 echo "4. Visit: http://98.82.75.132 (IP) or http://utxo.link (after DNS)"
 
-
-
-

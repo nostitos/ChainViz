@@ -9,10 +9,12 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    # Electrum Server
-    electrum_host: str = "192.168.2.114"
+    # Electrum Server (Seth's Fulcrum - supports verbose, Blockstream doesn't)
+    electrum_host: str = "fulcrum.sethforprivacy.com"
     electrum_port: int = 50002
-    electrum_use_ssl: bool = False  # Local server typically doesn't use SSL
+    electrum_use_ssl: bool = True
+    electrum_fallback_host: str = "electrum.blockstream.info"
+    electrum_fallback_port: int = 50002
 
     # Redis
     redis_host: str = "localhost"

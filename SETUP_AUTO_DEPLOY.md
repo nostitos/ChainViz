@@ -138,3 +138,4 @@ No manual SSH, no running commands on the server, just push and it deploys!
 
 **Next Action**: Add the 2 AWS secrets to GitHub (takes 1 minute)
 
+

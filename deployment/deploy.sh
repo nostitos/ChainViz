@@ -87,3 +87,6 @@ echo "📝 Logs:"
 echo "  docker-compose logs -f backend"
 echo "  docker-compose logs -f frontend"
 
+
+
+

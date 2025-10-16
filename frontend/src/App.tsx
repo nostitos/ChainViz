@@ -680,8 +680,24 @@ function AppContent() {
         
         console.log('📦 Got new data:', newNodes.length, 'nodes');
         
+        // Check if the source address is now in a cluster
+        const newClusters = newNodes.filter(n => n.type === 'addressCluster' || n.type === 'transactionCluster');
+        const sourceAddressInCluster = newClusters.some(cluster => {
+          if (cluster.type === 'addressCluster' && cluster.data.addresses) {
+            return cluster.data.addresses.some((a: any) => `addr_${a.address}` === nodeId);
+          }
+          return false;
+        });
+        
         setNodes((nds) => {
           const existingIds = new Set(nds.map(n => n.id));
+          
+          // If source address is now in a cluster, remove the original node
+          let nodesToKeep = nds;
+          if (sourceAddressInCluster) {
+            console.log(`🗑️ Source address ${nodeId} is now in a cluster - removing original node`);
+            nodesToKeep = nds.filter(n => n.id !== nodeId);
+          }
           
           // Find ALL TXs that connect to our address
           const connectedTxs = newNodes.filter(n => 
@@ -829,12 +845,12 @@ function AppContent() {
           console.log('➕ Adding', nodesWithHandlers.length, 'nodes to', direction === 'inputs' ? 'LEFT' : 'RIGHT');
           
           // Save to history before expanding
-          setHistory(prev => [...prev, { nodes: nds, edges }]);
+          setHistory(prev => [...prev, { nodes: nodesToKeep, edges }]);
           
           // Store for viewport check later
           addedNodesRef.current = nodesWithHandlers;
           
-          return [...nds, ...nodesWithHandlers];
+          return [...nodesToKeep, ...nodesWithHandlers];
         });
         
         // Get current node IDs before adding edges
@@ -1265,21 +1281,6 @@ function AppContent() {
         gap: '10px',
         zIndex: 1000,
       }}>
-        {/* Pan Mode Toggle */}
-        <button
-          onClick={() => setIsPanMode(!isPanMode)}
-          className={`pan-mode-toggle ${isPanMode ? 'active' : ''}`}
-          title={isPanMode ? 'Pan Mode (Click to enable Selection)' : 'Selection Mode (Click to enable Pan)'}
-        >
-          {isPanMode ? '✋' : '⬚'}
-          <span className="tooltip">
-            {isPanMode ? 'Pan Mode' : 'Selection Mode'}
-          </span>
-        </button>
-
-        {/* Edge Legend */}
-        <EdgeLegend />
-
         {/* Optimize Layout Button */}
         <button
           onClick={handleOptimizeLayout}
@@ -1358,15 +1359,13 @@ function AppContent() {
           💥 Push Away
         </button>
 
-        {/* Save/Load Buttons */}
+        {/* Save/Load Buttons Group */}
         <div style={{
           display: 'flex',
-          gap: '8px',
+          gap: '2px',
           background: 'rgba(26, 26, 26, 0.95)',
-          border: '1px solid rgba(100, 181, 246, 0.3)',
           borderRadius: '8px',
-          padding: '8px',
-          backdropFilter: 'blur(10px)',
+          overflow: 'hidden',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
         }}>
           <button
@@ -1374,9 +1373,9 @@ function AppContent() {
             disabled={nodes.length === 0}
             style={{
               padding: '8px 16px',
-              background: nodes.length === 0 ? '#555' : '#00bcd4',
+              background: nodes.length === 0 ? '#555' : '#444',
               border: 'none',
-              borderRadius: '6px',
+              borderRight: '1px solid rgba(100, 181, 246, 0.2)',
               color: '#fff',
               fontSize: '13px',
               fontWeight: 600,
@@ -1384,7 +1383,9 @@ function AppContent() {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
+              transition: 'all 0.2s ease',
             }}
+            title="Save graph to file"
           >
             💾 Save
           </button>
@@ -1392,9 +1393,8 @@ function AppContent() {
           <label
             style={{
               padding: '8px 16px',
-              background: '#4caf50',
+              background: '#444',
               border: 'none',
-              borderRadius: '6px',
               color: '#fff',
               fontSize: '13px',
               fontWeight: 600,
@@ -1402,7 +1402,9 @@ function AppContent() {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
+              transition: 'all 0.2s ease',
             }}
+            title="Load graph from file"
           >
             📂 Load
             <input

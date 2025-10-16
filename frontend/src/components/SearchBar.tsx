@@ -63,7 +63,7 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
     <div className="search-bar">
       <div className="search-container">
         <div className="logo">
-          <h1>⛓️ ChainViz</h1>
+          <h1>⛓️ UTXO.link</h1>
           <p>Bitcoin Blockchain Analysis</p>
         </div>
         

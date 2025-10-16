@@ -38,10 +38,11 @@ class ElectrumClient:
         self._lock = asyncio.Lock()
 
     async def connect(self) -> None:
-        """Establish connection to Electrum server"""
+        """Establish connection to Electrum server with fallback"""
         if self.connected:
             return
 
+        # Try primary server first
         try:
             # Increase stream buffer limit to handle very large JSON lines
             stream_limit = 50 * 1024 * 1024  # 50MB
@@ -63,13 +64,23 @@ class ElectrumClient:
                 )
 
             self.connected = True
-            logger.info(f"Connected to Electrum server at {self.host}:{self.port}")
+            logger.info(f"✅ Connected to Electrum server at {self.host}:{self.port}")
 
             # Note: Skip server.version check to avoid deadlock with _lock
 
         except Exception as e:
-            logger.error(f"Failed to connect to Electrum server: {e}")
-            raise
+            logger.error(f"❌ Failed to connect to primary Electrum server {self.host}:{self.port}: {e}")
+            
+            # Try fallback server if configured
+            from app.config import settings
+            if hasattr(settings, 'electrum_fallback_host') and self.host != settings.electrum_fallback_host:
+                logger.info(f"🔄 Trying fallback server: {settings.electrum_fallback_host}:{settings.electrum_fallback_port}")
+                self.host = settings.electrum_fallback_host
+                self.port = settings.electrum_fallback_port
+                # Retry connection with fallback
+                await self.connect()
+            else:
+                raise
 
     async def disconnect(self) -> None:
         """Close connection to Electrum server"""
