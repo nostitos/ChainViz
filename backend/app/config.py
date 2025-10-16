@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     cache_ttl_cluster: int = 600
 
     # API
-    api_title: str = "ChainViz API"
+    api_title: str = "UTXO.link API"
     api_version: str = "0.1.0"
     max_trace_depth: int = 50
     max_bulk_addresses: int = 1000
