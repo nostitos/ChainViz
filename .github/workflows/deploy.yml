@@ -14,91 +14,84 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Deploy to server
+      - name: Deploy to AWS EC2
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+          INSTANCE_ID: i-0df3ff5363c6514f5
         run: |
-          # Install sshpass for password authentication
-          sudo apt-get update
-          sudo apt-get install -y sshpass
+          # Install AWS CLI
+          pip install awscli
           
-          echo "🚀 Starting deployment to ${SERVER_HOST}..."
+          echo "🚀 Starting deployment to AWS EC2..."
           
-          # Create deployment package
-          echo "📦 Creating deployment package..."
-          tar czf /tmp/chainviz-deploy.tar.gz \
-            --exclude='node_modules' \
-            --exclude='venv' \
-            --exclude='.git' \
-            --exclude='__pycache__' \
-            --exclude='*.log' \
-            --exclude='*.tar.gz' \
-            --exclude='backend/venv' \
-            --exclude='frontend/node_modules' \
-            --exclude='frontend/dist' \
-            --exclude='backend/__pycache__' \
-            -C "$GITHUB_WORKSPACE" \
-            .
+          # Send deployment command via SSM
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids $INSTANCE_ID \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=[
+              "echo \"🚀 GitHub deployment triggered at $(date)\"",
+              "cd /home/ubuntu/ChainViz",
+              "sudo chown -R ubuntu:ubuntu /home/ubuntu/ChainViz",
+              "git config --global --add safe.directory /home/ubuntu/ChainViz",
+              "git fetch origin",
+              "git reset --hard origin/main",
+              "echo",
+              "echo \"📦 Rebuilding containers...\"",
+              "sudo docker-compose down",
+              "sudo docker-compose build --no-cache",
+              "sudo docker-compose up -d",
+              "sleep 20",
+              "echo",
+              "echo \"✅ Deployment complete!\"",
+              "sudo docker-compose ps",
+              "echo",
+              "echo \"🧪 Testing endpoints...\"",
+              "curl -s http://localhost/health || echo \"Frontend starting...\"",
+              "curl -s http://localhost:8000/docs > /dev/null && echo \"✅ Backend API is responding\" || echo \"⚠️  Backend API check failed\""
+            ]' \
+            --timeout-seconds 900 \
+            --region $AWS_REGION \
+            --query 'Command.CommandId' \
+            --output text)
           
-          # Upload to server
-          echo "📤 Uploading to server..."
-          sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no \
-            /tmp/chainviz-deploy.tar.gz ${SERVER_USER}@${SERVER_HOST}:/tmp/
+          echo "📋 Deployment command sent: $COMMAND_ID"
+          echo "⏳ Waiting for deployment to complete (this takes 5-6 minutes)..."
           
-          # Deploy on server
-          echo "🔧 Deploying on server..."
-          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no \
-            ${SERVER_USER}@${SERVER_HOST} << 'ENDSSH'
-          set -e
+          # Wait for command to complete
+          for i in {1..40}; do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id $COMMAND_ID \
+              --instance-id $INSTANCE_ID \
+              --region $AWS_REGION \
+              --query 'Status' \
+              --output text 2>/dev/null || echo "Pending")
+            
+            echo "Status check $i/40: $STATUS"
+            
+            if [ "$STATUS" = "Success" ]; then
+              echo "✅ Deployment completed successfully!"
+              aws ssm get-command-invocation \
+                --command-id $COMMAND_ID \
+                --instance-id $INSTANCE_ID \
+                --region $AWS_REGION \
+                --query 'StandardOutputContent' \
+                --output text | tail -20
+              exit 0
+            elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ] || [ "$STATUS" = "TimedOut" ]; then
+              echo "❌ Deployment failed with status: $STATUS"
+              aws ssm get-command-invocation \
+                --command-id $COMMAND_ID \
+                --instance-id $INSTANCE_ID \
+                --region $AWS_REGION \
+                --query '[StandardOutputContent,StandardErrorContent]' \
+                --output text
+              exit 1
+            fi
+            
+            sleep 15
+          done
           
-          echo "📂 Extracting package..."
-          cd /tmp
-          rm -rf ChainViz-new
-          mkdir -p ChainViz-new
-          tar xzf chainviz-deploy.tar.gz -C ChainViz-new
-          
-          echo "🔄 Updating deployment directory..."
-          cd ChainViz-new
-          mkdir -p ~/ChainViz
-          rsync -a --delete \
-            --exclude='*.log' \
-            --exclude='.env' \
-            --exclude='backend/.env' \
-            ./ ~/ChainViz/
-          
-          cd ~/ChainViz
-          rm -rf /tmp/ChainViz-new /tmp/chainviz-deploy.tar.gz
-          
-          # Ensure .env exists
-          if [ ! -f backend/.env ]; then
-            echo "⚙️  Creating backend configuration..."
-            cat > backend/.env << 'EOF'
-          ELECTRUM_HOST=fulcrum.sethforprivacy.com
-          ELECTRUM_PORT=50002
-          ELECTRUM_USE_SSL=true
-          REDIS_HOST=redis
-          REDIS_PORT=6379
-          EOF
-          fi
-          
-          echo "🐳 Rebuilding and restarting containers..."
-          sudo docker compose down
-          sudo docker compose up -d --build
-          
-          echo "⏳ Waiting for services to start..."
-          sleep 15
-          
-          echo "✅ Deployment complete!"
-          echo ""
-          echo "📊 Service Status:"
-          sudo docker compose ps
-          
-          echo ""
-          echo "🏥 Health Check:"
-          curl -s http://localhost:8000/health || echo "Backend starting..."
-          ENDSSH
-          
-          echo "✅ Deployment completed successfully!"
+          echo "⏰ Deployment still in progress. Check manually:"
+          echo "   aws ssm get-command-invocation --command-id $COMMAND_ID --instance-id $INSTANCE_ID --region $AWS_REGION"

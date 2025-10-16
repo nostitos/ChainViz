@@ -1,6 +1,6 @@
 # Automatic Deployment Setup
 
-This guide explains how to set up automatic deployment from GitHub to your server at **192.168.2.118**.
+This guide explains how to set up automatic deployment from GitHub to your **AWS EC2 server** (utxo.link).
 
 ## 🎯 Overview
 
@@ -15,8 +15,9 @@ Every time you push code to the `main` branch on GitHub, it will automatically:
 ## 📋 Prerequisites
 
 - GitHub repository for ChainViz
-- Server access (192.168.2.118)
-- Server credentials (username: chainviz, password: chainviz)
+- AWS EC2 instance (i-0df3ff5363c6514f5)
+- AWS credentials with SSM permissions
+- Instance accessible via AWS Systems Manager
 
 ---
 
@@ -32,17 +33,21 @@ You need to add secrets to your GitHub repository so the deployment workflow can
 
 | Secret Name | Value | Description |
 |------------|-------|-------------|
-| `SERVER_HOST` | `192.168.2.118` | Your server IP address |
-| `SERVER_USER` | `chainviz` | SSH username |
-| `SERVER_PASSWORD` | `chainviz` | SSH password |
+| `AWS_ACCESS_KEY_ID` | `AKIA...` | Your AWS Access Key ID |
+| `AWS_SECRET_ACCESS_KEY` | `...` | Your AWS Secret Access Key |
 
 **How to add a secret:**
 - Click "New repository secret"
-- Enter the **Name** (e.g., `SERVER_HOST`)
-- Enter the **Value** (e.g., `192.168.2.118`)
+- Enter the **Name** (e.g., `AWS_ACCESS_KEY_ID`)
+- Enter the **Value** (from `~/.aws/credentials`)
 - Click "Add secret"
 
-Repeat for all three secrets.
+Repeat for both secrets.
+
+**Finding your AWS credentials:**
+```bash
+cat ~/.aws/credentials
+```
 
 ---
 
