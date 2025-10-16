@@ -30,10 +30,10 @@ jobs:
           chmod 700 ~/.ssh
           
           # Disable strict host key checking for this deployment
-          cat > ~/.ssh/config << 'EOF'
+          cat > ~/.ssh/config << EOF
           Host deployment-server
-            HostName ${{ secrets.SERVER_HOST }}
-            User ${{ secrets.SERVER_USER }}
+            HostName ${SERVER_HOST}
+            User ${SERVER_USER}
             StrictHostKeyChecking no
             UserKnownHostsFile /dev/null
           EOF
