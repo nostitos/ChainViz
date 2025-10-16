@@ -42,20 +42,24 @@ jobs:
           
           # Create deployment package
           echo "📦 Creating deployment package..."
-          tar czf chainviz-deploy.tar.gz \
+          tar czf /tmp/chainviz-deploy.tar.gz \
             --exclude='node_modules' \
             --exclude='venv' \
             --exclude='.git' \
             --exclude='__pycache__' \
             --exclude='*.log' \
+            --exclude='*.tar.gz' \
             --exclude='backend/venv' \
             --exclude='frontend/node_modules' \
+            --exclude='frontend/dist' \
+            --exclude='backend/__pycache__' \
+            -C "$GITHUB_WORKSPACE" \
             .
           
           # Upload to server
           echo "📤 Uploading to server..."
           sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no \
-            chainviz-deploy.tar.gz ${SERVER_USER}@${SERVER_HOST}:/tmp/
+            /tmp/chainviz-deploy.tar.gz ${SERVER_USER}@${SERVER_HOST}:/tmp/
           
           # Deploy on server
           echo "🔧 Deploying on server..."
