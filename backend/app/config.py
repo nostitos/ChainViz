@@ -9,8 +9,8 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    # Electrum Server (Local primary, Seth's Fulcrum fallback)
-    electrum_host: str = "192.168.2.114"
+    # Electrum Server (Custom primary, Seth's Fulcrum fallback)
+    electrum_host: str = "iu1b96e.glddns.com"
     electrum_port: int = 50002
     electrum_use_ssl: bool = False
     electrum_fallback_host: str = "fulcrum.sethforprivacy.com"

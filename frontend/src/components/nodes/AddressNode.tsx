@@ -20,10 +20,7 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
     ? changeReasons.join(', ') 
     : 'Change detected';
   
-  // Fetch balance on mount - DISABLED to avoid overwhelming server
-  // Balance fetching causes too many simultaneous requests
-  // Uncomment below if you want to re-enable with proper batching
-  /*
+  // Fetch balance on mount
   useEffect(() => {
     if (!address || address === 'Unknown') return;
     
@@ -39,7 +36,6 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
         setLoading(false);
       });
   }, [address]);
-  */
 
   const handleExpandSpending = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -84,8 +80,8 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
       </div>
       
       {/* Handles for connections - auto positioning */}
-      <Handle type="target" position={Position.Left} style={{ background: '#4caf50' }} />
-      <Handle type="source" position={Position.Right} style={{ background: '#ff9800' }} />
+      <Handle type="target" position={Position.Left} id="receiving" style={{ background: '#4caf50' }} />
+      <Handle type="source" position={Position.Right} id="spending" style={{ background: '#ff9800' }} />
       
       <div className="node-header">
         <Wallet size={18} />

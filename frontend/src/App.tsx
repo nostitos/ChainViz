@@ -31,7 +31,9 @@ import { EdgeLegend } from './components/EdgeLegend';
 import { ProgressLogger } from './components/ProgressLogger';
 import { traceFromAddress, traceFromUTXO, traceFromAddressWithStats, traceFromUTXOWithStats } from './services/api';
 import { buildGraphFromTraceDataBipartite, optimizeNodePositions } from './utils/graphBuilderBipartite';
+import { buildTreeLayout, findRootNode } from './utils/treeLayout';
 import { useForceLayout } from './hooks/useForceLayout';
+import { useEdgeTension } from './hooks/useEdgeTension';
 import './App.css';
 
 const nodeTypes = {
@@ -81,6 +83,8 @@ function AppContent() {
   };
 
   const [forceRepulsionEnabled, setForceRepulsionEnabled] = useState(getCookieBool('forceRepulsionEnabled', true)); // Load from cookie
+  const [treeLayoutEnabled, setTreeLayoutEnabled] = useState(getCookieBool('treeLayoutEnabled', false)); // Load from cookie
+  const [edgeTensionEnabled, setEdgeTensionEnabled] = useState(getCookieBool('edgeTensionEnabled', false)); // Load from cookie
 
   const [maxOutputs, setMaxOutputs] = useState(getCookie('maxOutputs', 5));
   const [maxTransactions, setMaxTransactions] = useState(getCookie('maxTransactions', 5));
@@ -301,6 +305,40 @@ function AppContent() {
     }, 100);
   }, [edges, setNodes, fitView, setHistory]);
 
+  // Handle tree layout
+  const handleTreeLayout = useCallback(() => {
+    console.log('🌳 Applying tree layout...');
+    setIsOptimizing(true);
+    
+    setNodes((nds) => {
+      // Find root node
+      const rootNodeId = findRootNode(nds, edges);
+      if (!rootNodeId) {
+        console.warn('⚠️ No root node found');
+        setIsOptimizing(false);
+        return nds;
+      }
+      
+      console.log(`🌳 Root node: ${rootNodeId}`);
+      
+      // Apply tree layout
+      const treeNodes = buildTreeLayout(nds, edges, rootNodeId, {
+        nodeSpacing: 400,
+        layerSpacing: 300,
+        direction: 'LR'
+      });
+      
+      return treeNodes;
+    });
+    
+    // Re-fit view after tree layout
+    setTimeout(() => {
+      fitView({ padding: 0.2, duration: 400 });
+      setIsOptimizing(false);
+      console.log('✅ Tree layout complete!');
+    }, 100);
+  }, [edges, setNodes, fitView]);
+
   // Handle push away burst
   const handlePushAway = useCallback(() => {
     console.log('💥 Push Away burst activated!');
@@ -324,6 +362,14 @@ function AppContent() {
     enabled: forceRepulsionEnabled && nodes.length > 0,
     collisionRadius: 60,
     maxTicks: 100, // Stop after 100 ticks for fast convergence
+  });
+
+  // Edge tension - pulls nodes closer when edges are long
+  useEdgeTension(nodes, edges, {
+    enabled: edgeTensionEnabled && nodes.length > 0,
+    strength: 0.5, // How strong the tension force is (0-1)
+    minLength: 200, // Minimum edge length in pixels
+    maxLength: 800, // Maximum edge length before tension kicks in
   });
   
   // Store forceLayout in ref to avoid dependency issues
@@ -657,6 +703,13 @@ function AppContent() {
     console.log('🚀 EXPAND TRIGGERED:', nodeId, direction);
     console.log('🔍 handleExpandNode called with:', { nodeId, direction });
     
+    // Temporarily disable repulsion during expansion to prevent interference
+    const wasRepulsionEnabled = forceRepulsionEnabled;
+    if (wasRepulsionEnabled) {
+      console.log('⏸️  Pausing repulsion during expansion');
+      setForceRepulsionEnabled(false);
+    }
+    
     // Only check expansion for transactions (addresses can expand multiple times to show all connected TXs)
     const expandKey = `${nodeId}-${direction || 'default'}`;
     
@@ -673,6 +726,10 @@ function AppContent() {
       console.log('⏭️  Transaction already expanded, skipping');
       setError('Transaction already expanded');
       setTimeout(() => setError(null), 2000);
+      // Re-enable repulsion if it was enabled
+      if (wasRepulsionEnabled) {
+        setForceRepulsionEnabled(true);
+      }
       return;
     }
     
@@ -812,7 +869,7 @@ function AppContent() {
                   id: edgeId,
                   source: nodeId,
                   target: clusterId,
-                  sourceHandle: 'default',
+                  // Don't specify sourceHandle - let React Flow auto-connect
                   targetHandle: `in-${idx}`, // Connect to left handle of cluster
                   type: 'default',
                   animated: false,
@@ -825,7 +882,7 @@ function AppContent() {
                   source: clusterId,
                   target: nodeId,
                   sourceHandle: `tx-${idx}`, // Connect to right handle of cluster
-                  targetHandle: 'default',
+                  // Don't specify targetHandle - let React Flow auto-connect
                   type: 'default',
                   animated: false,
                   style: { stroke: '#4caf50', strokeWidth: 2 },
@@ -909,24 +966,25 @@ function AppContent() {
               x = (sourceNode?.position.x ?? 0) + 400;
               y = sourceNode?.position.y ?? 0;
             } else if (inputAddresses.includes(node)) {
-              // Input addresses go to the LEFT of the TX (-400px from TX)
+              // Input addresses go to the LEFT of the source address (-400px from source)
               const inputIdx = inputAddresses.indexOf(node);
-              x = (sourceNode?.position.x ?? 0); // Same x as source (left of TX)
+              x = (sourceNode?.position.x ?? 0) - 400; // 400px to the left of source
               y = (sourceNode?.position.y ?? 0) + (inputIdx * 120) - (inputAddresses.length * 60);
               console.log(`  Input address ${inputIdx} at (${x}, ${y})`);
             } else if (node.data.metadata?.is_change === true) {
-              // Change outputs go to the RIGHT of TX and 100px ABOVE regular outputs
+              // Change outputs go to the RIGHT of TX and slightly ABOVE regular outputs
               const changeIdx = limitedChangeOutputs.indexOf(node);
               if (changeIdx === -1) return null; // Skip if not in limited list
               const txX = (sourceNode?.position.x ?? 0) + 400; // TX position
-              x = txX + 400; // Right of TX (same as regular outputs)
-              y = (sourceNode?.position.y ?? 0) - 50 - (changeIdx * 120); // 50px above center, stacked if multiple
+              x = txX + 400; // 400px right of TX
+              y = (sourceNode?.position.y ?? 0) - 20 - (changeIdx * 120); // 20px above center, stacked if multiple
               console.log(`  Change output ${changeIdx} at (${x}, ${y})`);
             } else {
               // Regular outputs go to the RIGHT of the TX (+400px from TX)
               const outputIdx = limitedRegularOutputs.indexOf(node);
               if (outputIdx === -1) return null; // Skip if not in limited list
-              x = (sourceNode?.position.x ?? 0) + 800; // Right of TX
+              const txX = (sourceNode?.position.x ?? 0) + 400; // TX position
+              x = txX + 400; // 400px right of TX
               y = (sourceNode?.position.y ?? 0) + (outputIdx * 120) - (limitedRegularOutputs.length * 60);
               console.log(`  Regular output ${outputIdx} at (${x}, ${y})`);
             }
@@ -1054,21 +1112,21 @@ function AppContent() {
             
             if (node.type === 'transaction') {
               // TXs go further out: LEFT (-1200) or RIGHT (+1200) from source TX
-              const offset = direction === 'inputs' ? -1200 : 1200;
+              const offset = direction === 'inputs' ? -400 : 400;
               const txIdx = newTransactions.indexOf(node);
               x = (sourceNode?.position.x ?? 0) + offset;
               y = (sourceNode?.position.y ?? 0) + (txIdx * 150) - (newTransactions.length * 75);
               console.log(`  TX ${txIdx} at (${x}, ${y})`);
             } else if (node.data.metadata?.is_change === true) {
-              // Change outputs go to the RIGHT and 100px ABOVE regular outputs
-              const offset = direction === 'inputs' ? -600 : 600;
+              // Change outputs go to the RIGHT and slightly ABOVE regular outputs
+              const offset = direction === 'inputs' ? -400 : 400;
               const changeIdx = changeAddresses.indexOf(node);
               x = (sourceNode?.position.x ?? 0) + offset;
-              y = (sourceNode?.position.y ?? 0) - 50 - (changeIdx * 120); // 50px above, stacked if multiple
+              y = (sourceNode?.position.y ?? 0) - 20 - (changeIdx * 120); // 20px above, stacked if multiple
               console.log(`  Change address ${changeIdx} at (${x}, ${y})`);
             } else {
-              // Regular addresses go between source TX and new TXs: LEFT (-600) or RIGHT (+600)
-              const offset = direction === 'inputs' ? -600 : 600;
+              // Regular addresses: LEFT (-400px) for inputs, RIGHT (+400px) for outputs
+              const offset = direction === 'inputs' ? -400 : 400;
               const regularIdx = regularAddresses.indexOf(node);
               x = (sourceNode?.position.x ?? 0) + offset;
               y = (sourceNode?.position.y ?? 0) + (regularIdx * 120) - (regularAddresses.length * 60);
@@ -1148,9 +1206,19 @@ function AppContent() {
         if (!addedAny) {
           console.log('ℹ️ No nodes were added during expand');
         }
+        
+        // Re-enable repulsion after expansion completes
+        if (wasRepulsionEnabled) {
+          console.log('▶️  Re-enabling repulsion after expansion');
+          setForceRepulsionEnabled(true);
+          // Reheat simulation to apply repulsion to new nodes
+          if (forceLayoutRef.current) {
+            forceLayoutRef.current.reheatSimulation();
+          }
+        }
       }, 200);
     }
-  }, [setNodes, setEdges, fitView, expandedNodes, setExpandedNodes, areNodesVisible]); // Don't include nodes to avoid stale closure!
+  }, [setNodes, setEdges, fitView, expandedNodes, setExpandedNodes, areNodesVisible, forceRepulsionEnabled]); // Don't include nodes to avoid stale closure!
 
   // Re-attach onExpand handler to all nodes (for restored graphs or when handler changes)
   useEffect(() => {
@@ -1436,6 +1504,30 @@ function AppContent() {
           📐 {isOptimizing ? 'Optimizing...' : 'Optimize Layout'}
         </button>
 
+        {/* Tree Layout Button */}
+        <button
+          onClick={handleTreeLayout}
+          disabled={nodes.length === 0 || isOptimizing}
+          style={{
+            padding: '8px 16px',
+            background: nodes.length === 0 || isOptimizing ? '#555' : '#9c27b0',
+            border: 'none',
+            borderRadius: '8px',
+            color: '#fff',
+            fontSize: '13px',
+            fontWeight: 600,
+            cursor: nodes.length === 0 || isOptimizing ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+            transition: 'all 0.2s ease',
+          }}
+          title="Apply tree layout with minimal edge crossings"
+        >
+          🌳 {isOptimizing ? 'Applying...' : 'Tree Layout'}
+        </button>
+
         {/* Repulsion Toggle */}
         <button
           onClick={() => {
@@ -1466,6 +1558,66 @@ function AppContent() {
           title={forceRepulsionEnabled ? 'Disable physics repulsion' : 'Enable physics repulsion'}
         >
           {forceRepulsionEnabled ? '🌀 Repulsion ON' : '⭕ Repulsion OFF'}
+        </button>
+
+        {/* Tree Layout Toggle */}
+        <button
+          onClick={() => {
+            const newValue = !treeLayoutEnabled;
+            setTreeLayoutEnabled(newValue);
+            setCookieBool('treeLayoutEnabled', newValue); // Save to cookie
+            if (newValue) {
+              // Auto-apply tree layout when enabled
+              handleTreeLayout();
+            }
+          }}
+          disabled={nodes.length === 0}
+          style={{
+            padding: '8px 16px',
+            background: nodes.length === 0 ? '#555' : treeLayoutEnabled ? '#9c27b0' : '#666',
+            border: 'none',
+            borderRadius: '8px',
+            color: '#fff',
+            fontSize: '13px',
+            fontWeight: 600,
+            cursor: nodes.length === 0 ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+            transition: 'all 0.2s ease',
+          }}
+          title={treeLayoutEnabled ? 'Disable tree layout mode' : 'Enable tree layout mode (auto-apply on expansion)'}
+        >
+          {treeLayoutEnabled ? '🌳 Tree ON' : '⭕ Tree OFF'}
+        </button>
+
+        {/* Edge Tension Toggle */}
+        <button
+          onClick={() => {
+            const newValue = !edgeTensionEnabled;
+            setEdgeTensionEnabled(newValue);
+            setCookieBool('edgeTensionEnabled', newValue); // Save to cookie
+          }}
+          disabled={nodes.length === 0}
+          style={{
+            padding: '8px 16px',
+            background: nodes.length === 0 ? '#555' : edgeTensionEnabled ? '#ff9800' : '#666',
+            border: 'none',
+            borderRadius: '8px',
+            color: '#fff',
+            fontSize: '13px',
+            fontWeight: 600,
+            cursor: nodes.length === 0 ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+            transition: 'all 0.2s ease',
+          }}
+          title={edgeTensionEnabled ? 'Disable edge tension' : 'Enable edge tension (pulls nodes closer when edges are long)'}
+        >
+          {edgeTensionEnabled ? '🔗 Tension ON' : '⭕ Tension OFF'}
         </button>
 
         {/* Push Away Burst */}

@@ -100,6 +100,62 @@ export const TransactionClusterNode: React.FC<{ data: TransactionClusterData }> 
         }
       })}
       
+      {/* Special handle for remaining transactions NOT shown in the cluster */}
+      {totalCount && totalCount > transactions.length && (
+        <>
+          {direction === 'inputs' && (
+            <>
+              {/* LEFT handle for remaining inputs */}
+              <Handle
+                type="target"
+                position={Position.Left}
+                id="remaining-inputs"
+                style={{
+                  background: '#ff9800',
+                  width: 10,
+                  height: 10,
+                  left: -5,
+                  top: HEADER_HEIGHT + (transactions.length * ROW_HEIGHT) + 20,
+                  position: 'absolute',
+                  border: '2px solid #fff',
+                }}
+              />
+              {/* RIGHT handle for remaining inputs */}
+              <Handle
+                type="source"
+                position={Position.Right}
+                id="remaining-inputs-out"
+                style={{
+                  background: '#ff9800',
+                  width: 10,
+                  height: 10,
+                  right: -5,
+                  top: HEADER_HEIGHT + (transactions.length * ROW_HEIGHT) + 20,
+                  position: 'absolute',
+                  border: '2px solid #fff',
+                }}
+              />
+            </>
+          )}
+          {direction === 'outputs' && (
+            <Handle
+              type="source"
+              position={Position.Right}
+              id="remaining-outputs"
+              style={{
+                background: '#ff9800',
+                width: 10,
+                height: 10,
+                right: -5,
+                top: HEADER_HEIGHT + (transactions.length * ROW_HEIGHT) + 20,
+                position: 'absolute',
+                border: '2px solid #fff',
+              }}
+            />
+          )}
+        </>
+      )}
+      
       <div className="cluster-header">
         <div className="cluster-title">
           {totalCount && totalCount > transactions.length 
