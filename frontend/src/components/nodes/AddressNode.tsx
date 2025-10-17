@@ -20,7 +20,10 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
     ? changeReasons.join(', ') 
     : 'Change detected';
   
-  // Fetch balance on mount
+  // Fetch balance on mount - DISABLED to avoid overwhelming server
+  // Balance fetching causes too many simultaneous requests
+  // Uncomment below if you want to re-enable with proper batching
+  /*
   useEffect(() => {
     if (!address || address === 'Unknown') return;
     
@@ -36,6 +39,7 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
         setLoading(false);
       });
   }, [address]);
+  */
 
   const handleExpandSpending = (e: React.MouseEvent) => {
     e.stopPropagation();

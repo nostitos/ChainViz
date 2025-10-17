@@ -21,13 +21,13 @@ export interface TraceResponse {
   depth_reached: number;
 }
 
-export async function traceFromAddress(address: string, maxDepth: number = 5): Promise<TraceResponse> {
+export async function traceFromAddress(address: string, maxDepth: number = 5, maxTransactions: number = 100): Promise<TraceResponse> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout
 
   try {
     const response = await fetch(
-      `${API_BASE_URL}/trace/address?address=${encodeURIComponent(address)}&max_depth=${maxDepth}`,
+      `${API_BASE_URL}/trace/address?address=${encodeURIComponent(address)}&max_depth=${maxDepth}&max_transactions=${maxTransactions}`,
       {
         method: 'POST',
         headers: {
@@ -90,7 +90,7 @@ export async function traceFromAddressWithStats(address: string, maxDepth: numbe
   }
 }
 
-export async function traceFromUTXO(txid: string, vout: number, maxDepth: number = 5): Promise<TraceResponse> {
+export async function traceFromUTXO(txid: string, vout: number, hopsBefore: number = 5, hopsAfter: number = 5): Promise<TraceResponse> {
   const response = await fetch(`${API_BASE_URL}/trace/utxo`, {
     method: 'POST',
     headers: {
@@ -99,21 +99,23 @@ export async function traceFromUTXO(txid: string, vout: number, maxDepth: number
     body: JSON.stringify({
       txid,
       vout,
-      max_depth: maxDepth,
-      include_coinjoin: false,
+      hops_before: hopsBefore,
+      hops_after: hopsAfter,
+      include_coinjoin: true,
       confidence_threshold: 0.5,
     }),
   });
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
+    console.error('❌ API Error:', error);
+    throw new Error(error.detail || JSON.stringify(error) || `HTTP ${response.status}`);
   }
 
   return response.json();
 }
 
-export async function traceFromUTXOWithStats(txid: string, vout: number, maxDepth: number = 5): Promise<{ data: TraceResponse; bytes: number }> {
+export async function traceFromUTXOWithStats(txid: string, vout: number, hopsBefore: number = 5, hopsAfter: number = 5): Promise<{ data: TraceResponse; bytes: number }> {
   const response = await fetch(`${API_BASE_URL}/trace/utxo`, {
     method: 'POST',
     headers: {
@@ -122,8 +124,9 @@ export async function traceFromUTXOWithStats(txid: string, vout: number, maxDept
     body: JSON.stringify({
       txid,
       vout,
-      max_depth: maxDepth,
-      include_coinjoin: false,
+      hops_before: hopsBefore,
+      hops_after: hopsAfter,
+      include_coinjoin: true,
       confidence_threshold: 0.5,
     }),
   });

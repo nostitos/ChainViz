@@ -155,12 +155,33 @@ class ElectrumClient:
         """
         Make multiple RPC calls in a single batch request.
         This is significantly faster than individual calls.
+        For large batches (100+), splits into chunks to avoid timeout/memory issues.
         
         Args:
             requests: List of (method, params) tuples
             
         Returns:
             List of results in same order as requests
+        """
+        if not requests:
+            return []
+        
+        # For large batches, chunk them to avoid timeout/memory issues
+        CHUNK_SIZE = 100
+        if len(requests) > CHUNK_SIZE:
+            logger.info(f"📦 Chunking {len(requests)} requests into batches of {CHUNK_SIZE}")
+            all_results = []
+            for i in range(0, len(requests), CHUNK_SIZE):
+                chunk = requests[i:i + CHUNK_SIZE]
+                chunk_results = await self._batch_call_single(chunk)
+                all_results.extend(chunk_results)
+            return all_results
+        else:
+            return await self._batch_call_single(requests)
+    
+    async def _batch_call_single(self, requests: List[Tuple[str, List[Any]]]) -> List[Any]:
+        """
+        Make a single batch request (internal helper)
         """
         if not requests:
             return []
@@ -194,11 +215,14 @@ class ElectrumClient:
             # Extract results in order
             results = []
             for response in responses:
-                if "error" in response:
+                if isinstance(response, dict) and "error" in response:
                     logger.warning(f"Batch item error: {response['error']}")
                     results.append(None)
-                else:
+                elif isinstance(response, dict):
                     results.append(response.get("result"))
+                else:
+                    logger.warning(f"Unexpected response type: {type(response)}")
+                    results.append(None)
 
             return results
 

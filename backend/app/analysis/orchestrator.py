@@ -90,8 +90,8 @@ class TraceOrchestrator:
         # Convert graph to response format
         nodes, edges = self._build_graph_data(confidence_threshold)
 
-        # Count depths reached
-        depth_reached = self._calculate_max_depth()
+        # Count hops reached (backward only in this function)
+        hops_reached = self._calculate_max_depth()
 
         logger.info(
             f"Trace complete: {len(nodes)} nodes, {len(edges)} edges, {len(clusters)} clusters"
@@ -105,7 +105,8 @@ class TraceOrchestrator:
             peel_chains=self.peel_chains,
             start_txid=txid,
             start_vout=vout,
-            depth_reached=depth_reached,
+            hops_before_reached=hops_reached,
+            hops_after_reached=0,  # This function only traces backward
             total_nodes=len(nodes),
             total_edges=len(edges),
         )

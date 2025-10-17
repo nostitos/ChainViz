@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, ExternalLink, Expand, ArrowRight, ArrowLeft } from 'lucide-react';
+import { X, ExternalLink, Expand, ArrowRight, ArrowLeft, Copy, Check } from 'lucide-react';
 import type { Node } from '@xyflow/react';
 
 interface EntityPanelProps {
@@ -106,6 +106,23 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
   const [txDetails, setTxDetails] = useState<TransactionDetails | null>(null);
   const [addressInfo, setAddressInfo] = useState<AddressInfo | null>(null);
   const [loading, setLoading] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+
+  const copyToClipboard = async (text: string, type: 'id' | 'address') => {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (type === 'id') {
+        setCopiedId(text);
+        setTimeout(() => setCopiedId(null), 2000);
+      } else {
+        setCopiedAddress(text);
+        setTimeout(() => setCopiedAddress(null), 2000);
+      }
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
 
   // Fetch transaction details when transaction is selected
   useEffect(() => {
@@ -172,6 +189,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
       fetch(`http://localhost:8000/api/address/${address}`)
         .then(res => res.json())
         .then(data => {
+          console.log('📊 Address info fetched:', data);
           setAddressInfo({
             balance: data.balance || 0,
             total_received: data.total_received || 0,
@@ -185,13 +203,36 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
     }
   }, [entity.id, isTransaction, data.address, metadata.address]);
 
-  const renderField = (label: string, value: any) => {
+  const renderField = (label: string, value: any, copyable: boolean = false) => {
     if (value === undefined || value === null) return null;
+    
+    const valueStr = String(value);
+    const isCopied = copiedId === valueStr || copiedAddress === valueStr;
     
     return (
       <div className="detail-row">
         <span className="detail-label">{label}:</span>
-        <span className="detail-value">{String(value)}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="detail-value" style={{ flex: 1 }}>{valueStr}</span>
+          {copyable && (
+            <button
+              onClick={() => copyToClipboard(valueStr, label.toLowerCase().includes('address') ? 'address' : 'id')}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                color: isCopied ? '#4caf50' : 'var(--text-secondary)',
+                transition: 'color 0.2s'
+              }}
+              title={isCopied ? 'Copied!' : 'Copy to clipboard'}
+            >
+              {isCopied ? <Check size={16} /> : <Copy size={16} />}
+            </button>
+          )}
+        </div>
       </div>
     );
   };
@@ -216,7 +257,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
       <div className="panel-content">
         {isTransaction ? (
           <>
-            {renderField('Transaction ID', data.txid || metadata.txid)}
+            {renderField('Transaction ID', data.txid || metadata.txid, true)}
             {renderField('Depth', metadata.depth)}
             {renderField('Timestamp', metadata.timestamp ? new Date(metadata.timestamp * 1000).toLocaleString() : null)}
 
@@ -332,7 +373,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
           </>
         ) : (
           <>
-            {renderField('Address', data.address || metadata.address)}
+            {renderField('Address', data.address || metadata.address, true)}
             {renderField('Cluster ID', metadata.cluster_id)}
             
             {/* Show address statistics */}

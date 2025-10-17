@@ -12,8 +12,8 @@ interface SearchBarProps {
 
 export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpenSettings, edgeScaleMax, onEdgeScaleMaxChange }: SearchBarProps) {
   const [input, setInput] = useState('');
-  const [hopsBefore, setHopsBefore] = useState(1); // Hops backward (into the past)
-  const [hopsAfter, setHopsAfter] = useState(1); // Hops forward (into the future)
+  const [hopsBefore, setHopsBefore] = useState(0); // Hops backward (into the past)
+  const [hopsAfter, setHopsAfter] = useState(0); // Hops forward (into the future)
   const [history, setHistory] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -179,7 +179,7 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
                       type="range"
                       min="1"
                       max="500"
-                      step="1"
+                      step="0.1"
                       value={edgeScaleMax}
                       onChange={(e) => onEdgeScaleMaxChange(parseFloat(e.target.value))}
                       className="depth-slider"

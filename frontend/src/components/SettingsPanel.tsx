@@ -5,9 +5,21 @@ interface SettingsPanelProps {
   onClose: () => void;
   edgeAnimation: boolean;
   onEdgeAnimationChange: (enabled: boolean) => void;
+  maxOutputs: number;
+  onMaxOutputsChange: (value: number) => void;
+  maxTransactions: number;
+  onMaxTransactionsChange: (value: number) => void;
 }
 
-export function SettingsPanel({ onClose, edgeAnimation, onEdgeAnimationChange }: SettingsPanelProps) {
+export function SettingsPanel({ 
+  onClose, 
+  edgeAnimation, 
+  onEdgeAnimationChange,
+  maxOutputs,
+  onMaxOutputsChange,
+  maxTransactions,
+  onMaxTransactionsChange
+}: SettingsPanelProps) {
   const [electrumHost, setElectrumHost] = useState('192.168.2.114');
   const [electrumPort, setElectrumPort] = useState('50002');
   const [useSSL, setUseSSL] = useState(false);
@@ -50,6 +62,40 @@ export function SettingsPanel({ onClose, edgeAnimation, onEdgeAnimationChange }:
               />
               <span>Animated Edges</span>
             </label>
+          </div>
+
+          <div className="setting-field">
+            <label>
+              Max Outputs Per Transaction: <strong>{maxOutputs}</strong>
+            </label>
+            <input
+              type="range"
+              min="1"
+              max="300"
+              value={maxOutputs}
+              onChange={(e) => onMaxOutputsChange(parseInt(e.target.value))}
+              style={{ width: '50%' }}
+            />
+            <div className="setting-info" style={{ fontSize: '12px', marginTop: '4px' }}>
+              Limits how many outputs are shown when expanding transactions
+            </div>
+          </div>
+
+          <div className="setting-field">
+            <label>
+              Max Transactions to Expand: <strong>{maxTransactions}</strong>
+            </label>
+            <input
+              type="range"
+              min="1"
+              max="300"
+              value={maxTransactions}
+              onChange={(e) => onMaxTransactionsChange(parseInt(e.target.value))}
+              style={{ width: '50%' }}
+            />
+            <div className="setting-info" style={{ fontSize: '12px', marginTop: '4px' }}>
+              Limits how many transactions are expanded when tracing addresses
+            </div>
           </div>
         </div>
 

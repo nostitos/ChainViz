@@ -17,11 +17,12 @@ from .analysis import (
 
 
 class TraceUTXORequest(BaseModel):
-    """Request to trace a UTXO backward"""
+    """Request to trace a UTXO backward and forward"""
 
     txid: str = Field(..., description="Transaction ID")
     vout: int = Field(..., ge=0, description="Output index")
-    max_depth: int = Field(default=20, ge=1, le=50, description="Maximum trace depth")
+    hops_before: int = Field(default=5, ge=0, le=50, description="Number of hops to trace backward (inputs)")
+    hops_after: int = Field(default=5, ge=0, le=50, description="Number of hops to trace forward (outputs)")
     include_coinjoin: bool = Field(
         default=False, description="Whether to trace through CoinJoin transactions"
     )
@@ -100,7 +101,8 @@ class TraceGraphResponse(BaseModel):
     )
     start_txid: str = Field(..., description="Starting transaction ID")
     start_vout: int = Field(..., description="Starting output index")
-    depth_reached: int = Field(..., description="Maximum depth reached")
+    hops_before_reached: int = Field(..., description="Number of backward hops reached")
+    hops_after_reached: int = Field(..., description="Number of forward hops reached")
     total_nodes: int = Field(..., description="Total number of nodes")
     total_edges: int = Field(..., description="Total number of edges")
 

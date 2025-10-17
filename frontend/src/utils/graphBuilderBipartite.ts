@@ -33,13 +33,28 @@ interface TraceData {
   }>;
 }
 
-export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: number = 10): { nodes: Node[]; edges: Edge[] } {
+export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: number = 10, maxTransactions: number = 20, showAddresses: boolean = true, maxOutputs: number = 20, startTxid?: string): { nodes: Node[]; edges: Edge[] } {
+  console.log('📊 buildGraphFromTraceDataBipartite called with maxTransactions:', maxTransactions, 'showAddresses:', showAddresses, 'maxOutputs:', maxOutputs, 'startTxid:', startTxid);
   let nodes: Node[] = [];
-  const edges: Edge[] = [];
+  let edges: Edge[] = [];
 
   // Separate by type
   const txData = data.nodes.filter(n => n.type === 'transaction');
   const addrData = data.nodes.filter(n => n.type === 'address');
+  
+  console.log(`📊 Found ${txData.length} transactions, ${addrData.length} addresses`);
+  
+  // Limit transactions if there are too many
+  let limitedTxData = txData;
+  if (txData.length > maxTransactions) {
+    console.log(`⚠️ Limiting transactions: showing ${maxTransactions} of ${txData.length} transactions`);
+    // Sort by timestamp and take the most recent ones
+    limitedTxData = txData.sort((a, b) => {
+      const tA = a.metadata?.timestamp || 0;
+      const tB = b.metadata?.timestamp || 0;
+      return tB - tA; // Most recent first
+    }).slice(0, maxTransactions);
+  }
   
   // Build adjacency maps
   const txInputs = new Map<string, string[]>(); // TX → input addresses
@@ -61,7 +76,7 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
   });
 
   // Sort TXs chronologically
-  const sortedTxs = txData.sort((a, b) => {
+  const sortedTxs = limitedTxData.sort((a, b) => {
     const tA = a.metadata?.timestamp || 0;
     const tB = b.metadata?.timestamp || 0;
     return tA - tB;
@@ -69,8 +84,8 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
 
   // Layout: Simple left-to-right with TXs evenly spaced
   const TX_SPACING = 800;
-  const ADDR_OFFSET = 480;
-  const ROW_SPACING = 120;
+  const ADDR_OFFSET = 480; // Distance from TX to addresses (unchanged)
+  const ROW_SPACING = 90; // Increased from 60 to 90 for more space between addresses
   
   // Cluster node sizing constants (must match AddressClusterNode.tsx AND CSS)
   const CLUSTER_HEADER_HEIGHT = 45; // padding + font + margin + spacing
@@ -102,8 +117,139 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     });
   });
 
-  // Position ALL addresses relative to their connected TXs
+  // Position ALL addresses relative to their connected TXs (unless showAddresses is false)
   const positioned = new Set<string>();
+  
+  if (!showAddresses) {
+    console.log('⚠️ Depth=0 mode: showing address node with connections to transactions');
+    // In depth=0 mode, we want to show:
+    // 1. The center address node
+    // 2. All transaction nodes positioned by relationship:
+    //    - Transactions where address is INPUT → LEFT
+    //    - Transactions where address is OUTPUT → RIGHT
+    //    - Transactions where address is BOTH → BOTTOM
+    // 3. Edges connecting them
+    
+    // Find the center address (should be the one we're tracing from)
+    const centerAddress = addrData.find(addr => {
+      // The center address is the one that appears in all transaction connections
+      const isInInputs = data.edges.some(e => e.target === addr.id);
+      const isInOutputs = data.edges.some(e => e.source === addr.id);
+      return isInInputs || isInOutputs;
+    });
+    
+    if (centerAddress) {
+      console.log('📍 Found center address:', centerAddress.id);
+      
+      // Add the center address node at center
+      nodes.push({
+        id: centerAddress.id,
+        type: 'address',
+        position: { x: 0, y: 0 }, // Center
+        data: {
+          ...centerAddress,
+          label: centerAddress.label,
+          metadata: centerAddress.metadata,
+        },
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
+      });
+      
+      // Categorize transactions by relationship to address
+      const leftTxs: any[] = []; // Address is INPUT (TX → Address)
+      const rightTxs: any[] = []; // Address is OUTPUT (Address → TX)
+      const bottomTxs: any[] = []; // Address is BOTH
+      
+      sortedTxs.forEach(txNode => {
+        const hasInput = data.edges.some(e => e.target === centerAddress.id && e.source === txNode.id);
+        const hasOutput = data.edges.some(e => e.source === centerAddress.id && e.target === txNode.id);
+        
+        if (hasInput && hasOutput) {
+          bottomTxs.push(txNode);
+        } else if (hasInput) {
+          leftTxs.push(txNode);
+        } else if (hasOutput) {
+          rightTxs.push(txNode);
+        }
+      });
+      
+      console.log(`📊 Transactions: ${leftTxs.length} left (inputs), ${rightTxs.length} right (outputs), ${bottomTxs.length} bottom (both)`);
+      
+      // Position transactions
+      const TX_SPACING = 500;
+      const BOTTOM_OFFSET = 300;
+      
+      // Left side (inputs) - TX to Address
+      leftTxs.forEach((txNode, idx) => {
+        const txNodeInGraph = nodes.find(n => n.id === txNode.id);
+        if (txNodeInGraph) {
+          txNodeInGraph.position = {
+            x: -TX_SPACING,
+            y: (idx - leftTxs.length / 2) * 120
+          };
+        }
+      });
+      
+      // Right side (outputs) - Address to TX
+      rightTxs.forEach((txNode, idx) => {
+        const txNodeInGraph = nodes.find(n => n.id === txNode.id);
+        if (txNodeInGraph) {
+          txNodeInGraph.position = {
+            x: TX_SPACING,
+            y: (idx - rightTxs.length / 2) * 120
+          };
+        }
+      });
+      
+      // Bottom (both) - Address is both input and output
+      bottomTxs.forEach((txNode, idx) => {
+        const txNodeInGraph = nodes.find(n => n.id === txNode.id);
+        if (txNodeInGraph) {
+          txNodeInGraph.position = {
+            x: (idx - bottomTxs.length / 2) * 120,
+            y: BOTTOM_OFFSET
+          };
+        }
+      });
+      
+      // Add edges from center address to all transactions
+      data.edges.forEach(edgeData => {
+        if (edgeData.source === centerAddress.id || edgeData.target === centerAddress.id) {
+          const amount = edgeData.amount || 0;
+          
+          // Calculate edge width using same formula as normal edges
+          const minAmountSats = 100000; // 0.001 BTC
+          const scaleMaxSats = edgeScaleMax * 100000000;
+          const sqrtBase = Math.sqrt(scaleMaxSats / minAmountSats);
+          let strokeWidth = 2;
+          if (amount > minAmountSats) {
+            const sqrtValue = Math.sqrt(amount / minAmountSats) / sqrtBase;
+            strokeWidth = 2 + (sqrtValue * 68);
+          }
+          
+          edges.push({
+            id: `e-${edgeData.source}-${edgeData.target}`,
+            source: edgeData.source,
+            target: edgeData.target,
+            type: 'default', // Same as normal edges
+            animated: false,
+            data: {
+              amount: amount, // Store amount for recalculation
+            },
+            style: { 
+              stroke: '#4caf50', // Green like normal edges
+              strokeWidth 
+            },
+            label: amount > 0 ? `${(amount / 100000000).toFixed(8)} BTC` : undefined,
+          });
+        }
+      });
+      
+      console.log(`✅ Added center address with ${edges.length} edges to transactions`);
+    }
+    
+    return { nodes, edges };
+  }
   
   sortedTxs.forEach(txNode => {
     const txNodeInGraph = nodes.find(n => n.id === txNode.id)!;
@@ -112,8 +258,12 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     const inputAddrIds = txInputs.get(txNode.id) || [];
     const inputAddrs = inputAddrIds.map(id => addrData.find(a => a.id === id)!).filter(Boolean);
     
-    // If 10+ inputs, create cluster node
-    if (inputAddrs.length >= 10) {
+    // Check if this is the starting transaction
+    const isStartTx = startTxid && txNode.metadata?.txid === startTxid;
+    
+    // If 10+ inputs AND not the starting TX, create cluster node
+    // For starting TX, show all addresses individually (up to maxOutputs limit)
+    if (inputAddrs.length >= 10 && !isStartTx) {
       const clusterId = `cluster-inputs-${txNode.id}`;
       
       // Get amounts from edges
@@ -148,8 +298,14 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
       });
       inputAddrs.forEach(a => positioned.add(a.id));
     } else {
-      // Show individual address nodes
-      inputAddrs.forEach((addrNode, idx) => {
+      // Show individual address nodes (limited by maxOutputs if starting TX)
+      const addrsToShow = isStartTx ? inputAddrs.slice(0, maxOutputs) : inputAddrs;
+      
+      if (isStartTx && inputAddrs.length > maxOutputs) {
+        console.log(`⚠️ Start TX: Limiting inputs from ${inputAddrs.length} to ${maxOutputs}`);
+      }
+      
+      addrsToShow.forEach((addrNode, idx) => {
         if (positioned.has(addrNode.id)) return;
         
         nodes.push({
@@ -157,7 +313,7 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
           type: 'address',
           position: {
             x: txNodeInGraph.position.x - ADDR_OFFSET,
-            y: (idx - inputAddrs.length / 2) * ROW_SPACING,
+            y: (idx - addrsToShow.length / 2) * ROW_SPACING,
           },
           data: {
             ...addrNode,
@@ -177,8 +333,9 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     const changeAddrs = outputAddrs.filter(a => a.metadata?.is_change === true);
     const regularAddrs = outputAddrs.filter(a => a.metadata?.is_change !== true);
     
-    // If 10+ outputs, create cluster node
-    if (regularAddrs.length >= 10) {
+    // If 10+ outputs AND not the starting TX, create cluster node
+    // For starting TX, show all addresses individually (up to maxOutputs limit)
+    if (regularAddrs.length >= 10 && !isStartTx) {
       const clusterId = `cluster-outputs-${txNode.id}`;
       
       // Get amounts and vout from edges
@@ -215,7 +372,7 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
       });
       regularAddrs.forEach(a => positioned.add(a.id));
     } else {
-      // Change addresses FIRST (above regular outputs) - RIGHT of TX
+      // Change addresses FIRST (slightly above regular outputs) - RIGHT of TX
       changeAddrs.forEach((addrNode, idx) => {
         if (positioned.has(addrNode.id)) return;
         
@@ -227,7 +384,7 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
           type: 'address',
           position: {
             x: txNodeInGraph.position.x + ADDR_OFFSET,
-            y: topRegularY - 50 - (idx * ROW_SPACING), // 50px above the topmost regular output
+            y: topRegularY - 20 - (idx * ROW_SPACING), // 20px above the topmost regular output (reduced from 50px)
           },
           data: {
             ...addrNode,
@@ -239,8 +396,14 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
         positioned.add(addrNode.id);
       });
       
-      // Show individual regular output nodes (starting at y=0)
-      regularAddrs.forEach((addrNode, idx) => {
+      // Show individual regular output nodes (starting at y=0, limited by maxOutputs if starting TX)
+      const regularAddrsToShow = isStartTx ? regularAddrs.slice(0, maxOutputs) : regularAddrs;
+      
+      if (isStartTx && regularAddrs.length > maxOutputs) {
+        console.log(`⚠️ Start TX: Limiting regular outputs from ${regularAddrs.length} to ${maxOutputs}`);
+      }
+      
+      regularAddrsToShow.forEach((addrNode, idx) => {
         if (positioned.has(addrNode.id)) return;
         
         nodes.push({
@@ -248,7 +411,7 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
           type: 'address',
           position: {
             x: txNodeInGraph.position.x + ADDR_OFFSET,
-            y: (idx - regularAddrs.length / 2) * ROW_SPACING,
+            y: (idx - regularAddrsToShow.length / 2) * ROW_SPACING,
           },
           data: {
             ...addrNode,
@@ -264,6 +427,9 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
 
   // Remove duplicate standalone address nodes that are now part of clusters
   const clusteredAddressIds = new Set<string>();
+  const clusterNodes = nodes.filter(n => n.type === 'addressCluster');
+  console.log(`🔍 Found ${clusterNodes.length} cluster nodes in graph`);
+  
   nodes.forEach(n => {
     if (n.type === 'addressCluster' && n.data.addresses) {
       n.data.addresses.forEach((addr: any) => {
@@ -272,6 +438,8 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
       });
     }
   });
+  
+  console.log(`🔍 ${clusteredAddressIds.size} addresses are in clusters`);
 
   // Filter out standalone nodes for clustered addresses
   nodes = nodes.filter(n => {
@@ -295,6 +463,9 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
       });
     }
   });
+  
+  console.log(`🔗 addrToCluster map has ${addrToCluster.size} entries`);
+  console.log(`🔗 Cluster nodes: ${nodes.filter(n => n.type === 'addressCluster').map(n => n.id).join(', ')}`);
   
   // Find max amount for proportional edge widths
   const maxAmount = Math.max(...data.edges.map(e => e.amount || 0), 1);
@@ -393,6 +564,18 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     
     edges.push(edge);
   });
+
+  // Deduplicate edges by ID to prevent React warnings
+  const edgeMap = new Map<string, Edge>();
+  edges.forEach(e => {
+    if (!edgeMap.has(e.id)) {
+      edgeMap.set(e.id, e);
+    } else {
+      console.log(`⚠️ Duplicate edge detected: ${e.id}`);
+    }
+  });
+  edges = Array.from(edgeMap.values());
+  console.log(`✅ Deduplicated edges: ${edges.length} unique edges`);
 
   return { nodes, edges };
 }

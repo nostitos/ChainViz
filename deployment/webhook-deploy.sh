@@ -113,3 +113,5 @@ log "   Commit:   ${LATEST_COMMIT:0:7}"
 #   -d "{\"text\":\"ChainViz deployed successfully! Commit: ${LATEST_COMMIT:0:7}\"}"
 
 
+
+

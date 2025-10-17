@@ -19,41 +19,59 @@ async def trace_utxo(
     blockchain_service: BlockchainDataService = Depends(get_blockchain_service),
 ):
     """
-    Trace a UTXO backward through transaction history
+    Trace a UTXO backward and forward through transaction history
     
     This endpoint applies all heuristics (clustering, change detection, peel chains, 
-    CoinJoin detection) to build a comprehensive graph of where the UTXO came from.
-    
-    When max_depth=1, it also shows the TX's inputs (immediate neighborhood).
+    CoinJoin detection) to build a comprehensive graph of where the UTXO came from
+    and where it went.
     
     Example:
     ```json
     {
       "txid": "abcd1234...",
       "vout": 0,
-      "max_depth": 20,
+      "hops_before": 5,
+      "hops_after": 5,
       "include_coinjoin": false,
       "confidence_threshold": 0.5
     }
     ```
     """
     try:
-        logger.info(f"Tracing UTXO: {request.txid}:{request.vout}, depth={request.max_depth}")
+        logger.info(f"Tracing UTXO: {request.txid}:{request.vout}, hops_before={request.hops_before}, hops_after={request.hops_after}")
 
         # Get the base backward trace
         orchestrator = TraceOrchestrator(blockchain_service)
         result = await orchestrator.trace_utxo_backward(
             txid=request.txid,
             vout=request.vout,
-            max_depth=request.max_depth,
+            max_depth=request.hops_before,
             include_coinjoin=request.include_coinjoin,
             confidence_threshold=request.confidence_threshold,
         )
 
-        # ALWAYS add INPUT addresses for ALL transactions in the result
+        # ALWAYS add INPUT and OUTPUT addresses for ALL transactions in the result
         # Use BATCHING for major performance improvement!
         tx_nodes = [n for n in result.nodes if n.type == 'transaction']
-        logger.info(f"📥 Adding input addresses for {len(tx_nodes)} TXs in result")
+        logger.info(f"📥 Adding input/output addresses for {len(tx_nodes)} TXs in result")
+        
+        # ALWAYS include the starting transaction, even if it's not in the result yet
+        # This is especially important for hops_before=0 where we want to show inputs/outputs
+        if not any(n.metadata.get('txid') == request.txid for n in tx_nodes if n.metadata):
+            logger.info(f"➕ Starting TX not in result, adding it...")
+            # Fetch the starting transaction
+            start_tx = await blockchain_service.fetch_transaction(request.txid)
+            if start_tx:
+                # Add the transaction node
+                result.nodes.append(NodeData(
+                    id=f"tx_{request.txid}",
+                    label=f"{request.txid[:16]}...",
+                    type="transaction",
+                    value=None,
+                    metadata={"txid": request.txid, "depth": 0, "timestamp": start_tx.timestamp}
+                ))
+                tx_nodes.append(result.nodes[-1])
+                logger.info(f"✅ Added starting TX node")
         
         # Step 1: Batch fetch all main transactions
         main_txids = [n.metadata.get('txid') for n in tx_nodes if n.metadata and n.metadata.get('txid')]
@@ -119,6 +137,32 @@ async def trace_utxo(
                                         metadata={"vout": inp.vout}
                                     ))
                                     logger.info(f"  ➕ Added input edge: {prev_output.address[:20]}... → TX {txid[:20]}")
+                
+                # ALSO add output addresses for ALL transactions (especially important for starting TX)
+                logger.info(f"📤 Processing outputs for TX {txid[:20]}... ({len(tx.outputs)} outputs)")
+                for out_idx, out in enumerate(tx.outputs):
+                    if out.address:
+                        out_addr_id = f"addr_{out.address}"
+                        # Add address node if not exists
+                        if not any(n.id == out_addr_id for n in result.nodes):
+                            result.nodes.append(NodeData(
+                                id=out_addr_id,
+                                label=out.address,
+                                type="address",
+                                value=None,
+                                metadata={"address": out.address, "is_change": False, "cluster_id": None}
+                            ))
+                            logger.info(f"  ➕ Added output address: {out.address[:20]}...")
+                        # Edge from TX to output address
+                        if not any(e.source == tx_node_id and e.target == out_addr_id for e in result.edges):
+                            result.edges.append(EdgeData(
+                                source=tx_node_id,
+                                target=out_addr_id,
+                                amount=out.value,
+                                confidence=1.0,
+                                metadata={"vout": out_idx}
+                            ))
+                            logger.info(f"  ➕ Added output edge: TX {txid[:20]} → {out.address[:20]}")
         
         logger.info(f"✅ Final result: {len(result.nodes)} nodes, {len(result.edges)} edges")
 
@@ -229,6 +273,7 @@ async def get_address_transactions(
 async def trace_from_address(
     address: str,
     max_depth: int = 20,
+    max_transactions: int = 100,
     include_coinjoin: bool = False,
     confidence_threshold: float = 0.5,
     blockchain_service: BlockchainDataService = Depends(get_blockchain_service),
@@ -262,17 +307,19 @@ async def trace_from_address(
                 peel_chains=[],
                 start_txid="",
                 start_vout=0,
-                depth_reached=0,
+                hops_before_reached=0,
+                hops_after_reached=0,
                 total_nodes=0,
                 total_edges=0,
             )
 
         # Get all transactions that output to this address (use BATCHING for speed!)
-        logger.info(f"⚡ Batch fetching {min(len(txids), 10)} transactions...")
-        transactions_raw = await blockchain_service.fetch_transactions_batch(txids[:10])
+        txids_to_fetch = txids[:max_transactions]
+        logger.info(f"⚡ Batch fetching {len(txids_to_fetch)} transactions (of {len(txids)} total)...")
+        transactions_raw = await blockchain_service.fetch_transactions_batch(txids_to_fetch)
         transactions = [tx for tx in transactions_raw if tx is not None]  # Filter out None values
         
-        logger.info(f"Successfully fetched {len(transactions)} of {min(len(txids), 10)} transactions")
+        logger.info(f"Successfully fetched {len(transactions)} of {len(txids_to_fetch)} transactions")
         
         # Build graph showing ALL transactions to this address
         nodes = []
@@ -340,7 +387,7 @@ async def trace_from_address(
                 edges.append(EdgeData(
                     source=addr_node_id,
                     target=tx_node_id,
-                    amount=sum(inp.value for inp in inputs_from_addr),
+                    amount=sum(inp.value for inp in inputs_from_addr if inp.value is not None),
                     confidence=1.0,
                     metadata={}
                 ))
@@ -543,7 +590,8 @@ async def trace_from_address(
             peel_chains=[],
             start_txid=transactions[0].txid if transactions else "",
             start_vout=0,
-            depth_reached=0 if max_depth == 0 else 1,
+            hops_before_reached=0,
+            hops_after_reached=0 if max_depth == 0 else 1,
             total_nodes=len(nodes),
             total_edges=len(edges),
         )

@@ -46,6 +46,7 @@ function AppContent() {
   const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[]);
   const [selectedEntity, setSelectedEntity] = useState<Node | null>(null);
   const [isPanMode, setIsPanMode] = useState(true);
+  const [isSelectMode, setIsSelectMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -53,7 +54,47 @@ function AppContent() {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [edgeScaleMax, setEdgeScaleMax] = useState(10); // BTC amount for 70% max width
   const [isOptimizing, setIsOptimizing] = useState(false);
-  const [forceRepulsionEnabled, setForceRepulsionEnabled] = useState(true); // ON by default
+  
+  // Load settings from cookies with defaults
+  const getCookie = (name: string, defaultValue: number): number => {
+    const value = document.cookie
+      .split('; ')
+      .find(row => row.startsWith(`${name}=`))
+      ?.split('=')[1];
+    return value ? parseInt(value, 10) : defaultValue;
+  };
+
+  const setCookie = (name: string, value: number) => {
+    document.cookie = `${name}=${value}; max-age=31536000; path=/`; // 1 year
+  };
+  
+  const getCookieBool = (name: string, defaultValue: boolean): boolean => {
+    const value = document.cookie
+      .split('; ')
+      .find(row => row.startsWith(`${name}=`))
+      ?.split('=')[1];
+    return value ? value === 'true' : defaultValue;
+  };
+
+  const setCookieBool = (name: string, value: boolean) => {
+    document.cookie = `${name}=${value}; max-age=31536000; path=/`; // 1 year
+  };
+
+  const [forceRepulsionEnabled, setForceRepulsionEnabled] = useState(getCookieBool('forceRepulsionEnabled', true)); // Load from cookie
+
+  const [maxOutputs, setMaxOutputs] = useState(getCookie('maxOutputs', 5));
+  const [maxTransactions, setMaxTransactions] = useState(getCookie('maxTransactions', 5));
+
+  // Save to cookies when values change
+  const handleMaxOutputsChange = (value: number) => {
+    setMaxOutputs(value);
+    setCookie('maxOutputs', value);
+  };
+
+  const handleMaxTransactionsChange = (value: number) => {
+    setMaxTransactions(value);
+    setCookie('maxTransactions', value);
+  };
   
   // Progress tracking
   const [progressLogs, setProgressLogs] = useState<Array<{ timestamp: number; type: 'info' | 'success' | 'error' | 'electrum'; message: string }>>([]);
@@ -297,9 +338,11 @@ function AppContent() {
     
     try {
       // Start from immediate neighborhood
-      const data = await traceFromAddress(address, hopsBefore);
+      const data = await traceFromAddress(address, hopsBefore, maxTransactions);
       console.log('📦 Raw data from backend:', data);
-      const { nodes: newNodes, edges: newEdges} = buildGraphFromTraceDataBipartite(data, edgeScaleMax);
+      // When hopsBefore = 0, show only transactions (no addresses)
+      const showAddresses = hopsBefore > 0;
+      const { nodes: newNodes, edges: newEdges} = buildGraphFromTraceDataBipartite(data, edgeScaleMax, maxTransactions, showAddresses, maxOutputs);
       console.log('🎨 Built graph:', newNodes.length, 'nodes,', newEdges.length, 'edges');
       
       // Add expand handler to all nodes
@@ -307,6 +350,9 @@ function AppContent() {
         ...node,
         data: { ...node.data, onExpand: handleExpandNode }
       }));
+      
+      // Debug: Check if handlers were added
+      console.log('🔍 First node has onExpand?', !!nodesWithHandlers[0]?.data?.onExpand);
       
       // Save current state to history before replacing
       if (nodes.length > 0) {
@@ -324,11 +370,11 @@ function AppContent() {
         fitView({ padding: 0.2, duration: 400 });
       }, 100);
 
-      // Auto-expand hops using BFS over addresses
-      const centerNode = nodesWithHandlers.find(n => n.type === 'address' && (n.data.address === address || n.data.metadata?.address === address));
-      if (centerNode) {
-        // BEFORE (left)
-        if (hopsBefore > 0) {
+      // Auto-expand hops using BFS over addresses (skip if hopsBefore = 0)
+      if (hopsBefore > 0) {
+        const centerNode = nodesWithHandlers.find(n => n.type === 'address' && (n.data.address === address || n.data.metadata?.address === address));
+        if (centerNode) {
+          // BEFORE (left)
           const visited = new Set<string>();
           let frontier: string[] = [centerNode.id];
           for (let step = 0; step < hopsBefore; step++) {
@@ -404,11 +450,11 @@ function AppContent() {
       // Start immediate neighborhood
       addLog('info', `📍 Starting trace from TX: ${txid.substring(0, 16)}...`);
       addLog('electrum', `Fetching initial ${hopsBefore} hops backward...`);
-      const { data, bytes } = await traceFromUTXOWithStats(txid, vout, hopsBefore);
+      const { data, bytes } = await traceFromUTXOWithStats(txid, vout, hopsBefore, 0);
       trackRequest(0, bytes);
       addLog('success', `✓ Received ${data.nodes.length} nodes, ${data.edges.length} edges (${(bytes / 1024).toFixed(1)} KB)`);
       
-      const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(data, edgeScaleMax);
+      const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(data, edgeScaleMax, maxTransactions, true, maxOutputs, txid);
       
       // Add expand handler to all nodes
       const nodesWithHandlers = newNodes.map(node => ({
@@ -609,6 +655,7 @@ function AppContent() {
   // Expand a node (fetch more connections)
   const handleExpandNode = useCallback(async (nodeId: string, direction?: 'inputs' | 'outputs' | 'spending' | 'receiving') => {
     console.log('🚀 EXPAND TRIGGERED:', nodeId, direction);
+    console.log('🔍 handleExpandNode called with:', { nodeId, direction });
     
     // Only check expansion for transactions (addresses can expand multiple times to show all connected TXs)
     const expandKey = `${nodeId}-${direction || 'default'}`;
@@ -673,10 +720,10 @@ function AppContent() {
         
         // Expand by fetching depth=1 FROM THIS ADDRESS (not the original)
         console.log('📡 Expanding address to show connected TX, depth=1 from', address.substring(0, 20));
-        const data = await traceFromAddress(address, 1);
+        const data = await traceFromAddress(address, 1, maxTransactions);
         
         // Merge new nodes/edges with existing
-        const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(data, edgeScaleMax);
+        const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(data, edgeScaleMax, maxTransactions, true, maxOutputs);
         
         console.log('📦 Got new data:', newNodes.length, 'nodes');
         
@@ -727,8 +774,8 @@ function AppContent() {
             const sourceNode = nds.find(n => n.id === nodeId);
             const clusterId = `tx-cluster-${nodeId}-${Date.now()}`;
             
-            // Limit to 20 transactions
-            const txsToShow = newTxs.slice(0, 20);
+            // Limit to maxTransactions
+            const txsToShow = newTxs.slice(0, maxTransactions);
             
             const clusterNode = {
               id: clusterId,
@@ -746,13 +793,49 @@ function AppContent() {
                   totalOutput: tx.data.metadata?.total_output,
                 })),
                 direction: direction || 'outputs',
-                label: `${newTxs.length} Transactions${newTxs.length > 20 ? ' (showing 20)' : ''}`,
+                label: `${newTxs.length} Transactions${newTxs.length > maxTransactions ? ` (showing ${maxTransactions})` : ''}`,
               },
               sourcePosition: Position.Right,
               targetPosition: Position.Left,
             };
             
             console.log('➕ Adding transaction cluster node');
+            
+            // Add edges to connect the cluster to the source node
+            const clusterEdges = txsToShow.map((tx, idx) => {
+              const txId = tx.data.txid || tx.data.metadata?.txid || tx.id;
+              const edgeId = `e-${nodeId}-${clusterId}-${idx}`;
+              
+              if (direction === 'inputs') {
+                // Input cluster: source node → cluster (right side)
+                return {
+                  id: edgeId,
+                  source: nodeId,
+                  target: clusterId,
+                  sourceHandle: 'default',
+                  targetHandle: `in-${idx}`, // Connect to left handle of cluster
+                  type: 'default',
+                  animated: false,
+                  style: { stroke: '#4caf50', strokeWidth: 2 },
+                };
+              } else {
+                // Output cluster: cluster → source node (left side)
+                return {
+                  id: edgeId,
+                  source: clusterId,
+                  target: nodeId,
+                  sourceHandle: `tx-${idx}`, // Connect to right handle of cluster
+                  targetHandle: 'default',
+                  type: 'default',
+                  animated: false,
+                  style: { stroke: '#4caf50', strokeWidth: 2 },
+                };
+              }
+            });
+            
+            console.log(`🔗 Adding ${clusterEdges.length} edges to connect transaction cluster`);
+            setEdges((eds) => [...eds, ...clusterEdges]);
+            
             return [...nds, clusterNode];
           }
           
@@ -805,7 +888,18 @@ function AppContent() {
           const changeOutputs = outputAddresses.filter(n => n.data.metadata?.is_change === true);
           const regularOutputs = outputAddresses.filter(n => n.data.metadata?.is_change !== true);
           
-          console.log(`Expanding from address: ${inputAddresses.length} inputs, ${regularOutputs.length} outputs, ${changeOutputs.length} change`);
+          // Apply maxOutputs limit
+          const limitedRegularOutputs = regularOutputs.slice(0, maxOutputs);
+          const limitedChangeOutputs = changeOutputs.slice(0, maxOutputs);
+          
+          if (regularOutputs.length > maxOutputs) {
+            console.log(`⚠️ Limiting outputs: showing ${maxOutputs} of ${regularOutputs.length} regular outputs`);
+          }
+          if (changeOutputs.length > maxOutputs) {
+            console.log(`⚠️ Limiting change outputs: showing ${maxOutputs} of ${changeOutputs.length} change outputs`);
+          }
+          
+          console.log(`Expanding from address: ${inputAddresses.length} inputs, ${limitedRegularOutputs.length} outputs (of ${regularOutputs.length}), ${limitedChangeOutputs.length} change (of ${changeOutputs.length})`);
           
           const nodesWithHandlers = nodesToAdd.map((node) => {
             let x, y;
@@ -822,16 +916,18 @@ function AppContent() {
               console.log(`  Input address ${inputIdx} at (${x}, ${y})`);
             } else if (node.data.metadata?.is_change === true) {
               // Change outputs go to the RIGHT of TX and 100px ABOVE regular outputs
-              const changeIdx = changeOutputs.indexOf(node);
+              const changeIdx = limitedChangeOutputs.indexOf(node);
+              if (changeIdx === -1) return null; // Skip if not in limited list
               const txX = (sourceNode?.position.x ?? 0) + 400; // TX position
               x = txX + 400; // Right of TX (same as regular outputs)
               y = (sourceNode?.position.y ?? 0) - 50 - (changeIdx * 120); // 50px above center, stacked if multiple
               console.log(`  Change output ${changeIdx} at (${x}, ${y})`);
             } else {
               // Regular outputs go to the RIGHT of the TX (+400px from TX)
-              const outputIdx = regularOutputs.indexOf(node);
+              const outputIdx = limitedRegularOutputs.indexOf(node);
+              if (outputIdx === -1) return null; // Skip if not in limited list
               x = (sourceNode?.position.x ?? 0) + 800; // Right of TX
-              y = (sourceNode?.position.y ?? 0) + (outputIdx * 120) - (regularOutputs.length * 60);
+              y = (sourceNode?.position.y ?? 0) + (outputIdx * 120) - (limitedRegularOutputs.length * 60);
               console.log(`  Regular output ${outputIdx} at (${x}, ${y})`);
             }
             
@@ -840,7 +936,7 @@ function AppContent() {
               position: { x, y },
               data: { ...node.data, onExpand: handleExpandNode }
             };
-          });
+          }).filter((node): node is NonNullable<typeof node> => node !== null);
           
           console.log('➕ Adding', nodesWithHandlers.length, 'nodes to', direction === 'inputs' ? 'LEFT' : 'RIGHT');
           
@@ -896,14 +992,18 @@ function AppContent() {
         const txid = node.data.txid || node.data.metadata?.txid;
         if (!txid) return;
         
-        // Expand by ONLY +1 to show connected addresses and their TXs
-        const currentDepth = (node.data.metadata?.depth ?? 0);
-        const expandDepth = currentDepth + 1;
-        console.log('📡 Expanding transaction by +1 depth:', expandDepth, 'direction:', direction);
-        const data = await traceFromUTXO(txid, 0, expandDepth);
+        // Expand by ONLY +1 hop in the specified direction
+        const currentHops = (node.data.metadata?.depth ?? 0);
+        const expandHops = currentHops + 1;
+        console.log('📡 Expanding transaction by +1 hop:', expandHops, 'direction:', direction);
+        
+        // Determine hops_before and hops_after based on direction
+        const hopsBefore = direction === 'backward' ? expandHops : 0;
+        const hopsAfter = direction === 'forward' ? expandHops : 0;
+        const data = await traceFromUTXO(txid, 0, hopsBefore, hopsAfter);
         
         // Merge new nodes/edges
-        const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(data, edgeScaleMax);
+        const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(data, edgeScaleMax, maxTransactions, true, maxOutputs);
         console.log('📦 Got new data:', newNodes.length, 'nodes');
         
         setNodes((nds) => {
@@ -1060,7 +1160,7 @@ function AppContent() {
         data: { ...node.data, onExpand: handleExpandNode },
       }))
     );
-  }, [handleExpandNode, setNodes]);
+  }, [handleExpandNode, setNodes, maxOutputs, maxTransactions]);
 
   // Memoize expensive computations
   const memoizedNodeTypes = useMemo(() => nodeTypes, []);
@@ -1167,17 +1267,17 @@ function AppContent() {
           fitView
           minZoom={0.1}
           maxZoom={2}
-          panOnDrag={isPanMode ? true : false}
-          selectionOnDrag={!isPanMode}
+          panOnDrag={!isSelectMode}
+          selectionOnDrag={isSelectMode}
           panOnScroll={false}
           zoomOnScroll={true}
-          selectionMode={isPanMode ? undefined : "partial"}
-          multiSelectionKeyCode={isPanMode ? null : "Shift"}
+          selectionMode={isSelectMode ? "partial" : undefined}
+          multiSelectionKeyCode={isSelectMode ? "Shift" : null}
           defaultEdgeOptions={memoizedDefaultEdgeOptions}
           onMove={onMove}
           // Performance optimizations
           nodeOrigin={[0.5, 0.5]}
-          selectNodesOnDrag={!isPanMode}
+          selectNodesOnDrag={isSelectMode}
           elevateNodesOnSelect={false}
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#333" />
@@ -1268,6 +1368,10 @@ function AppContent() {
           onClose={() => setShowSettings(false)}
           edgeAnimation={edgeAnimation}
           onEdgeAnimationChange={setEdgeAnimation}
+          maxOutputs={maxOutputs}
+          onMaxOutputsChange={handleMaxOutputsChange}
+          maxTransactions={maxTransactions}
+          onMaxTransactionsChange={handleMaxTransactionsChange}
         />
       )}
 
@@ -1281,6 +1385,33 @@ function AppContent() {
         gap: '10px',
         zIndex: 1000,
       }}>
+        {/* Select Mode Toggle */}
+        <button
+          onClick={() => {
+            setIsSelectMode(!isSelectMode);
+            setIsPanMode(false);
+          }}
+          style={{
+            padding: '8px',
+            width: '36px',
+            height: '36px',
+            background: isSelectMode ? '#2196f3' : '#666',
+            border: 'none',
+            borderRadius: '8px',
+            color: '#fff',
+            fontSize: '18px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+            transition: 'all 0.2s ease',
+          }}
+          title={isSelectMode ? 'Exit select mode' : 'Enter select mode (select multiple nodes)'}
+        >
+          {isSelectMode ? '✓' : '⊟'}
+        </button>
+
         {/* Optimize Layout Button */}
         <button
           onClick={handleOptimizeLayout}
@@ -1308,7 +1439,9 @@ function AppContent() {
         {/* Repulsion Toggle */}
         <button
           onClick={() => {
-            setForceRepulsionEnabled(!forceRepulsionEnabled);
+            const newValue = !forceRepulsionEnabled;
+            setForceRepulsionEnabled(newValue);
+            setCookieBool('forceRepulsionEnabled', newValue); // Save to cookie
             if (!forceRepulsionEnabled && forceLayoutRef.current) {
               // Reheat simulation when enabling
               forceLayoutRef.current.reheatSimulation();

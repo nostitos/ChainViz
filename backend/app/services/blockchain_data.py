@@ -5,6 +5,8 @@ import json
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import redis.asyncio as aioredis
+import hashlib
+import base58
 
 from app.models.blockchain import (
     Transaction,
@@ -18,6 +20,64 @@ from app.services.electrum_client import get_electrum_client
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_address_from_script_sig(script_sig: str) -> Optional[str]:
+    """
+    Extract Bitcoin address from script_sig for P2PKH transactions
+    
+    P2PKH script_sig format: <sig> <pubkey>
+    We extract the pubkey (last 33 bytes for compressed, 65 for uncompressed) and derive the address
+    """
+    if not script_sig:
+        return None
+    
+    try:
+        # Decode hex script
+        script_bytes = bytes.fromhex(script_sig)
+        
+        # P2PKH script_sig: <sig> <pubkey>
+        # Pubkey is the last 33 bytes (compressed) or 65 bytes (uncompressed)
+        if len(script_bytes) < 33:
+            return None
+        
+        # Try compressed pubkey first (33 bytes)
+        if len(script_bytes) >= 33:
+            pubkey = script_bytes[-33:]
+            # Check if it's a valid compressed pubkey (starts with 0x02 or 0x03)
+            if pubkey[0] in (0x02, 0x03):
+                pass  # Valid compressed pubkey
+            elif len(script_bytes) >= 65:
+                # Try uncompressed pubkey (65 bytes, starts with 0x04)
+                pubkey = script_bytes[-65:]
+                if pubkey[0] != 0x04:
+                    return None
+            else:
+                return None
+        
+        # Hash the pubkey with SHA256
+        sha256_hash = hashlib.sha256(pubkey).digest()
+        
+        # Hash again with RIPEMD160
+        ripemd160 = hashlib.new('ripemd160')
+        ripemd160.update(sha256_hash)
+        hash160 = ripemd160.digest()
+        
+        # Add version byte (0x00 for mainnet P2PKH)
+        versioned_hash = b'\x00' + hash160
+        
+        # Double SHA256 for checksum
+        checksum = hashlib.sha256(hashlib.sha256(versioned_hash).digest()).digest()[:4]
+        
+        # Base58 encode
+        address_bytes = versioned_hash + checksum
+        address = base58.b58encode(address_bytes).decode('ascii')
+        
+        return address
+        
+    except Exception as e:
+        logger.debug(f"Failed to extract address from script_sig: {e}")
+        return None
 
 
 class BlockchainDataService:
@@ -141,7 +201,7 @@ class BlockchainDataService:
 
     async def fetch_transaction(self, txid: str) -> Transaction:
         """
-        Fetch transaction details
+        Fetch transaction details with input values
         
         Args:
             txid: Transaction ID
@@ -159,6 +219,24 @@ class BlockchainDataService:
         # Fetch from Electrum (use fresh client)
         electrum = get_electrum_client()
         tx_data = await electrum.get_transaction(txid, verbose=True)
+        
+        # Fetch input values from previous transactions - DISABLED (too slow, use batching instead)
+        # The trace.py endpoint already handles batching for input values
+        # for vin in tx_data.get("vin", []):
+        #     if "value" not in vin or vin.get("value") is None:
+        #         # Need to fetch the previous transaction to get the output value
+        #         prev_txid = vin.get("txid")
+        #         prev_vout = vin.get("vout")
+        #         logger.info(f"Fetching input value for {prev_txid}:{prev_vout}")
+        #         if prev_txid and prev_vout is not None:
+        #             try:
+        #                 prev_tx = await electrum.get_transaction(prev_txid, verbose=True)
+        #                 if prev_vout < len(prev_tx.get("vout", [])):
+        #                     vin["value"] = int(prev_tx["vout"][prev_vout].get("value", 0) * 100_000_000)
+        #                     logger.info(f"✅ Fetched input value: {vin['value']} satoshis")
+        #             except Exception as e:
+        #                 logger.error(f"Could not fetch input value for {prev_txid}:{prev_vout}: {e}")
+        
         transaction = self._parse_transaction(txid, tx_data)
 
         # Cache result
@@ -201,6 +279,19 @@ class BlockchainDataService:
 
             for (original_idx, txid), tx_data in zip(uncached_txids, tx_data_list):
                 if tx_data:
+                    # Fetch input values from previous transactions
+                    for vin in tx_data.get("vin", []):
+                        if "value" not in vin or vin.get("value") is None:
+                            prev_txid = vin.get("txid")
+                            prev_vout = vin.get("vout")
+                            if prev_txid and prev_vout is not None:
+                                try:
+                                    prev_tx = await electrum.get_transaction(prev_txid, verbose=True)
+                                    if prev_vout < len(prev_tx.get("vout", [])):
+                                        vin["value"] = int(prev_tx["vout"][prev_vout].get("value", 0) * 100_000_000)
+                                except Exception as e:
+                                    logger.debug(f"Could not fetch input value for {prev_txid}:{prev_vout}: {e}")
+                    
                     transaction = self._parse_transaction(txid, tx_data)
                     result.insert(original_idx, transaction)
 
@@ -231,15 +322,29 @@ class BlockchainDataService:
         # Get transaction history
         txids = await self.fetch_address_history(address)
 
-        # Calculate totals (would need to fetch all transactions for exact values)
-        # For now, use balance data
+        # Calculate totals from balance data
         balance = balance_data.get("confirmed", 0)
+        unconfirmed = balance_data.get("unconfirmed", 0)
+        
+        # For total_received and total_sent, we need to fetch transactions
+        # For now, use a simplified calculation based on balance
+        # If balance is 0 but has transactions, it means it received and spent everything
+        if balance == 0 and len(txids) > 0:
+            # Address has no balance but has transactions - received and spent everything
+            # We can't calculate exact amounts without fetching all transactions
+            # Set to 0 for now (could be improved by fetching TXs)
+            total_received = 0
+            total_sent = 0
+        else:
+            # Address has balance - use balance as total_received
+            total_received = balance
+            total_sent = 0
 
         return Address(
             address=address,
             balance=balance,
-            total_received=balance,  # Simplified
-            total_sent=0,  # Would need full TX analysis
+            total_received=total_received,
+            total_sent=total_sent,
             tx_count=len(txids),
             first_seen=None,  # Would need to fetch earliest TX
             last_seen=None,  # Would need to fetch latest TX
@@ -259,12 +364,23 @@ class BlockchainDataService:
         # Parse inputs
         inputs = []
         for vin in tx_data.get("vin", []):
+            script_sig_hex = vin.get("scriptSig", {}).get("hex", "")
+            
+            # Try to extract address from script_sig if not provided by Electrum
+            address = vin.get("address")
+            if not address and script_sig_hex:
+                address = _extract_address_from_script_sig(script_sig_hex)
+                if address:
+                    logger.debug(f"Extracted address {address} from script_sig")
+            
             tx_input = TransactionInput(
                 txid=vin.get("txid", ""),
                 vout=vin.get("vout", 0),
-                script_sig=vin.get("scriptSig", {}).get("hex", ""),
+                script_sig=script_sig_hex,
                 sequence=vin.get("sequence", 0xFFFFFFFF),
                 witness=vin.get("txinwitness", []),
+                address=address,
+                value=vin.get("value"),
             )
             inputs.append(tx_input)
 

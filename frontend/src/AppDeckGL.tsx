@@ -46,7 +46,7 @@ function App() {
     setError(null);
     
     try {
-      const data = await traceFromUTXO(txid, vout, hopsBefore);
+      const data = await traceFromUTXO(txid, vout, hopsBefore, 0); // Only backward hops for now
       const { nodes: newNodes, edges: newEdges } = buildDeckGLGraph(data);
       
       setNodes(newNodes);
@@ -142,7 +142,7 @@ function App() {
       
       // For transactions, expand to show connected addresses
       if (node.type === 'transaction' && node.txid) {
-        const data = await traceFromUTXO(node.txid, 0, 2); // +1 depth
+        const data = await traceFromUTXO(node.txid, 0, 2, 0); // +2 hops backward
         const { nodes: newNodes, edges: newEdges } = buildDeckGLGraph(data);
         
         // Merge with existing
@@ -184,7 +184,7 @@ function App() {
       // For transactions
       if (node.type === 'transaction' && node.txid) {
         console.log('📦 Expanding transaction...');
-        const data = await traceFromUTXO(node.txid, 0, 2);
+        const data = await traceFromUTXO(node.txid, 0, 2, 0); // +2 hops backward
         console.log('Got data:', data);
         const { nodes: newNodes, edges: newEdges } = buildDeckGLGraph(data);
         

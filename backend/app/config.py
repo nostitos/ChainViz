@@ -9,11 +9,11 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    # Electrum Server (Seth's Fulcrum - supports verbose, Blockstream doesn't)
-    electrum_host: str = "fulcrum.sethforprivacy.com"
+    # Electrum Server (Local primary, Seth's Fulcrum fallback)
+    electrum_host: str = "192.168.2.114"
     electrum_port: int = 50002
-    electrum_use_ssl: bool = True
-    electrum_fallback_host: str = "electrum.blockstream.info"
+    electrum_use_ssl: bool = False
+    electrum_fallback_host: str = "fulcrum.sethforprivacy.com"
     electrum_fallback_port: int = 50002
 
     # Redis
@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     cache_ttl_cluster: int = 600
 
     # API
-    api_title: str = "UTXO.link API"
+    api_title: str = "ChainViz API"
     api_version: str = "0.1.0"
     max_trace_depth: int = 50
     max_bulk_addresses: int = 1000
