@@ -11,6 +11,7 @@ services:
     environment:
       - ELECTRUM_HOST=fulcrum.sethforprivacy.com
       - ELECTRUM_PORT=50002
+      - ELECTRUM_USE_SSL=true
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     depends_on:
@@ -26,6 +27,9 @@ services:
       dockerfile: Dockerfile
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - backend
     restart: unless-stopped

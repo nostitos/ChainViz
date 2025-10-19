@@ -8,9 +8,12 @@ interface SearchBarProps {
   onOpenSettings: () => void;
   edgeScaleMax: number;
   onEdgeScaleMaxChange: (value: number) => void;
+  onExpandBackward?: () => void;
+  onExpandForward?: () => void;
+  hasGraph: boolean;
 }
 
-export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpenSettings, edgeScaleMax, onEdgeScaleMaxChange }: SearchBarProps) {
+export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpenSettings, edgeScaleMax, onEdgeScaleMaxChange, onExpandBackward, onExpandForward, hasGraph }: SearchBarProps) {
   const [input, setInput] = useState('');
   const [hopsBefore, setHopsBefore] = useState(0); // Hops backward (into the past)
   const [hopsAfter, setHopsAfter] = useState(0); // Hops forward (into the future)
@@ -132,6 +135,28 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
                       className="depth-slider"
                       disabled={isLoading}
                     />
+                    {hasGraph && onExpandBackward && (
+                      <button
+                        type="button"
+                        onClick={onExpandBackward}
+                        disabled={isLoading}
+                        style={{
+                          background: 'rgba(100, 181, 246, 0.2)',
+                          border: '1px solid rgba(100, 181, 246, 0.5)',
+                          borderRadius: '4px',
+                          color: 'var(--text-primary)',
+                          cursor: isLoading ? 'not-allowed' : 'pointer',
+                          padding: '6px 12px',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          opacity: isLoading ? 0.5 : 1,
+                          whiteSpace: 'nowrap',
+                        }}
+                        title="Expand graph by 1 hop backward"
+                      >
+                        ⬅️ +1 Back
+                      </button>
+                    )}
                   </div>
                   
                   <div className="depth-control">
@@ -156,6 +181,28 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
                       className="depth-slider"
                       disabled={isLoading}
                     />
+                    {hasGraph && onExpandForward && (
+                      <button
+                        type="button"
+                        onClick={onExpandForward}
+                        disabled={isLoading}
+                        style={{
+                          background: 'rgba(100, 181, 246, 0.2)',
+                          border: '1px solid rgba(100, 181, 246, 0.5)',
+                          borderRadius: '4px',
+                          color: 'var(--text-primary)',
+                          cursor: isLoading ? 'not-allowed' : 'pointer',
+                          padding: '6px 12px',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          opacity: isLoading ? 0.5 : 1,
+                          whiteSpace: 'nowrap',
+                        }}
+                        title="Expand graph by 1 hop forward"
+                      >
+                        +1 Forward ➡️
+                      </button>
+                    )}
                   </div>
                   
                   {/* Edge Width Scale */}

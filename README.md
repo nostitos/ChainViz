@@ -57,12 +57,13 @@ docker-compose up
 
 ## Configuration
 
-Default Electrum server: `fulcrum.sethforprivacy.com:50002`
+Default Electrum server: `fulcrum.sethforprivacy.com:50002` (SSL enabled)
 
-To use a custom server, set environment variable:
+To use a custom server, set environment variables:
 ```bash
 export ELECTRUM_HOST=your-server.com
 export ELECTRUM_PORT=50002
+export ELECTRUM_USE_SSL=true
 ```
 
 ## API Documentation

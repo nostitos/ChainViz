@@ -1308,6 +1308,116 @@ function AppContent() {
     }
   }, [nodes, viewportVersion, getViewport]);
 
+  // Expand graph by one hop backward
+  const handleExpandBackward = useCallback(async () => {
+    if (nodes.length === 0) return;
+    
+    console.log('⬅️ Expanding graph by 1 hop backward...');
+    setIsLoading(true);
+    
+    try {
+      // Find all transaction nodes at the leftmost edge
+      const leftmostNodes = nodes
+        .filter(n => n.type === 'transaction')
+        .sort((a, b) => a.position.x - b.position.x)
+        .slice(0, 10); // Take up to 10 leftmost transactions
+      
+      console.log(`Found ${leftmostNodes.length} leftmost transactions to expand`);
+      
+      for (const node of leftmostNodes) {
+        const txid = node.data.txid || node.data.metadata?.txid;
+        if (!txid) continue;
+        
+        console.log(`Expanding transaction ${txid.substring(0, 16)}... backward`);
+        
+        // Expand by 1 hop backward
+        const data = await traceFromUTXO(txid, 0, 1, 0);
+        const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(
+          data, 
+          edgeScaleMax, 
+          maxTransactions, 
+          true, 
+          maxOutputs
+        );
+        
+        // Merge with existing graph
+        setNodes((nds) => {
+          const existingIds = new Set(nds.map(n => n.id));
+          const nodesToAdd = newNodes.filter(n => !existingIds.has(n.id));
+          return [...nds, ...nodesToAdd];
+        });
+        
+        setEdges((eds) => {
+          const existingIds = new Set(eds.map(e => e.id));
+          const edgesToAdd = newEdges.filter(e => !existingIds.has(e.id));
+          return [...eds, ...edgesToAdd];
+        });
+      }
+      
+      console.log('✅ Backward expansion complete');
+    } catch (error) {
+      console.error('❌ Error expanding backward:', error);
+      setError('Failed to expand graph backward');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [nodes, edgeScaleMax, maxTransactions, maxOutputs]);
+
+  // Expand graph by one hop forward
+  const handleExpandForward = useCallback(async () => {
+    if (nodes.length === 0) return;
+    
+    console.log('➡️ Expanding graph by 1 hop forward...');
+    setIsLoading(true);
+    
+    try {
+      // Find all transaction nodes at the rightmost edge
+      const rightmostNodes = nodes
+        .filter(n => n.type === 'transaction')
+        .sort((a, b) => b.position.x - a.position.x)
+        .slice(0, 10); // Take up to 10 rightmost transactions
+      
+      console.log(`Found ${rightmostNodes.length} rightmost transactions to expand`);
+      
+      for (const node of rightmostNodes) {
+        const txid = node.data.txid || node.data.metadata?.txid;
+        if (!txid) continue;
+        
+        console.log(`Expanding transaction ${txid.substring(0, 16)}... forward`);
+        
+        // Expand by 1 hop forward
+        const data = await traceFromUTXO(txid, 0, 0, 1);
+        const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(
+          data, 
+          edgeScaleMax, 
+          maxTransactions, 
+          true, 
+          maxOutputs
+        );
+        
+        // Merge with existing graph
+        setNodes((nds) => {
+          const existingIds = new Set(nds.map(n => n.id));
+          const nodesToAdd = newNodes.filter(n => !existingIds.has(n.id));
+          return [...nds, ...nodesToAdd];
+        });
+        
+        setEdges((eds) => {
+          const existingIds = new Set(eds.map(e => e.id));
+          const edgesToAdd = newEdges.filter(e => !existingIds.has(e.id));
+          return [...eds, ...edgesToAdd];
+        });
+      }
+      
+      console.log('✅ Forward expansion complete');
+    } catch (error) {
+      console.error('❌ Error expanding forward:', error);
+      setError('Failed to expand graph forward');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [nodes, edgeScaleMax, maxTransactions, maxOutputs]);
+
   return (
     <div className="app">
       {/* Top Search Bar */}
@@ -1318,6 +1428,9 @@ function AppContent() {
         onOpenSettings={() => setShowSettings(true)}
         edgeScaleMax={edgeScaleMax}
         onEdgeScaleMaxChange={setEdgeScaleMax}
+        onExpandBackward={handleExpandBackward}
+        onExpandForward={handleExpandForward}
+        hasGraph={nodes.length > 0}
       />
       
       {/* Main Graph Canvas */}
