@@ -121,6 +121,21 @@ function AppContent() {
     });
   }, []);
   
+  // Auto-load from URL query parameter on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const query = params.get('q');
+    if (query && !isLoading && nodes.length === 0) {
+      // Auto-load on mount if URL has query parameter
+      console.log('Loading from URL parameter:', query);
+      if (/^[0-9a-fA-F]{64}$/.test(query)) {
+        handleTraceTransaction(query, 0, 0, 0);
+      } else {
+        handleTraceAddress(query, 0, 0);
+      }
+    }
+  }, []); // Run once on mount
+  
   // Update all edges when animation setting changes
   useEffect(() => {
     setEdges((eds) => eds.map(edge => ({
@@ -379,6 +394,10 @@ function AppContent() {
 
   // Handle trace from address with recursive hops
   const handleTraceAddress = useCallback(async (address: string, hopsBefore: number = 1, hopsAfter: number = 1) => {
+    // Update URL with the address
+    window.history.pushState({}, '', `?q=${encodeURIComponent(address)}`);
+    setUrlQuery(address); // Update state so SearchBar reflects the change
+    
     setIsLoading(true);
     setError(null);
     
@@ -486,6 +505,10 @@ function AppContent() {
 
   // Handle trace from transaction with recursive hops
   const handleTraceTransaction = useCallback(async (txid: string, vout: number, hopsBefore: number = 1, hopsAfter: number = 1) => {
+    // Update URL with the transaction ID
+    window.history.pushState({}, '', `?q=${encodeURIComponent(txid)}`);
+    setUrlQuery(txid); // Update state so SearchBar reflects the change
+    
     setIsLoading(true);
     setError(null);
     setProgressLogs([]);
@@ -1418,6 +1441,22 @@ function AppContent() {
     }
   }, [nodes, edgeScaleMax, maxTransactions, maxOutputs]);
 
+  // Get query from URL (reactive to changes)
+  const [urlQuery, setUrlQuery] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('q') || '';
+  });
+
+  // Listen for URL changes (when user clicks back/forward)
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      setUrlQuery(params.get('q') || '');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   return (
     <div className="app">
       {/* Top Search Bar */}
@@ -1431,6 +1470,7 @@ function AppContent() {
         onExpandBackward={handleExpandBackward}
         onExpandForward={handleExpandForward}
         hasGraph={nodes.length > 0}
+        initialQuery={urlQuery}
       />
       
       {/* Main Graph Canvas */}

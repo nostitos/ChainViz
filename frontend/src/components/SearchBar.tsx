@@ -11,9 +11,10 @@ interface SearchBarProps {
   onExpandBackward?: () => void;
   onExpandForward?: () => void;
   hasGraph: boolean;
+  initialQuery?: string;
 }
 
-export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpenSettings, edgeScaleMax, onEdgeScaleMaxChange, onExpandBackward, onExpandForward, hasGraph }: SearchBarProps) {
+export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpenSettings, edgeScaleMax, onEdgeScaleMaxChange, onExpandBackward, onExpandForward, hasGraph, initialQuery }: SearchBarProps) {
   const [input, setInput] = useState('');
   const [hopsBefore, setHopsBefore] = useState(0); // Hops backward (into the past)
   const [hopsAfter, setHopsAfter] = useState(0); // Hops forward (into the future)
@@ -31,6 +32,13 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
       }
     }
   }, []);
+  
+  // Set input from initial query (from URL)
+  useEffect(() => {
+    if (initialQuery) {
+      setInput(initialQuery);
+    }
+  }, [initialQuery]);
 
   const saveToHistory = (value: string) => {
     const newHistory = [value, ...history.filter(h => h !== value)].slice(0, 10);

@@ -141,3 +141,59 @@ export async function traceFromUTXOWithStats(txid: string, vout: number, hopsBef
   const data = JSON.parse(text);
   return { data, bytes };
 }
+
+export interface ElectrumServerConfig {
+  host: string;
+  port: number;
+  use_ssl: boolean;
+}
+
+export interface ConfigResponse {
+  electrum_host: string;
+  electrum_port: number;
+  electrum_use_ssl: boolean;
+  electrum_fallback_host: string;
+  electrum_fallback_port: number;
+}
+
+export async function getConfig(): Promise<ConfigResponse> {
+  const response = await fetch(`${API_BASE_URL}/config`);
+  if (!response.ok) {
+    throw new Error(`Failed to get config: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function updateElectrumServer(config: ElectrumServerConfig): Promise<ConfigResponse> {
+  const response = await fetch(`${API_BASE_URL}/config/electrum`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(config),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+    throw new Error(error.detail || `Failed to update server: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function testElectrumServer(config: ElectrumServerConfig): Promise<{ success: boolean; message: string; latency_ms?: number; error?: string }> {
+  const response = await fetch(`${API_BASE_URL}/config/electrum/test`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(config),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+    throw new Error(error.detail || `Failed to test server: ${response.status}`);
+  }
+
+  return response.json();
+}

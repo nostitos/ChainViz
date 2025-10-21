@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.services.blockchain_data import get_blockchain_service
-from app.api import trace, address, transaction, bulk, xpub, websocket
+from app.api import trace, address, transaction, bulk, xpub, websocket, config
 
 # Configure logging
 logging.basicConfig(
@@ -58,6 +58,7 @@ app.include_router(transaction.router, prefix="/api/transaction", tags=["Transac
 app.include_router(bulk.router, prefix="/api/bulk", tags=["Bulk"])
 app.include_router(xpub.router, prefix="/api/xpub", tags=["XPub"])
 app.include_router(websocket.router, prefix="/ws", tags=["WebSocket"])
+app.include_router(config.router, prefix="/api", tags=["Config"])
 
 
 @app.get("/")

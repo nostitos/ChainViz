@@ -212,40 +212,88 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
         }
       });
       
-      // Add edges from center address to all transactions
-      data.edges.forEach(edgeData => {
-        if (edgeData.source === centerAddress.id || edgeData.target === centerAddress.id) {
-          const amount = edgeData.amount || 0;
-          
-          // Calculate edge width using same formula as normal edges
-          const minAmountSats = 100000; // 0.001 BTC
-          const scaleMaxSats = edgeScaleMax * 100000000;
-          const sqrtBase = Math.sqrt(scaleMaxSats / minAmountSats);
-          let strokeWidth = 2;
-          if (amount > minAmountSats) {
-            const sqrtValue = Math.sqrt(amount / minAmountSats) / sqrtBase;
-            strokeWidth = 2 + (sqrtValue * 68);
+      // Now add ALL other addresses and their edges
+      // We want to show the full transaction structure, not just the center address
+      const otherAddresses = addrData.filter(addr => addr.id !== centerAddress.id);
+      
+      // Position addresses based on their relationship to transactions
+      otherAddresses.forEach((addrNode, idx) => {
+        // Find which transaction this address connects to
+        const connectedTx = sortedTxs.find(txNode => {
+          return data.edges.some(e => 
+            (e.source === addrNode.id && e.target === txNode.id) ||
+            (e.source === txNode.id && e.target === addrNode.id)
+          );
+        });
+        
+        if (connectedTx) {
+          const txNodeInGraph = nodes.find(n => n.id === connectedTx.id);
+          if (txNodeInGraph) {
+            // Position address relative to its transaction
+            // Input addresses go to the left of the transaction
+            // Output addresses go to the right of the transaction
+            const isInput = data.edges.some(e => e.source === addrNode.id && e.target === connectedTx.id);
+            const isOutput = data.edges.some(e => e.source === connectedTx.id && e.target === addrNode.id);
+            
+            const addrOffset = 400;
+            let xPos = txNodeInGraph.position.x;
+            let yPos = txNodeInGraph.position.y;
+            
+            if (isInput) {
+              xPos = txNodeInGraph.position.x - addrOffset;
+            } else if (isOutput) {
+              xPos = txNodeInGraph.position.x + addrOffset;
+            }
+            
+            // Add the address node
+            nodes.push({
+              id: addrNode.id,
+              type: 'address',
+              position: { x: xPos, y: yPos },
+              data: {
+                ...addrNode,
+                label: addrNode.label,
+                metadata: addrNode.metadata,
+              },
+              sourcePosition: Position.Right,
+              targetPosition: Position.Left,
+            });
           }
-          
-          edges.push({
-            id: `e-${edgeData.source}-${edgeData.target}`,
-            source: edgeData.source,
-            target: edgeData.target,
-            type: 'default', // Same as normal edges
-            animated: false,
-            data: {
-              amount: amount, // Store amount for recalculation
-            },
-            style: { 
-              stroke: '#4caf50', // Green like normal edges
-              strokeWidth 
-            },
-            label: amount > 0 ? `${(amount / 100000000).toFixed(8)} BTC` : undefined,
-          });
         }
       });
       
-      console.log(`✅ Added center address with ${edges.length} edges to transactions`);
+      // Add ALL edges (not just center address edges)
+      data.edges.forEach(edgeData => {
+        const amount = edgeData.amount || 0;
+        
+        // Calculate edge width using same formula as normal edges
+        const minAmountSats = 100000; // 0.001 BTC
+        const scaleMaxSats = edgeScaleMax * 100000000;
+        const sqrtBase = Math.sqrt(scaleMaxSats / minAmountSats);
+        let strokeWidth = 2;
+        if (amount > minAmountSats) {
+          const sqrtValue = Math.sqrt(amount / minAmountSats) / sqrtBase;
+          strokeWidth = 2 + (sqrtValue * 68);
+        }
+        
+        edges.push({
+          id: `e-${edgeData.source}-${edgeData.target}`,
+          source: edgeData.source,
+          target: edgeData.target,
+          type: 'default', // Same as normal edges
+          animated: false,
+          data: {
+            amount: amount, // Store amount for recalculation
+          },
+          style: { 
+            stroke: '#4caf50', // Green like normal edges
+            strokeWidth 
+          },
+          label: amount > 0 ? `${(amount / 100000000).toFixed(8)} BTC` : undefined,
+        });
+      });
+      
+      console.log(`✅ Added center address with ${otherAddresses.length} other addresses and ${edges.length} edges`);
     }
     
     return { nodes, edges };
