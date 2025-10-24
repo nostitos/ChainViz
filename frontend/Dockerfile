@@ -3,6 +3,9 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
+# Set production API URL BEFORE copying source code
+ENV VITE_API_BASE_URL=https://utxo.link/api
+
 # Copy package files
 COPY package*.json ./
 
@@ -11,9 +14,6 @@ RUN npm install
 
 # Copy source code
 COPY . .
-
-# Set production API URL
-ENV VITE_API_BASE_URL=https://utxo.link/api
 
 # Build for production
 RUN npm run build

@@ -26,6 +26,7 @@ import { SearchBar } from './components/SearchBar';
 import { EntityPanel } from './components/EntityPanel';
 import { StatsPanel } from './components/StatsPanel';
 import { SettingsPanel } from './components/SettingsPanel';
+import { AboutPanel } from './components/AboutPanel';
 import { PerformanceMonitor } from './components/PerformanceMonitor';
 import { EdgeLegend } from './components/EdgeLegend';
 import { ProgressLogger } from './components/ProgressLogger';
@@ -52,6 +53,7 @@ function AppContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const [edgeAnimation, setEdgeAnimation] = useState(true);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [edgeScaleMax, setEdgeScaleMax] = useState(10); // BTC amount for 70% max width
@@ -1465,6 +1467,7 @@ function AppContent() {
         onTraceTransaction={handleTraceTransaction}
         isLoading={isLoading}
         onOpenSettings={() => setShowSettings(true)}
+        onOpenAbout={() => setShowAbout(true)}
         edgeScaleMax={edgeScaleMax}
         onEdgeScaleMaxChange={setEdgeScaleMax}
         onExpandBackward={handleExpandBackward}
@@ -1593,6 +1596,13 @@ function AppContent() {
           onMaxOutputsChange={handleMaxOutputsChange}
           maxTransactions={maxTransactions}
           onMaxTransactionsChange={handleMaxTransactionsChange}
+        />
+      )}
+
+      {/* About Panel */}
+      {showAbout && (
+        <AboutPanel 
+          onClose={() => setShowAbout(false)}
         />
       )}
 

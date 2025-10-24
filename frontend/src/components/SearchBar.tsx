@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Search, Loader2, Settings } from 'lucide-react';
+import { Search, Loader2, Settings, Info } from 'lucide-react';
 
 interface SearchBarProps {
   onTraceAddress: (address: string, hopsBefore: number, hopsAfter: number) => void;
   onTraceTransaction: (txid: string, vout: number, hopsBefore: number, hopsAfter: number) => void;
   isLoading: boolean;
   onOpenSettings: () => void;
+  onOpenAbout: () => void;
   edgeScaleMax: number;
   onEdgeScaleMaxChange: (value: number) => void;
   onExpandBackward?: () => void;
@@ -14,7 +15,7 @@ interface SearchBarProps {
   initialQuery?: string;
 }
 
-export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpenSettings, edgeScaleMax, onEdgeScaleMaxChange, onExpandBackward, onExpandForward, hasGraph, initialQuery }: SearchBarProps) {
+export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpenSettings, onOpenAbout, edgeScaleMax, onEdgeScaleMaxChange, onExpandBackward, onExpandForward, hasGraph, initialQuery }: SearchBarProps) {
   const [input, setInput] = useState('');
   const [hopsBefore, setHopsBefore] = useState(0); // Hops backward (into the past)
   const [hopsAfter, setHopsAfter] = useState(0); // Hops forward (into the future)
@@ -78,9 +79,14 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
           <p>Bitcoin Blockchain Analysis</p>
         </div>
         
-        <button className="settings-button" onClick={onOpenSettings} title="Settings">
-          <Settings size={20} />
-        </button>
+        <div className="header-buttons">
+          <button className="settings-button" onClick={onOpenSettings} title="Settings">
+            <Settings size={20} />
+          </button>
+          <button className="about-button" onClick={onOpenAbout} title="About">
+            <Info size={20} />
+          </button>
+        </div>
         
         <form onSubmit={handleSubmit} className="search-form">
           <div className="input-group">
@@ -261,6 +267,45 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
           </button>
         </form>
       </div>
+
+      <style>{`
+        .header-buttons {
+          display: flex;
+          gap: 8px;
+        }
+
+        .settings-button,
+        .about-button {
+          background: rgba(100, 181, 246, 0.1);
+          border: 1px solid rgba(100, 181, 246, 0.3);
+          border-radius: 6px;
+          color: #64b5f6;
+          cursor: pointer;
+          padding: 8px;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .settings-button:hover,
+        .about-button:hover {
+          background: rgba(100, 181, 246, 0.2);
+          border-color: rgba(100, 181, 246, 0.5);
+          transform: translateY(-1px);
+        }
+
+        .about-button {
+          background: rgba(76, 175, 80, 0.1);
+          border-color: rgba(76, 175, 80, 0.3);
+          color: #4caf50;
+        }
+
+        .about-button:hover {
+          background: rgba(76, 175, 80, 0.2);
+          border-color: rgba(76, 175, 80, 0.5);
+        }
+      `}</style>
     </div>
   );
 }
