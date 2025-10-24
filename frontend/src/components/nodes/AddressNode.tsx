@@ -25,7 +25,7 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
     if (!address || address === 'Unknown') return;
     
     setLoading(true);
-    fetch(`http://localhost:8000/api/address/${address}`)
+    fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/address/${address}`)
       .then(res => res.json())
       .then(data => {
         setBalance(data.balance / 100000000); // Convert satoshis to BTC

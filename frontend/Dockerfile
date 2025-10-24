@@ -12,6 +12,9 @@ RUN npm install
 # Copy source code
 COPY . .
 
+# Set production API URL
+ENV VITE_API_BASE_URL=https://utxo.link/api
+
 # Build for production
 RUN npm run build
 

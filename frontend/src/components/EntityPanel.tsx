@@ -130,7 +130,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
       const txid = data.txid || metadata.txid;
       if (txid) {
         setLoading(true);
-        fetch(`http://localhost:8000/api/transaction/${txid}`)
+        fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/transaction/${txid}`)
           .then(res => res.json())
           .then(async (data) => {
             const tx = data.transaction;
@@ -142,7 +142,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                 if (inp.txid && inp.address === null) {
                   // Fetch previous TX to get the address
                   try {
-                    const prevTxRes = await fetch(`http://localhost:8000/api/transaction/${inp.txid}`);
+                    const prevTxRes = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/transaction/${inp.txid}`);
                     const prevTxData = await prevTxRes.json();
                     const prevOut = prevTxData.transaction.outputs[inp.vout];
                     return {
@@ -186,7 +186,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
       if (!address) return;
       
       setLoading(true);
-      fetch(`http://localhost:8000/api/address/${address}`)
+      fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/address/${address}`)
         .then(res => res.json())
         .then(data => {
           console.log('📊 Address info fetched:', data);

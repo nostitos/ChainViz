@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   resolve: {
     alias: {
@@ -33,6 +33,12 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
   },
-})
+  define: {
+    // Set default API URL for production builds
+    'import.meta.env.VITE_API_BASE_URL': mode === 'production' 
+      ? JSON.stringify('https://utxo.link/api')
+      : JSON.stringify('http://localhost:8000/api'),
+  },
+}))
 
 
