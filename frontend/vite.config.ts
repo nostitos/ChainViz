@@ -34,9 +34,10 @@ export default defineConfig(({ mode }) => ({
     port: 5173,
   },
   define: {
-    // Set default API URL for production builds
+    // Use relative URLs in production to avoid CORS issues
+    // Nginx will proxy /api to the backend container
     'import.meta.env.VITE_API_BASE_URL': mode === 'production' 
-      ? JSON.stringify('https://utxo.link/api')
+      ? JSON.stringify('/api')
       : JSON.stringify('http://localhost:8000/api'),
   },
 }))
