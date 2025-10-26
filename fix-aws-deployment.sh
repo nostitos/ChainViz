@@ -26,6 +26,15 @@ docker-compose down 2>/dev/null || true
 echo -e "${YELLOW}📥 Pulling latest code...${NC}"
 git pull origin main
 
+# Build production frontend
+echo -e "${YELLOW}📦 Building production frontend...${NC}"
+cd frontend
+npm install  # Ensure dependencies are up to date
+npm run build
+cd ..
+
+echo -e "${GREEN}✅ Frontend built successfully${NC}"
+
 # Build and start services
 echo -e "${YELLOW}🏗️  Building and starting services...${NC}"
 docker-compose up -d --build
