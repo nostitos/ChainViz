@@ -9,7 +9,7 @@ Your AWS instance is serving an older frontend without the latest features (like
 SSH into your AWS EC2 instance and run:
 
 ```bash
-cd /path/to/ChainViz
+cd /home/ubuntu/ChainViz
 ./fix-aws-deployment.sh
 ```
 
@@ -25,7 +25,7 @@ If you prefer to do it manually:
 
 ```bash
 # 1. Navigate to your ChainViz directory
-cd /path/to/ChainViz
+cd /home/ubuntu/ChainViz
 
 # 2. Stop existing services
 docker-compose down
