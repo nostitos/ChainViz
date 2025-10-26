@@ -18,9 +18,10 @@ else
     echo -e "${YELLOW}⚠️  Not running on AWS, but continuing anyway...${NC}"
 fi
 
-# Stop any running containers
+# Stop any running containers and cleanup networks
 echo -e "${YELLOW}🛑 Stopping existing containers...${NC}"
 docker-compose down 2>/dev/null || true
+docker network prune -f
 
 # Pull latest code
 echo -e "${YELLOW}📥 Pulling latest code...${NC}"
