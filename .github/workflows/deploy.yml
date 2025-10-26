@@ -38,6 +38,12 @@ jobs:
               "git fetch origin",
               "git reset --hard origin/main",
               "echo",
+              "echo \"📦 Building frontend...\"",
+              "cd frontend",
+              "npm install",
+              "npm run build",
+              "cd ..",
+              "echo",
               "echo \"📦 Rebuilding containers...\"",
               "sudo docker-compose down",
               "sudo docker-compose build --no-cache",
@@ -48,8 +54,8 @@ jobs:
               "sudo docker-compose ps",
               "echo",
               "echo \"🧪 Testing endpoints...\"",
-              "curl -s http://localhost/health || echo \"Frontend starting...\"",
-              "curl -s http://localhost:8000/docs > /dev/null && echo \"✅ Backend API is responding\" || echo \"⚠️  Backend API check failed\""
+              "curl -s http://localhost/api/config || echo \"API check failed\"",
+              "curl -s http://localhost/ > /dev/null && echo \"✅ Frontend is responding\" || echo \"⚠️  Frontend check failed\""
             ]' \
             --timeout-seconds 900 \
             --region $AWS_REGION \
