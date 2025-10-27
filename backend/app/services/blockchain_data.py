@@ -283,6 +283,10 @@ class BlockchainDataService:
                     if txid and txid.startswith("b1b980bb"):
                         logger.warning(f"DEBUG: fetch_transactions_batch received TX b1b980bb with {len(tx_data.get('vin', []))} inputs from Electrum")
                     
+                    # DEBUG: Log BEFORE fetching input values
+                    if txid and txid.startswith("b1b980bb"):
+                        logger.warning(f"DEBUG: BEFORE fetching input values: {len(tx_data.get('vin', []))} inputs")
+                    
                     # Fetch input values from previous transactions
                     for vin in tx_data.get("vin", []):
                         if "value" not in vin or vin.get("value") is None:
@@ -295,6 +299,10 @@ class BlockchainDataService:
                                         vin["value"] = int(prev_tx["vout"][prev_vout].get("value", 0) * 100_000_000)
                                 except Exception as e:
                                     logger.debug(f"Could not fetch input value for {prev_txid}:{prev_vout}: {e}")
+                    
+                    # DEBUG: Log AFTER fetching input values
+                    if txid and txid.startswith("b1b980bb"):
+                        logger.warning(f"DEBUG: AFTER fetching input values: {len(tx_data.get('vin', []))} inputs")
                     
                     transaction = self._parse_transaction(txid, tx_data)
                     result.insert(original_idx, transaction)
