@@ -371,23 +371,33 @@ async def trace_from_address(
             # Check if any input spends from our address (TX spending FROM address)
             # We need to look up the previous transaction's output to get the address
             inputs_from_addr = []
+            logger.info(f"  Checking {len(tx.inputs)} inputs for TX {tx.txid[:20]}...")
             for inp in tx.inputs:
-                if inp.txid and inp.txid in input_tx_map:
-                    prev_tx = input_tx_map[inp.txid]
-                    if inp.vout < len(prev_tx.outputs):
-                        prev_output = prev_tx.outputs[inp.vout]
-                        if prev_output.address == address:
-                            # Create a new input object with the address and value populated
-                            inp_with_data = TransactionInput(
-                                txid=inp.txid,
-                                vout=inp.vout,
-                                script_sig=inp.script_sig,
-                                sequence=inp.sequence,
-                                witness=inp.witness,
-                                address=prev_output.address,
-                                value=prev_output.value
-                            )
-                            inputs_from_addr.append(inp_with_data)
+                if not inp.txid:
+                    logger.debug(f"    Input has no txid (coinbase?), skipping")
+                    continue
+                if inp.txid not in input_tx_map:
+                    logger.warning(f"    ⚠️  Input {inp.txid[:12]}:{inp.vout} NOT IN input_tx_map!")
+                    continue
+                prev_tx = input_tx_map[inp.txid]
+                if inp.vout >= len(prev_tx.outputs):
+                    logger.warning(f"    ⚠️  Input {inp.txid[:12]}:{inp.vout} - vout {inp.vout} >= {len(prev_tx.outputs)} outputs!")
+                    continue
+                prev_output = prev_tx.outputs[inp.vout]
+                logger.debug(f"    Input {inp.txid[:12]}:{inp.vout} -> address={prev_output.address[:15] if prev_output.address else 'None'}... (looking for {address[:15]}...)")
+                if prev_output.address == address:
+                    # Create a new input object with the address and value populated
+                    inp_with_data = TransactionInput(
+                        txid=inp.txid,
+                        vout=inp.vout,
+                        script_sig=inp.script_sig,
+                        sequence=inp.sequence,
+                        witness=inp.witness,
+                        address=prev_output.address,
+                        value=prev_output.value
+                    )
+                    inputs_from_addr.append(inp_with_data)
+                    logger.info(f"    ✅ FOUND INPUT from address: {prev_output.value} sats")
             
             logger.info(f"TX {tx.txid[:20]}: {len(outputs_to_addr)} outputs to addr, {len(inputs_from_addr)} inputs from addr")
                 
