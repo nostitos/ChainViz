@@ -10,10 +10,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # Electrum Server (Seth's Fulcrum primary)
-    electrum_host: str = "fulcrum.sethforprivacy.com"
+    electrum_host: str = "iu1b96e.glddns.com"
     electrum_port: int = 50002
-    electrum_use_ssl: bool = True
-    electrum_fallback_host: str = "iu1b96e.glddns.com"
+    electrum_use_ssl: bool = False
+    electrum_fallback_host: str = "fulcrum.sethforprivacy.com"
     electrum_fallback_port: int = 50002
 
     # Redis
