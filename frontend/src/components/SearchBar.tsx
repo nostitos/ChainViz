@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Loader2, Settings, Info } from 'lucide-react';
+import { Search, Loader2, Settings, Info, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface SearchBarProps {
   onTraceAddress: (address: string, hopsBefore: number, hopsAfter: number) => void;
@@ -128,18 +128,31 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
           </div>
           
                   <div className="depth-control">
-                    <label>
-                      Back Hops:
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={hopsBefore}
-                      onChange={(e) => setHopsBefore(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
-                      className="hop-input"
-                      disabled={isLoading}
-                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <label>
+                        Back Hops:
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={hopsBefore}
+                        onChange={(e) => setHopsBefore(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
+                        className="hop-input"
+                        disabled={isLoading}
+                      />
+                      {hasGraph && onExpandBackward && (
+                        <button
+                          type="button"
+                          onClick={onExpandBackward}
+                          disabled={isLoading}
+                          className="hop-arrow-button"
+                          title="Expand graph by 1 hop backward"
+                        >
+                          <ChevronLeft size={18} />
+                        </button>
+                      )}
+                    </div>
                     <input
                       type="range"
                       min="0"
@@ -149,43 +162,34 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
                       className="depth-slider"
                       disabled={isLoading}
                     />
-                    {hasGraph && onExpandBackward && (
-                      <button
-                        type="button"
-                        onClick={onExpandBackward}
-                        disabled={isLoading}
-                        style={{
-                          background: 'rgba(100, 181, 246, 0.2)',
-                          border: '1px solid rgba(100, 181, 246, 0.5)',
-                          borderRadius: '4px',
-                          color: 'var(--text-primary)',
-                          cursor: isLoading ? 'not-allowed' : 'pointer',
-                          padding: '6px 12px',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          opacity: isLoading ? 0.5 : 1,
-                          whiteSpace: 'nowrap',
-                        }}
-                        title="Expand graph by 1 hop backward"
-                      >
-                        ⬅️ +1 Back
-                      </button>
-                    )}
                   </div>
                   
                   <div className="depth-control">
-                    <label>
-                      Forward Hops:
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={hopsAfter}
-                      onChange={(e) => setHopsAfter(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
-                      className="hop-input"
-                      disabled={isLoading}
-                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <label>
+                        Forward Hops:
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={hopsAfter}
+                        onChange={(e) => setHopsAfter(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
+                        className="hop-input"
+                        disabled={isLoading}
+                      />
+                      {hasGraph && onExpandForward && (
+                        <button
+                          type="button"
+                          onClick={onExpandForward}
+                          disabled={isLoading}
+                          className="hop-arrow-button"
+                          title="Expand graph by 1 hop forward"
+                        >
+                          <ChevronRight size={18} />
+                        </button>
+                      )}
+                    </div>
                     <input
                       type="range"
                       min="0"
@@ -195,28 +199,6 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
                       className="depth-slider"
                       disabled={isLoading}
                     />
-                    {hasGraph && onExpandForward && (
-                      <button
-                        type="button"
-                        onClick={onExpandForward}
-                        disabled={isLoading}
-                        style={{
-                          background: 'rgba(100, 181, 246, 0.2)',
-                          border: '1px solid rgba(100, 181, 246, 0.5)',
-                          borderRadius: '4px',
-                          color: 'var(--text-primary)',
-                          cursor: isLoading ? 'not-allowed' : 'pointer',
-                          padding: '6px 12px',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          opacity: isLoading ? 0.5 : 1,
-                          whiteSpace: 'nowrap',
-                        }}
-                        title="Expand graph by 1 hop forward"
-                      >
-                        +1 Forward ➡️
-                      </button>
-                    )}
                   </div>
                   
                   {/* Edge Width Scale */}
@@ -304,6 +286,32 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
         .about-button:hover {
           background: rgba(76, 175, 80, 0.2);
           border-color: rgba(76, 175, 80, 0.5);
+        }
+
+        .hop-arrow-button {
+          background: rgba(100, 181, 246, 0.2);
+          border: 1px solid rgba(100, 181, 246, 0.5);
+          border-radius: 4px;
+          color: var(--text-primary);
+          cursor: pointer;
+          padding: 4px 6px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s ease;
+          min-width: 32px;
+          height: 28px;
+        }
+
+        .hop-arrow-button:hover:not(:disabled) {
+          background: rgba(100, 181, 246, 0.3);
+          border-color: rgba(100, 181, 246, 0.7);
+          transform: translateY(-1px);
+        }
+
+        .hop-arrow-button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
         }
       `}</style>
     </div>
