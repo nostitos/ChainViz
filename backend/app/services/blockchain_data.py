@@ -387,9 +387,22 @@ class BlockchainDataService:
         # Parse outputs
         outputs = []
         for vout in tx_data.get("vout", []):
+            raw_value = vout.get("value", 0)
+            # Electrum servers are inconsistent in their response format
+            # Most of the time: value is a float in BTC (e.g., 0.5 or 1.23456789)
+            # Sometimes (especially for round amounts): value is an int in BTC (e.g., 65 means 65 BTC)
+            # NEVER in satoshis directly from Electrum
+            if isinstance(raw_value, (int, float)):
+                value_sats = int(raw_value * 100_000_000)  # Always BTC → satoshis
+            else:
+                logger.warning(f"Unexpected value type for vout: {type(raw_value)} = {raw_value}")
+                value_sats = 0
+            
+            logger.debug(f"Parsing output {vout.get('n', 0)}: raw_value={raw_value} ({type(raw_value).__name__}) → {value_sats} sats")
+            
             tx_output = TransactionOutput(
                 n=vout.get("n", 0),
-                value=int(vout.get("value", 0) * 100_000_000),  # BTC to satoshis
+                value=value_sats,
                 script_pubkey=vout.get("scriptPubKey", {}).get("hex", ""),
                 address=vout.get("scriptPubKey", {}).get("address"),
                 script_type=self._detect_script_type(vout.get("scriptPubKey", {})),
