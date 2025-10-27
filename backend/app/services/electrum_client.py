@@ -69,7 +69,7 @@ class ElectrumClient:
             # Note: Skip server.version check to avoid deadlock with _lock
 
         except Exception as e:
-            logger.error(f"❌ Failed to connect to primary Electrum server {self.host}:{self.port}: {e}")
+            logger.error(f"❌ Failed to connect to primary Electrum server {self.host}:{self.port} (SSL={self.use_ssl}): {type(e).__name__}: {e}")
             
             # Try fallback server if configured
             from app.config import settings
@@ -77,6 +77,7 @@ class ElectrumClient:
                 logger.info(f"🔄 Trying fallback server: {settings.electrum_fallback_host}:{settings.electrum_fallback_port}")
                 self.host = settings.electrum_fallback_host
                 self.port = settings.electrum_fallback_port
+                self.use_ssl = True  # Fallback server uses SSL
                 # Retry connection with fallback
                 await self.connect()
             else:
