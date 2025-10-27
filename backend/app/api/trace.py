@@ -536,49 +536,74 @@ async def trace_from_address(
                         metadata={"vout": idx}
                     ))
         
-        # ALSO add inputs for ALL TXs in this trace
+        # ALSO add inputs for ALL TXs in this trace - using BATCH FETCHING for speed
         tx_nodes_in_result = [n for n in nodes if n.type == 'transaction']
-        logger.info(f"📥 Adding input addresses for {len(tx_nodes_in_result)} TXs from address trace")
+        logger.info(f"📥 Adding input addresses for {len(tx_nodes_in_result)} TXs from address trace (using batch fetching)")
         
-        for tx_node_data in tx_nodes_in_result:
-            txid = tx_node_data.metadata.get('txid') if tx_node_data.metadata else None
-            if not txid:
-                continue
-            
-            tx_node_id = tx_node_data.id
-            
+        # Collect all txids to fetch
+        txids_to_fetch = [n.metadata.get('txid') for n in tx_nodes_in_result if n.metadata and n.metadata.get('txid')]
+        
+        if txids_to_fetch:
+            # Batch fetch all transactions
+            logger.info(f"📦 Batch fetching {len(txids_to_fetch)} transactions...")
+            txs_map = {}
             try:
-                tx_full = await blockchain_service.fetch_transaction(txid)
+                fetched_txs = await blockchain_service.fetch_transactions_batch(txids_to_fetch)
+                txs_map = {tx.txid: tx for tx in fetched_txs if tx}
+            except Exception as e:
+                logger.error(f"Failed to batch fetch transactions: {e}")
+            
+            # Collect all previous txids from inputs
+            prev_txids = set()
+            for tx in txs_map.values():
+                for inp in tx.inputs:
+                    if inp.txid:
+                        prev_txids.add(inp.txid)
+            
+            # Batch fetch all previous transactions
+            logger.info(f"📦 Batch fetching {len(prev_txids)} previous transactions for inputs...")
+            prev_txs_map = {}
+            try:
+                if prev_txids:
+                    fetched_prev_txs = await blockchain_service.fetch_transactions_batch(list(prev_txids))
+                    prev_txs_map = {tx.txid: tx for tx in fetched_prev_txs if tx}
+            except Exception as e:
+                logger.error(f"Failed to batch fetch previous transactions: {e}")
+            
+            # Now process all inputs with cached data
+            for tx_node_data in tx_nodes_in_result:
+                txid = tx_node_data.metadata.get('txid') if tx_node_data.metadata else None
+                if not txid or txid not in txs_map:
+                    continue
+                
+                tx_node_id = tx_node_data.id
+                tx_full = txs_map[txid]
                 
                 for inp in tx_full.inputs:
-                    if inp.txid:
-                        try:
-                            prev_tx = await blockchain_service.fetch_transaction(inp.txid)
-                            if inp.vout < len(prev_tx.outputs):
-                                prev_output = prev_tx.outputs[inp.vout]
-                                if prev_output.address and prev_output.address != address:
-                                    inp_addr_id = f"addr_{prev_output.address}"
-                                    if not any(n.id == inp_addr_id for n in nodes):
-                                        nodes.append(NodeData(
-                                            id=inp_addr_id,
-                                            label=prev_output.address,
-                                            type="address",
-                                            value=None,
-                                            metadata={"address": prev_output.address, "is_change": False, "cluster_id": None}
-                                        ))
-                                    if not any(e.source == inp_addr_id and e.target == tx_node_id for e in edges):
-                                        edges.append(EdgeData(
-                                            source=inp_addr_id,
-                                            target=tx_node_id,
-                                            amount=prev_output.value,
-                                            confidence=1.0,
-                                            metadata={"vout": inp.vout}
-                                        ))
-                                        logger.info(f"  ➕ Input: {prev_output.address[:15]}... → TX {txid[:15]}")
-                        except:
-                            pass
-            except:
-                pass
+                    if inp.txid and inp.txid in prev_txs_map:
+                        prev_tx = prev_txs_map[inp.txid]
+                        if inp.vout < len(prev_tx.outputs):
+                            prev_output = prev_tx.outputs[inp.vout]
+                            if prev_output.address and prev_output.address != address:
+                                inp_addr_id = f"addr_{prev_output.address}"
+                                if not any(n.id == inp_addr_id for n in nodes):
+                                    nodes.append(NodeData(
+                                        id=inp_addr_id,
+                                        label=prev_output.address,
+                                        type="address",
+                                        value=None,
+                                        metadata={"address": prev_output.address, "is_change": False, "cluster_id": None}
+                                    ))
+                                if not any(e.source == inp_addr_id and e.target == tx_node_id for e in edges):
+                                    edges.append(EdgeData(
+                                        source=inp_addr_id,
+                                        target=tx_node_id,
+                                        amount=prev_output.value,
+                                        confidence=1.0,
+                                        metadata={"vout": inp.vout}
+                                    ))
+            
+            logger.info(f"✅ Added input addresses using batch fetching")
         
         logger.info(f"✅ Address trace complete: {len(nodes)} nodes, {len(edges)} edges")
         
