@@ -279,6 +279,10 @@ class BlockchainDataService:
 
             for (original_idx, txid), tx_data in zip(uncached_txids, tx_data_list):
                 if tx_data:
+                    # DEBUG: Log for problematic transaction
+                    if txid and txid.startswith("b1b980bb"):
+                        logger.warning(f"DEBUG: fetch_transactions_batch received TX b1b980bb with {len(tx_data.get('vin', []))} inputs from Electrum")
+                    
                     # Fetch input values from previous transactions
                     for vin in tx_data.get("vin", []):
                         if "value" not in vin or vin.get("value") is None:
@@ -365,6 +369,13 @@ class BlockchainDataService:
         inputs = []
         raw_inputs = tx_data.get("vin", [])
         logger.debug(f"Parsing TX {txid[:20]}: {len(raw_inputs)} inputs from Electrum")
+        
+        # DEBUG: For the problematic transaction, log first few inputs
+        if txid.startswith("b1b980bb"):
+            logger.warning(f"DEBUG: TX b1b980bb has {len(raw_inputs)} inputs in tx_data")
+            for i, vin in enumerate(raw_inputs[:3]):
+                logger.warning(f"  Input {i}: txid={vin.get('txid', 'N/A')[:12]}... vout={vin.get('vout', 'N/A')}")
+        
         for vin in raw_inputs:
             script_sig_hex = vin.get("scriptSig", {}).get("hex", "")
             
