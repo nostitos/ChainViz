@@ -4,6 +4,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Depends
 
 from app.models.api import TraceUTXORequest, TraceGraphResponse, PeelChainRequest, PeelChainResponse, NodeData, EdgeData
+from app.models.blockchain import TransactionInput
 from app.services.blockchain_data import get_blockchain_service, BlockchainDataService
 from app.analysis.orchestrator import TraceOrchestrator
 from app.analysis.peel_chain import PeelChainDetector
@@ -368,7 +369,25 @@ async def trace_from_address(
             outputs_to_addr = [(idx, out) for idx, out in enumerate(tx.outputs) if out.address == address]
             
             # Check if any input spends from our address (TX spending FROM address)
-            inputs_from_addr = [inp for inp in tx.inputs if inp.address == address]
+            # We need to look up the previous transaction's output to get the address
+            inputs_from_addr = []
+            for inp in tx.inputs:
+                if inp.txid and inp.txid in input_tx_map:
+                    prev_tx = input_tx_map[inp.txid]
+                    if inp.vout < len(prev_tx.outputs):
+                        prev_output = prev_tx.outputs[inp.vout]
+                        if prev_output.address == address:
+                            # Create a new input object with the address and value populated
+                            inp_with_data = TransactionInput(
+                                txid=inp.txid,
+                                vout=inp.vout,
+                                script_sig=inp.script_sig,
+                                sequence=inp.sequence,
+                                witness=inp.witness,
+                                address=prev_output.address,
+                                value=prev_output.value
+                            )
+                            inputs_from_addr.append(inp_with_data)
             
             logger.info(f"TX {tx.txid[:20]}: {len(outputs_to_addr)} outputs to addr, {len(inputs_from_addr)} inputs from addr")
                 
