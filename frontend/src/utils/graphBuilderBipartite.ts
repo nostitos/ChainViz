@@ -121,20 +121,20 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
   const positioned = new Set<string>();
   
   if (!showAddresses) {
-    console.log('⚠️ Depth=0 mode: showing address node with connections to transactions');
-    // In depth=0 mode, we want to show:
-    // 1. The center address node
-    // 2. All transaction nodes positioned by relationship:
-    //    - Transactions where address is INPUT → LEFT
-    //    - Transactions where address is OUTPUT → RIGHT
-    //    - Transactions where address is BOTH → BOTTOM
-    // 3. Edges connecting them
+    console.log('⚠️ Depth=0 mode: showing ONLY address and its directly connected transactions');
+    // In depth=0 mode (both hops = 0), we want to show:
+    // 1. ONLY the center address node
+    // 2. ONLY transaction nodes directly connected to this address:
+    //    - Transactions where address is INPUT (address spent) → RIGHT of address
+    //    - Transactions where address is OUTPUT (address received) → LEFT of address
+    // 3. ONLY edges between the address and these transactions
+    // NO other addresses or transactions are shown
     
     // Find the center address (should be the one we're tracing from)
     const centerAddress = addrData.find(addr => {
       // The center address is the one that appears in all transaction connections
-      const isInInputs = data.edges.some(e => e.target === addr.id);
-      const isInOutputs = data.edges.some(e => e.source === addr.id);
+      const isInInputs = data.edges.some(e => e.source === addr.id);
+      const isInOutputs = data.edges.some(e => e.target === addr.id);
       return isInInputs || isInOutputs;
     });
     
@@ -156,30 +156,29 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
       });
       
       // Categorize transactions by relationship to address
-      const leftTxs: any[] = []; // Address is INPUT (TX → Address)
-      const rightTxs: any[] = []; // Address is OUTPUT (Address → TX)
-      const bottomTxs: any[] = []; // Address is BOTH
+      const leftTxs: any[] = []; // Address is OUTPUT (Address received from TX) - TX on LEFT
+      const rightTxs: any[] = []; // Address is INPUT (Address spent to TX) - TX on RIGHT
       
       sortedTxs.forEach(txNode => {
-        const hasInput = data.edges.some(e => e.target === centerAddress.id && e.source === txNode.id);
-        const hasOutput = data.edges.some(e => e.source === centerAddress.id && e.target === txNode.id);
+        // Check if address received from this TX (TX → Address) - show TX on LEFT
+        const addressReceived = data.edges.some(e => e.source === txNode.id && e.target === centerAddress.id);
+        // Check if address spent to this TX (Address → TX) - show TX on RIGHT
+        const addressSpent = data.edges.some(e => e.source === centerAddress.id && e.target === txNode.id);
         
-        if (hasInput && hasOutput) {
-          bottomTxs.push(txNode);
-        } else if (hasInput) {
+        if (addressReceived) {
           leftTxs.push(txNode);
-        } else if (hasOutput) {
+        }
+        if (addressSpent) {
           rightTxs.push(txNode);
         }
       });
       
-      console.log(`📊 Transactions: ${leftTxs.length} left (inputs), ${rightTxs.length} right (outputs), ${bottomTxs.length} bottom (both)`);
+      console.log(`📊 Transactions: ${leftTxs.length} left (address received), ${rightTxs.length} right (address spent)`);
       
       // Position transactions
       const TX_SPACING = 500;
-      const BOTTOM_OFFSET = 300;
       
-      // Left side (inputs) - TX to Address
+      // Left side - Address RECEIVED from these TXs (TX → Address)
       leftTxs.forEach((txNode, idx) => {
         const txNodeInGraph = nodes.find(n => n.id === txNode.id);
         if (txNodeInGraph) {
@@ -190,7 +189,7 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
         }
       });
       
-      // Right side (outputs) - Address to TX
+      // Right side - Address SPENT to these TXs (Address → TX)
       rightTxs.forEach((txNode, idx) => {
         const txNodeInGraph = nodes.find(n => n.id === txNode.id);
         if (txNodeInGraph) {
@@ -201,20 +200,8 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
         }
       });
       
-      // Bottom (both) - Address is both input and output
-      bottomTxs.forEach((txNode, idx) => {
-        const txNodeInGraph = nodes.find(n => n.id === txNode.id);
-        if (txNodeInGraph) {
-          txNodeInGraph.position = {
-            x: (idx - bottomTxs.length / 2) * 120,
-            y: BOTTOM_OFFSET
-          };
-        }
-      });
-      
-      // Now add ALL other addresses and their edges
-      // We want to show the full transaction structure, not just the center address
-      const otherAddresses = addrData.filter(addr => addr.id !== centerAddress.id);
+      // DO NOT add other addresses - only show the center address and its transactions
+      const otherAddresses: any[] = []; // Empty - we don't show other addresses in depth=0 mode
       
       // Position addresses based on their relationship to transactions
       otherAddresses.forEach((addrNode, idx) => {
@@ -262,8 +249,13 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
         }
       });
       
-      // Add ALL edges (not just center address edges)
+      // Add ONLY edges connected to the center address (not all edges)
       data.edges.forEach(edgeData => {
+        // Only include edges where the center address is either source or target
+        if (edgeData.source !== centerAddress.id && edgeData.target !== centerAddress.id) {
+          return; // Skip this edge
+        }
+        
         const amount = edgeData.amount || 0;
         
         // Calculate edge width using same formula as normal edges
@@ -293,7 +285,7 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
         });
       });
       
-      console.log(`✅ Added center address with ${otherAddresses.length} other addresses and ${edges.length} edges`);
+      console.log(`✅ Depth=0: Added center address with ${leftTxs.length + rightTxs.length} transactions and ${edges.length} edges`);
     }
     
     return { nodes, edges };
