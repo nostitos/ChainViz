@@ -363,7 +363,9 @@ class BlockchainDataService:
         """
         # Parse inputs
         inputs = []
-        for vin in tx_data.get("vin", []):
+        raw_inputs = tx_data.get("vin", [])
+        logger.debug(f"Parsing TX {txid[:20]}: {len(raw_inputs)} inputs from Electrum")
+        for vin in raw_inputs:
             script_sig_hex = vin.get("scriptSig", {}).get("hex", "")
             
             # Try to extract address from script_sig if not provided by Electrum
@@ -383,6 +385,8 @@ class BlockchainDataService:
                 value=vin.get("value"),
             )
             inputs.append(tx_input)
+        
+        logger.debug(f"Parsed {len(inputs)} inputs for TX {txid[:20]}")
 
         # Parse outputs
         outputs = []
