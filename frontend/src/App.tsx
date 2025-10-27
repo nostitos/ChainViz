@@ -404,12 +404,16 @@ function AppContent() {
     setError(null);
     
     try {
+      // When depth=0 (both hops are 0), show ALL transactions for the address
+      // Otherwise use the maxTransactions setting
+      const txLimit = (hopsBefore === 0 && hopsAfter === 0) ? 1000 : maxTransactions;
+      
       // Start from immediate neighborhood
-      const data = await traceFromAddress(address, hopsBefore, maxTransactions);
+      const data = await traceFromAddress(address, hopsBefore, txLimit);
       console.log('📦 Raw data from backend:', data);
       // When hopsBefore = 0, show only transactions (no addresses)
       const showAddresses = hopsBefore > 0;
-      const { nodes: newNodes, edges: newEdges} = buildGraphFromTraceDataBipartite(data, edgeScaleMax, maxTransactions, showAddresses, maxOutputs);
+      const { nodes: newNodes, edges: newEdges} = buildGraphFromTraceDataBipartite(data, edgeScaleMax, txLimit, showAddresses, maxOutputs);
       console.log('🎨 Built graph:', newNodes.length, 'nodes,', newEdges.length, 'edges');
       
       // Add expand handler to all nodes
