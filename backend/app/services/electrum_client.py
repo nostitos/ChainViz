@@ -214,12 +214,22 @@ class ElectrumClient:
 
             # Extract results in order
             results = []
-            for response in responses:
+            for i, response in enumerate(responses):
                 if isinstance(response, dict) and "error" in response:
                     logger.warning(f"Batch item error: {response['error']}")
                     results.append(None)
                 elif isinstance(response, dict):
-                    results.append(response.get("result"))
+                    result = response.get("result")
+                    # Log transaction batch items for debugging
+                    if isinstance(result, dict) and "vin" in result:
+                        method = batch_request[i].get("method", "")
+                        if method == "blockchain.transaction.get":
+                            txid = batch_request[i].get("params", [None])[0]
+                            if txid:
+                                txid_short = txid[:20] if txid else "unknown"
+                                num_inputs = len(result.get("vin", []))
+                                logger.debug(f"Batch RPC response for TX {txid_short}: {num_inputs} inputs")
+                    results.append(result)
                 else:
                     logger.warning(f"Unexpected response type: {type(response)}")
                     results.append(None)
