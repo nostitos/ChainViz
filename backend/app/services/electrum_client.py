@@ -24,7 +24,7 @@ class ElectrumClient:
         port: int = 50002,
         use_ssl: bool = True,
         max_retries: int = 3,
-        timeout: int = 30,
+        timeout: int = 120,  # Increased from 30 to 120 seconds for large batch requests
     ):
         self.host = host
         self.port = port
