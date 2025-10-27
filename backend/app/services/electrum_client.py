@@ -229,6 +229,10 @@ class ElectrumClient:
                                 txid_short = txid[:20] if txid else "unknown"
                                 num_inputs = len(result.get("vin", []))
                                 logger.debug(f"Batch RPC response for TX {txid_short}: {num_inputs} inputs")
+                                # Extra logging for problematic transaction
+                                if txid and "b1b980bb" in txid:
+                                    logger.warning(f"DEBUG: Full txid for b1b980bb: {txid}")
+                                    logger.warning(f"DEBUG: First 3 inputs: {[v.get('txid', 'N/A')[:12] + '...' for v in result.get('vin', [])[:3]]}")
                     results.append(result)
                 else:
                     logger.warning(f"Unexpected response type: {type(response)}")
