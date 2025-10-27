@@ -9,9 +9,11 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - ELECTRUM_HOST=fulcrum.sethforprivacy.com
+      - ELECTRUM_HOST=electrum.diynodes.com
       - ELECTRUM_PORT=50002
       - ELECTRUM_USE_SSL=true
+      - ELECTRUM_FALLBACK_HOST=bitcoin.lu.ke
+      - ELECTRUM_FALLBACK_PORT=50002
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     depends_on:
