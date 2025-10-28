@@ -108,9 +108,14 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
   
   // Position TXs first
   sortedTxs.forEach((txNode, idx) => {
-    // DO NOT overwrite inputCount/outputCount - use the correct values from backend
-    // The backend provides the ACTUAL transaction input/output counts from the blockchain
-    // NOT the number of connected address nodes in the graph!
+    // Calculate ACTUAL input/output counts from the transaction data
+    // Count the number of edges, not just connected addresses in the graph
+    const inputAddresses = txInputs.get(txNode.id) || [];
+    const outputAddresses = txOutputs.get(txNode.id) || [];
+    
+    // If backend provided counts, use those; otherwise use edge counts
+    const inputCount = txNode.metadata?.inputCount ?? inputAddresses.length;
+    const outputCount = txNode.metadata?.outputCount ?? outputAddresses.length;
     
     nodes.push({
       id: txNode.id,
@@ -124,7 +129,8 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
         label: txNode.label,
         metadata: {
           ...txNode.metadata,
-          // Keep the original inputCount/outputCount from backend
+          inputCount,
+          outputCount,
         },
       },
       sourcePosition: Position.Right,
