@@ -311,11 +311,10 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
         {isTransaction ? (
           <>
             {renderField('Transaction ID', data.txid || metadata.txid, true)}
-            {txDetails 
-              ? renderField('Timestamp', txDetails.block_height !== null 
-                  ? (metadata.timestamp ? `${new Date(metadata.timestamp * 1000).toLocaleString()} (Block #${txDetails.block_height}) - ${formatTimeAgo(metadata.timestamp)}` : `Block #${txDetails.block_height}`)
-                  : (metadata.timestamp ? `${new Date(metadata.timestamp * 1000).toLocaleString()} (Unconfirmed) - ${formatTimeAgo(metadata.timestamp)}` : 'Unconfirmed'))
-              : renderField('Timestamp', metadata.timestamp ? `${new Date(metadata.timestamp * 1000).toLocaleString()} - ${formatTimeAgo(metadata.timestamp)}` : null)}
+            {metadata.timestamp && renderField('Timestamp', txDetails && txDetails.block_height !== null
+                ? `${new Date(metadata.timestamp * 1000).toLocaleString()} (Block #${txDetails.block_height}) - ${formatTimeAgo(metadata.timestamp)}`
+                : `${new Date(metadata.timestamp * 1000).toLocaleString()} - ${formatTimeAgo(metadata.timestamp)}`)}
+            {txDetails && txDetails.block_height && !metadata.timestamp && renderField('Block', `#${txDetails.block_height}`)}
             {txDetails && !txDetails.block_height && renderField('Size', `${txDetails.size} bytes (vsize: ${txDetails.vsize}, weight: ${txDetails.weight})`)}
             {txDetails && txDetails.fee !== null && txDetails.fee_rate !== null && renderField('Fee', `${formatBTC(txDetails.fee)} (${txDetails.fee_rate} sat/vB)`) }
 
