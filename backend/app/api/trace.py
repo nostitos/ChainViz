@@ -291,36 +291,9 @@ async def trace_from_address(
     Example: POST /api/trace/address?address=1A1z...&max_hops=1
     """
     try:
-        logger.info(f"Tracing from address: {address}")
+        logger.info(f"Tracing from address: {address} with max_hops={max_hops}")
 
-        # Get address transaction history
-        logger.info(f"Fetching history for address: {address}")
-        txids = await blockchain_service.fetch_address_history(address)
-        logger.info(f"Got {len(txids)} transactions for address")
-        
-        if not txids:
-            logger.warning(f"No transactions found for address: {address}")
-            return TraceGraphResponse(
-                nodes=[],
-                edges=[],
-                clusters=[],
-                coinjoins=[],
-                peel_chains=[],
-                start_txid="",
-                start_vout=0,
-                total_nodes=0,
-                total_edges=0,
-            )
-
-        # Get all transactions that output to this address (use BATCHING for speed!)
-        txids_to_fetch = txids[:max_transactions]
-        logger.info(f"⚡ Batch fetching {len(txids_to_fetch)} transactions (of {len(txids)} total)...")
-        transactions_raw = await blockchain_service.fetch_transactions_batch(txids_to_fetch)
-        transactions = [tx for tx in transactions_raw if tx is not None]  # Filter out None values
-        
-        logger.info(f"Successfully fetched {len(transactions)} of {len(txids_to_fetch)} transactions")
-        
-        # Build graph showing ALL transactions to this address
+        # Build graph based on hop level
         nodes = []
         edges = []
         
@@ -333,6 +306,48 @@ async def trace_from_address(
             value=None,
             metadata={"address": address, "is_change": False, "cluster_id": None, "is_starting_point": True}
         ))
+        
+        # HOP 0: Only the address node, no transactions
+        if max_hops == 0:
+            logger.info(f"✅ Hop 0: Returning only the address node")
+            return TraceGraphResponse(
+                nodes=nodes,
+                edges=[],
+                clusters=[],
+                coinjoins=[],
+                peel_chains=[],
+                start_txid="",
+                start_vout=0,
+                total_nodes=len(nodes),
+                total_edges=0,
+            )
+        
+        # HOP 1+: Get transactions connected to this address
+        logger.info(f"Fetching history for address: {address}")
+        txids = await blockchain_service.fetch_address_history(address)
+        logger.info(f"Got {len(txids)} transactions for address")
+        
+        if not txids:
+            logger.warning(f"No transactions found for address: {address}")
+            return TraceGraphResponse(
+                nodes=nodes,
+                edges=[],
+                clusters=[],
+                coinjoins=[],
+                peel_chains=[],
+                start_txid="",
+                start_vout=0,
+                total_nodes=len(nodes),
+                total_edges=0,
+            )
+
+        # Get all transactions that output to this address (use BATCHING for speed!)
+        txids_to_fetch = txids[:max_transactions]
+        logger.info(f"⚡ Batch fetching {len(txids_to_fetch)} transactions (of {len(txids)} total)...")
+        transactions_raw = await blockchain_service.fetch_transactions_batch(txids_to_fetch)
+        transactions = [tx for tx in transactions_raw if tx is not None]  # Filter out None values
+        
+        logger.info(f"Successfully fetched {len(transactions)} of {len(txids_to_fetch)} transactions")
         
         # Add ALL transaction nodes (both receiving and spending)
         logger.info(f"Processing {len(transactions)} transactions...")
@@ -463,168 +478,20 @@ async def trace_from_address(
                     confidence=0.5,
                     metadata={"inferred": True}
                 ))
-                
-            # Add ALL other addresses from this TX (inputs and outputs) using pre-fetched data
-            logger.info(f"Processing inputs for TX: {tx.txid[:20]}...")
-            logger.info(f"  tx_node_id = {tx_node_id[:30]}...")
             
-            for inp in tx.inputs:
-                if inp.txid and inp.txid in input_tx_map:
-                    prev_tx = input_tx_map[inp.txid]
-                    if inp.vout < len(prev_tx.outputs):
-                        prev_output = prev_tx.outputs[inp.vout]
-                        logger.info(f"  Input {inp.vout} from prev TX {inp.txid[:15]}: address = {prev_output.address[:20] if prev_output.address else 'None'}...")
-                        
-                        # Only add if it's NOT the target address
-                        if prev_output.address and prev_output.address != address:
-                            inp_addr_id = f"addr_{prev_output.address}"
-                            if not any(n.id == inp_addr_id for n in nodes):
-                                nodes.append(NodeData(
-                                    id=inp_addr_id,
-                                    label=prev_output.address,
-                                    type="address",
-                                    value=None,
-                                    metadata={"address": prev_output.address, "is_change": False, "cluster_id": None}
-                                ))
-                            # Edge from input address to THIS TX
-                            logger.info(f"✅ Creating input edge: {prev_output.address[:20]}... → TX {tx.txid[:20]}")
-                            edges.append(EdgeData(
-                                source=inp_addr_id,
-                                target=tx_node_id,
-                                amount=prev_output.value,
-                                confidence=1.0,
-                                metadata={}
-                            ))
-                        else:
-                            logger.info(f"⏭️  Skipping (is target address or None)")
+            # HOP 2+: Add input/output addresses (not at hop 1)
+            if max_hops > 1:
+                logger.info(f"Processing inputs for TX: {tx.txid[:20]}... (max_hops={max_hops})")
+                logger.info(f"  tx_node_id = {tx_node_id[:30]}...")
                 
-            # Add output addresses (determine change via improved heuristic)
-            # Only mark ONE output as change if it clearly qualifies
-            change_vout = None
-            if len(tx.outputs) >= 2:
-                # Detect script type of inputs by fetching prev TXs
-                input_script_types = set()
                 for inp in tx.inputs:
-                    if inp.txid:
-                        try:
-                            prev_tx = await blockchain_service.fetch_transaction(inp.txid)
-                            if inp.vout < len(prev_tx.outputs):
-                                prev_out = prev_tx.outputs[inp.vout]
-                                if prev_out.script_type:
-                                    input_script_types.add(prev_out.script_type)
-                        except:
-                            pass
-                
-                # Score each output
-                scored = []
-                for idx, out in enumerate(tx.outputs):
-                    score = 0
-                    reasons = []
-                    
-                    # Script type match (strongest signal)
-                    if input_script_types and hasattr(out, 'script_type') and out.script_type in input_script_types:
-                        score += 3
-                        reasons.append(f"script matches input ({out.script_type})")
-                    
-                    # Non-round amount
-                    is_round = (out.value % 1_000_000 == 0) or (out.value % 100_000 == 0)
-                    if not is_round:
-                        score += 1
-                        reasons.append("non-round amount")
-                    
-                    # Not first output (weak signal)
-                    if idx > 0:
-                        score += 1
-                        reasons.append("not first output")
-                    
-                    scored.append((idx, score, reasons))
-                
-                # Sort by score descending
-                scored.sort(key=lambda x: x[1], reverse=True)
-                
-                # Pick highest score if above threshold and unambiguous
-                change_reasons = []
-                if scored and scored[0][1] >= 3:
-                    if len(scored) == 1 or scored[0][1] > scored[1][1]:
-                        change_vout = scored[0][0]
-                        change_reasons = scored[0][2]
-                        logger.info(f"Change detected: vout={change_vout}, score={scored[0][1]}, reasons={change_reasons}")
-            
-            for idx, output in enumerate(tx.outputs):
-                if output.address and output.address != address:
-                    out_addr_id = f"addr_{output.address}"
-                    is_change = (idx == change_vout)
-                    if not any(n.id == out_addr_id for n in nodes):
-                        nodes.append(NodeData(
-                            id=out_addr_id,
-                            label=output.address,
-                            type="address",
-                            value=None,
-                            metadata={
-                                "address": output.address, 
-                                "is_change": is_change, 
-                                "change_reasons": change_reasons if is_change else [],
-                                "cluster_id": None
-                            }
-                        ))
-                    # Edge from THIS TX to output address
-                    logger.info(f"Creating output edge: {tx_node_id[:25]}... (TX: {tx.txid[:20]}) → {output.address[:20]}...")
-                    edges.append(EdgeData(
-                        source=tx_node_id,
-                        target=out_addr_id,
-                        amount=output.value,
-                        confidence=1.0,
-                        metadata={"vout": idx}
-                    ))
-        
-        # ALSO add inputs for ALL TXs in this trace - using BATCH FETCHING for speed
-        tx_nodes_in_result = [n for n in nodes if n.type == 'transaction']
-        logger.info(f"📥 Adding input addresses for {len(tx_nodes_in_result)} TXs from address trace (using batch fetching)")
-        
-        # Collect all txids to fetch
-        txids_to_fetch = [n.metadata.get('txid') for n in tx_nodes_in_result if n.metadata and n.metadata.get('txid')]
-        
-        if txids_to_fetch:
-            # Batch fetch all transactions
-            logger.info(f"📦 Batch fetching {len(txids_to_fetch)} transactions...")
-            txs_map = {}
-            try:
-                fetched_txs = await blockchain_service.fetch_transactions_batch(txids_to_fetch)
-                txs_map = {tx.txid: tx for tx in fetched_txs if tx}
-            except Exception as e:
-                logger.error(f"Failed to batch fetch transactions: {e}")
-            
-            # Collect all previous txids from inputs
-            prev_txids = set()
-            for tx in txs_map.values():
-                for inp in tx.inputs:
-                    if inp.txid:
-                        prev_txids.add(inp.txid)
-            
-            # Batch fetch all previous transactions
-            logger.info(f"📦 Batch fetching {len(prev_txids)} previous transactions for inputs...")
-            prev_txs_map = {}
-            try:
-                if prev_txids:
-                    fetched_prev_txs = await blockchain_service.fetch_transactions_batch(list(prev_txids))
-                    prev_txs_map = {tx.txid: tx for tx in fetched_prev_txs if tx}
-            except Exception as e:
-                logger.error(f"Failed to batch fetch previous transactions: {e}")
-            
-            # Now process all inputs with cached data
-            for tx_node_data in tx_nodes_in_result:
-                txid = tx_node_data.metadata.get('txid') if tx_node_data.metadata else None
-                if not txid or txid not in txs_map:
-                    continue
-                
-                tx_node_id = tx_node_data.id
-                tx_full = txs_map[txid]
-                
-                for inp in tx_full.inputs:
-                    if inp.txid and inp.txid in prev_txs_map:
-                        prev_tx = prev_txs_map[inp.txid]
+                    if inp.txid and inp.txid in input_tx_map:
+                        prev_tx = input_tx_map[inp.txid]
                         if inp.vout < len(prev_tx.outputs):
                             prev_output = prev_tx.outputs[inp.vout]
+                            logger.info(f"  Input {inp.vout} from prev TX {inp.txid[:15]}: address = {prev_output.address[:20] if prev_output.address else 'None'}...")
+                            
+                            # Only add if it's NOT the target address
                             if prev_output.address and prev_output.address != address:
                                 inp_addr_id = f"addr_{prev_output.address}"
                                 if not any(n.id == inp_addr_id for n in nodes):
@@ -635,16 +502,168 @@ async def trace_from_address(
                                         value=None,
                                         metadata={"address": prev_output.address, "is_change": False, "cluster_id": None}
                                     ))
-                                if not any(e.source == inp_addr_id and e.target == tx_node_id for e in edges):
-                                    edges.append(EdgeData(
-                                        source=inp_addr_id,
-                                        target=tx_node_id,
-                                        amount=prev_output.value,
-                                        confidence=1.0,
-                                        metadata={"vout": inp.vout}
-                                    ))
+                                # Edge from input address to THIS TX
+                                logger.info(f"✅ Creating input edge: {prev_output.address[:20]}... → TX {tx.txid[:20]}")
+                                edges.append(EdgeData(
+                                    source=inp_addr_id,
+                                    target=tx_node_id,
+                                    amount=prev_output.value,
+                                    confidence=1.0,
+                                    metadata={}
+                                ))
+                            else:
+                                logger.info(f"⏭️  Skipping (is target address or None)")
+                
+                # Add output addresses (determine change via improved heuristic)
+                # Only mark ONE output as change if it clearly qualifies
+                change_vout = None
+                if len(tx.outputs) >= 2:
+                    # Detect script type of inputs by fetching prev TXs
+                    input_script_types = set()
+                    for inp in tx.inputs:
+                        if inp.txid:
+                            try:
+                                prev_tx = await blockchain_service.fetch_transaction(inp.txid)
+                                if inp.vout < len(prev_tx.outputs):
+                                    prev_out = prev_tx.outputs[inp.vout]
+                                    if prev_out.script_type:
+                                        input_script_types.add(prev_out.script_type)
+                            except:
+                                pass
+                    
+                    # Score each output
+                    scored = []
+                    for idx, out in enumerate(tx.outputs):
+                        score = 0
+                        reasons = []
+                        
+                        # Script type match (strongest signal)
+                        if input_script_types and hasattr(out, 'script_type') and out.script_type in input_script_types:
+                            score += 3
+                            reasons.append(f"script matches input ({out.script_type})")
+                        
+                        # Non-round amount
+                        is_round = (out.value % 1_000_000 == 0) or (out.value % 100_000 == 0)
+                        if not is_round:
+                            score += 1
+                            reasons.append("non-round amount")
+                        
+                        # Not first output (weak signal)
+                        if idx > 0:
+                            score += 1
+                            reasons.append("not first output")
+                        
+                        scored.append((idx, score, reasons))
+                    
+                    # Sort by score descending
+                    scored.sort(key=lambda x: x[1], reverse=True)
+                    
+                    # Pick highest score if above threshold and unambiguous
+                    change_reasons = []
+                    if scored and scored[0][1] >= 3:
+                        if len(scored) == 1 or scored[0][1] > scored[1][1]:
+                            change_vout = scored[0][0]
+                            change_reasons = scored[0][2]
+                            logger.info(f"Change detected: vout={change_vout}, score={scored[0][1]}, reasons={change_reasons}")
+                
+                for idx, output in enumerate(tx.outputs):
+                    if output.address and output.address != address:
+                        out_addr_id = f"addr_{output.address}"
+                        is_change = (idx == change_vout)
+                        if not any(n.id == out_addr_id for n in nodes):
+                            nodes.append(NodeData(
+                                id=out_addr_id,
+                                label=output.address,
+                                type="address",
+                                value=None,
+                                metadata={
+                                    "address": output.address, 
+                                    "is_change": is_change, 
+                                    "change_reasons": change_reasons if is_change else [],
+                                    "cluster_id": None
+                                }
+                            ))
+                        # Edge from THIS TX to output address
+                        logger.info(f"Creating output edge: {tx_node_id[:25]}... (TX: {tx.txid[:20]}) → {output.address[:20]}...")
+                        edges.append(EdgeData(
+                            source=tx_node_id,
+                            target=out_addr_id,
+                            amount=output.value,
+                            confidence=1.0,
+                            metadata={"vout": idx}
+                        ))
+        
+        # HOP 2+: ALSO add inputs for ALL TXs in this trace - using BATCH FETCHING for speed
+        if max_hops > 1:
+            tx_nodes_in_result = [n for n in nodes if n.type == 'transaction']
+            logger.info(f"📥 Adding input addresses for {len(tx_nodes_in_result)} TXs from address trace (max_hops={max_hops}, using batch fetching)")
             
-            logger.info(f"✅ Added input addresses using batch fetching")
+            # Collect all txids to fetch
+            txids_to_fetch = [n.metadata.get('txid') for n in tx_nodes_in_result if n.metadata and n.metadata.get('txid')]
+            
+            if txids_to_fetch:
+                # Batch fetch all transactions
+                logger.info(f"📦 Batch fetching {len(txids_to_fetch)} transactions...")
+                txs_map = {}
+                try:
+                    fetched_txs = await blockchain_service.fetch_transactions_batch(txids_to_fetch)
+                    txs_map = {tx.txid: tx for tx in fetched_txs if tx}
+                except Exception as e:
+                    logger.error(f"Failed to batch fetch transactions: {e}")
+                
+                # Collect all previous txids from inputs
+                prev_txids = set()
+                for tx in txs_map.values():
+                    for inp in tx.inputs:
+                        if inp.txid:
+                            prev_txids.add(inp.txid)
+                
+                # Batch fetch all previous transactions
+                logger.info(f"📦 Batch fetching {len(prev_txids)} previous transactions for inputs...")
+                prev_txs_map = {}
+                try:
+                    if prev_txids:
+                        fetched_prev_txs = await blockchain_service.fetch_transactions_batch(list(prev_txids))
+                        prev_txs_map = {tx.txid: tx for tx in fetched_prev_txs if tx}
+                except Exception as e:
+                    logger.error(f"Failed to batch fetch previous transactions: {e}")
+                
+                # Now process all inputs with cached data
+                for tx_node_data in tx_nodes_in_result:
+                    txid = tx_node_data.metadata.get('txid') if tx_node_data.metadata else None
+                    if not txid or txid not in txs_map:
+                        continue
+                    
+                    tx_node_id = tx_node_data.id
+                    tx_full = txs_map[txid]
+                    
+                    for inp in tx_full.inputs:
+                        if inp.txid and inp.txid in prev_txs_map:
+                            prev_tx = prev_txs_map[inp.txid]
+                            if inp.vout < len(prev_tx.outputs):
+                                prev_output = prev_tx.outputs[inp.vout]
+                                if prev_output.address and prev_output.address != address:
+                                    inp_addr_id = f"addr_{prev_output.address}"
+                                    if not any(n.id == inp_addr_id for n in nodes):
+                                        nodes.append(NodeData(
+                                            id=inp_addr_id,
+                                            label=prev_output.address,
+                                            type="address",
+                                            value=None,
+                                            metadata={"address": prev_output.address, "is_change": False, "cluster_id": None}
+                                        ))
+                                    if not any(e.source == inp_addr_id and e.target == tx_node_id for e in edges):
+                                        edges.append(EdgeData(
+                                            source=inp_addr_id,
+                                            target=tx_node_id,
+                                            amount=prev_output.value,
+                                            confidence=1.0,
+                                            metadata={"vout": inp.vout}
+                                        ))
+                
+                logger.info(f"✅ Added input addresses using batch fetching")
+        else:
+            logger.info(f"✅ Hop 1: Showing only address and transactions (no other addresses)")
         
         logger.info(f"✅ Address trace complete: {len(nodes)} nodes, {len(edges)} edges")
         
