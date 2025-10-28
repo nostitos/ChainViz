@@ -184,6 +184,10 @@ function AppContent() {
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     setSelectedEntity(node);
   }, []);
+
+  const onPaneClick = useCallback(() => {
+    setSelectedEntity(null);
+  }, []);
   
   // Undo to previous state
   const handleUndo = useCallback(() => {
@@ -1592,6 +1596,7 @@ function AppContent() {
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeClick={onNodeClick}
+          onPaneClick={onPaneClick}
           onNodeDragStop={onNodeDragStop}
           nodeTypes={memoizedNodeTypes}
           nodesDraggable={true}
