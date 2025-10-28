@@ -17,7 +17,7 @@ interface TraceData {
       is_change?: boolean;
       cluster_id?: string;
       timestamp?: number;
-      depth?: number;
+      is_starting_point?: boolean;
     };
   }>;
   edges: Array<{
@@ -33,8 +33,8 @@ interface TraceData {
   }>;
 }
 
-export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: number = 10, maxTransactions: number = 20, showAddresses: boolean = true, maxOutputs: number = 20, startTxid?: string): { nodes: Node[]; edges: Edge[] } {
-  console.log('📊 buildGraphFromTraceDataBipartite called with maxTransactions:', maxTransactions, 'showAddresses:', showAddresses, 'maxOutputs:', maxOutputs, 'startTxid:', startTxid);
+export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: number = 10, maxTransactions: number = 20, maxOutputs: number = 20, startTxid?: string): { nodes: Node[]; edges: Edge[] } {
+  console.log('📊 buildGraphFromTraceDataBipartite called with maxTransactions:', maxTransactions, 'maxOutputs:', maxOutputs, 'startTxid:', startTxid);
   let nodes: Node[] = [];
   let edges: Edge[] = [];
 
@@ -130,179 +130,8 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     });
   });
 
-  // Position ALL addresses relative to their connected TXs (unless showAddresses is false)
+  // Position ALL addresses relative to their connected TXs
   const positioned = new Set<string>();
-  
-  if (!showAddresses) {
-    console.log('⚠️ Depth=0 mode: showing ONLY address and its directly connected transactions');
-    // In depth=0 mode (both hops = 0), we want to show:
-    // 1. ONLY the center address node
-    // 2. ONLY transaction nodes directly connected to this address:
-    //    - Transactions where address is INPUT (address spent) → RIGHT of address
-    //    - Transactions where address is OUTPUT (address received) → LEFT of address
-    // 3. ONLY edges between the address and these transactions
-    // NO other addresses or transactions are shown
-    
-    // Find the center address (should be the one we're tracing from)
-    const centerAddress = addrData.find(addr => {
-      // The center address is the one that appears in all transaction connections
-      const isInInputs = data.edges.some(e => e.source === addr.id);
-      const isInOutputs = data.edges.some(e => e.target === addr.id);
-      return isInInputs || isInOutputs;
-    });
-    
-    if (centerAddress) {
-      console.log('📍 Found center address:', centerAddress.id);
-      
-      // Add the center address node at center
-      nodes.push({
-        id: centerAddress.id,
-        type: 'address',
-        position: { x: 0, y: 0 }, // Center
-        data: {
-          ...centerAddress,
-          label: centerAddress.label,
-          metadata: centerAddress.metadata,
-        },
-        sourcePosition: Position.Right,
-        targetPosition: Position.Left,
-      });
-      
-      // Categorize transactions by relationship to address
-      const leftTxs: any[] = []; // Address is OUTPUT (Address received from TX) - TX on LEFT
-      const rightTxs: any[] = []; // Address is INPUT (Address spent to TX) - TX on RIGHT
-      
-      sortedTxs.forEach(txNode => {
-        // Check if address received from this TX (TX → Address) - show TX on LEFT
-        const addressReceived = data.edges.some(e => e.source === txNode.id && e.target === centerAddress.id);
-        // Check if address spent to this TX (Address → TX) - show TX on RIGHT
-        const addressSpent = data.edges.some(e => e.source === centerAddress.id && e.target === txNode.id);
-        
-        if (addressReceived) {
-          leftTxs.push(txNode);
-        }
-        if (addressSpent) {
-          rightTxs.push(txNode);
-        }
-      });
-      
-      console.log(`📊 Transactions: ${leftTxs.length} left (address received), ${rightTxs.length} right (address spent)`);
-      
-      // Position transactions
-      const TX_SPACING = 500;
-      
-      // Left side - Address RECEIVED from these TXs (TX → Address)
-      leftTxs.forEach((txNode, idx) => {
-        const txNodeInGraph = nodes.find(n => n.id === txNode.id);
-        if (txNodeInGraph) {
-          txNodeInGraph.position = {
-            x: -TX_SPACING,
-            y: (idx - leftTxs.length / 2) * 120
-          };
-        }
-      });
-      
-      // Right side - Address SPENT to these TXs (Address → TX)
-      rightTxs.forEach((txNode, idx) => {
-        const txNodeInGraph = nodes.find(n => n.id === txNode.id);
-        if (txNodeInGraph) {
-          txNodeInGraph.position = {
-            x: TX_SPACING,
-            y: (idx - rightTxs.length / 2) * 120
-          };
-        }
-      });
-      
-      // DO NOT add other addresses - only show the center address and its transactions
-      const otherAddresses: any[] = []; // Empty - we don't show other addresses in depth=0 mode
-      
-      // Position addresses based on their relationship to transactions
-      otherAddresses.forEach((addrNode, idx) => {
-        // Find which transaction this address connects to
-        const connectedTx = sortedTxs.find(txNode => {
-          return data.edges.some(e => 
-            (e.source === addrNode.id && e.target === txNode.id) ||
-            (e.source === txNode.id && e.target === addrNode.id)
-          );
-        });
-        
-        if (connectedTx) {
-          const txNodeInGraph = nodes.find(n => n.id === connectedTx.id);
-          if (txNodeInGraph) {
-            // Position address relative to its transaction
-            // Input addresses go to the left of the transaction
-            // Output addresses go to the right of the transaction
-            const isInput = data.edges.some(e => e.source === addrNode.id && e.target === connectedTx.id);
-            const isOutput = data.edges.some(e => e.source === connectedTx.id && e.target === addrNode.id);
-            
-            const addrOffset = 400;
-            let xPos = txNodeInGraph.position.x;
-            let yPos = txNodeInGraph.position.y;
-            
-            if (isInput) {
-              xPos = txNodeInGraph.position.x - addrOffset;
-            } else if (isOutput) {
-              xPos = txNodeInGraph.position.x + addrOffset;
-            }
-            
-            // Add the address node
-            nodes.push({
-              id: addrNode.id,
-              type: 'address',
-              position: { x: xPos, y: yPos },
-              data: {
-                ...addrNode,
-                label: addrNode.label,
-                metadata: addrNode.metadata,
-              },
-              sourcePosition: Position.Right,
-              targetPosition: Position.Left,
-            });
-          }
-        }
-      });
-      
-      // Add ONLY edges connected to the center address (not all edges)
-      data.edges.forEach(edgeData => {
-        // Only include edges where the center address is either source or target
-        if (edgeData.source !== centerAddress.id && edgeData.target !== centerAddress.id) {
-          return; // Skip this edge
-        }
-        
-        const amount = edgeData.amount || 0;
-        
-        // Calculate edge width using same formula as normal edges
-        const minAmountSats = 100000; // 0.001 BTC
-        const scaleMaxSats = edgeScaleMax * 100000000;
-        const sqrtBase = Math.sqrt(scaleMaxSats / minAmountSats);
-        let strokeWidth = 2;
-        if (amount > minAmountSats) {
-          const sqrtValue = Math.sqrt(amount / minAmountSats) / sqrtBase;
-          strokeWidth = 2 + (sqrtValue * 68);
-        }
-        
-        edges.push({
-          id: `e-${edgeData.source}-${edgeData.target}`,
-          source: edgeData.source,
-          target: edgeData.target,
-          type: 'default', // Same as normal edges
-          animated: false,
-          data: {
-            amount: amount, // Store amount for recalculation
-          },
-          style: { 
-            stroke: '#4caf50', // Green like normal edges
-            strokeWidth 
-          },
-          label: amount > 0 ? `${(amount / 100000000).toFixed(8)} BTC` : undefined,
-        });
-      });
-      
-      console.log(`✅ Depth=0: Added center address with ${leftTxs.length + rightTxs.length} transactions and ${edges.length} edges`);
-    }
-    
-    return { nodes, edges };
-  }
   
   sortedTxs.forEach(txNode => {
     const txNodeInGraph = nodes.find(n => n.id === txNode.id)!;
@@ -311,12 +140,13 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     const inputAddrIds = txInputs.get(txNode.id) || [];
     const inputAddrs = inputAddrIds.map(id => addrData.find(a => a.id === id)!).filter(Boolean);
     
-    // Check if this is the starting transaction
+    // Check if this is the starting transaction or if any input is an origin address
     const isStartTx = startTxid && txNode.metadata?.txid === startTxid;
+    const hasOriginAddress = inputAddrs.some(a => a.metadata?.is_starting_point === true);
     
-    // If 10+ inputs AND not the starting TX, create cluster node
-    // For starting TX, show all addresses individually (up to maxOutputs limit)
-    if (inputAddrs.length >= 10 && !isStartTx) {
+    // If 10+ inputs AND not the starting TX AND no origin addresses, create cluster node
+    // For starting TX or origin addresses, show all addresses individually (up to maxOutputs limit)
+    if (inputAddrs.length >= 10 && !isStartTx && !hasOriginAddress) {
       const clusterId = `cluster-inputs-${txNode.id}`;
       
       // Get amounts from edges
@@ -385,10 +215,11 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     
     const changeAddrs = outputAddrs.filter(a => a.metadata?.is_change === true);
     const regularAddrs = outputAddrs.filter(a => a.metadata?.is_change !== true);
+    const hasOriginOutput = outputAddrs.some(a => a.metadata?.is_starting_point === true);
     
-    // If 10+ outputs AND not the starting TX, create cluster node
-    // For starting TX, show all addresses individually (up to maxOutputs limit)
-    if (regularAddrs.length >= 10 && !isStartTx) {
+    // If 10+ outputs AND not the starting TX AND no origin addresses, create cluster node
+    // For starting TX or origin addresses, show all addresses individually (up to maxOutputs limit)
+    if (regularAddrs.length >= 10 && !isStartTx && !hasOriginOutput) {
       const clusterId = `cluster-outputs-${txNode.id}`;
       
       // Get amounts and vout from edges

@@ -101,8 +101,6 @@ class TraceGraphResponse(BaseModel):
     )
     start_txid: str = Field(..., description="Starting transaction ID")
     start_vout: int = Field(..., description="Starting output index")
-    hops_before_reached: int = Field(..., description="Number of backward hops reached")
-    hops_after_reached: int = Field(..., description="Number of forward hops reached")
     total_nodes: int = Field(..., description="Total number of nodes")
     total_edges: int = Field(..., description="Total number of edges")
 

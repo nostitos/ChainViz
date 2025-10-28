@@ -17,8 +17,8 @@ interface SearchBarProps {
 
 export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpenSettings, onOpenAbout, edgeScaleMax, onEdgeScaleMaxChange, onExpandBackward, onExpandForward, hasGraph, initialQuery }: SearchBarProps) {
   const [input, setInput] = useState('');
-  const [hopsBefore, setHopsBefore] = useState(0); // Hops backward (into the past)
-  const [hopsAfter, setHopsAfter] = useState(0); // Hops forward (into the future)
+  const [hopsBefore, setHopsBefore] = useState(1); // Hops backward (default: 1)
+  const [hopsAfter, setHopsAfter] = useState(1); // Hops forward (default: 1)
   const [history, setHistory] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
 

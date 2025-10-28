@@ -48,7 +48,7 @@ export async function traceFromAddress(address: string, maxDepth: number = 5, ma
   } catch (err) {
     clearTimeout(timeout);
     if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error('Request timed out - try lower depth');
+      throw new Error('Request timed out - try fewer hops or lower max transactions');
     }
     throw err;
   }
@@ -84,7 +84,7 @@ export async function traceFromAddressWithStats(address: string, maxDepth: numbe
   } catch (err) {
     clearTimeout(timeout);
     if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error('Request timed out - try lower depth');
+      throw new Error('Request timed out - try fewer hops or lower max transactions');
     }
     throw err;
   }

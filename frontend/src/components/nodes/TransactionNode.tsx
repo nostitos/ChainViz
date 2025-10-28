@@ -7,7 +7,6 @@ interface TransactionNodeData {
   metadata?: {
     txid?: string;
     timestamp?: number;
-    depth?: number;
     inputCount?: number;
     outputCount?: number;
     is_starting_point?: boolean;
@@ -19,7 +18,6 @@ export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
   const nodeData = data as TransactionNodeData;
   const txid = nodeData.txid || nodeData.metadata?.txid || 'Unknown';
   const timestamp = nodeData.metadata?.timestamp;
-  const depth = nodeData.metadata?.depth ?? 0;
   const inputCount = nodeData.metadata?.inputCount ?? 0;
   const outputCount = nodeData.metadata?.outputCount ?? 0;
   const isStartingPoint = nodeData.metadata?.is_starting_point ?? false;
@@ -104,7 +102,6 @@ export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
               <Clock size={11} /> {formattedDate}
             </span>
           )}
-          <span className="node-depth-badge">D:{depth}</span>
         </div>
         
         {/* Input/Output counts */}

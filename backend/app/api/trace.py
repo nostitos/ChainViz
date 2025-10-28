@@ -69,7 +69,7 @@ async def trace_utxo(
                     label=f"{request.txid[:16]}...",
                     type="transaction",
                     value=None,
-                    metadata={"txid": request.txid, "depth": 0, "timestamp": start_tx.timestamp, "is_starting_point": True}
+                    metadata={"txid": request.txid, "timestamp": start_tx.timestamp, "is_starting_point": True}
                 ))
                 tx_nodes.append(result.nodes[-1])
                 logger.info(f"✅ Added starting TX node")
@@ -273,22 +273,22 @@ async def get_address_transactions(
 @router.post("/address", response_model=TraceGraphResponse)
 async def trace_from_address(
     address: str,
-    max_depth: int = 20,
+    max_hops: int = 1,
     max_transactions: int = 100,
     include_coinjoin: bool = False,
     confidence_threshold: float = 0.5,
     blockchain_service: BlockchainDataService = Depends(get_blockchain_service),
 ):
     """
-    Trace backward from a Bitcoin address (all UTXOs)
+    Trace from a Bitcoin address
     
-    This is a convenience endpoint that:
+    This endpoint:
     1. Gets all transactions for the address
-    2. Finds recent outputs to that address
-    3. Traces backward from those outputs
-    4. Combines results into a single graph
+    2. Returns the address and its connected transactions
+    3. With max_hops=0, returns only the origin address
+    4. With max_hops=1+, includes connected addresses
     
-    Example: POST /api/trace/address?address=1A1z...&max_depth=15
+    Example: POST /api/trace/address?address=1A1z...&max_hops=1
     """
     try:
         logger.info(f"Tracing from address: {address}")
@@ -308,8 +308,6 @@ async def trace_from_address(
                 peel_chains=[],
                 start_txid="",
                 start_vout=0,
-                hops_before_reached=0,
-                hops_after_reached=0,
                 total_nodes=0,
                 total_edges=0,
             )
@@ -347,7 +345,7 @@ async def trace_from_address(
                 label=f"{tx.txid[:16]}...",
                 type="transaction",
                 value=None,
-                metadata={"txid": tx.txid, "depth": 0, "timestamp": tx.timestamp}
+                metadata={"txid": tx.txid, "timestamp": tx.timestamp}
             ))
         
         # Collect input TXIDs ONLY for transactions that might spend from our address
@@ -658,8 +656,6 @@ async def trace_from_address(
             peel_chains=[],
             start_txid=transactions[0].txid if transactions else "",
             start_vout=0,
-            hops_before_reached=0,
-            hops_after_reached=0 if max_depth == 0 else 1,
             total_nodes=len(nodes),
             total_edges=len(edges),
         )
