@@ -350,14 +350,25 @@ async def trace_from_address(
                 metadata={"txid": tx.txid, "depth": 0, "timestamp": tx.timestamp}
             ))
         
-        # Collect all input TXIDs for batch fetching (MAJOR SPEEDUP!)
+        # Collect input TXIDs ONLY for transactions that might spend from our address
+        # (Optimization: Skip transactions where we know the address received funds, not spent)
         all_input_txids = set()
-        for tx in transactions:
-            for inp in tx.inputs:
-                if inp.txid:
-                    all_input_txids.add(inp.txid)
+        tx_needs_input_check = set()  # Track which TXs need input address resolution
         
-        logger.info(f"⚡ Batch fetching {len(all_input_txids)} input transactions...")
+        for tx in transactions:
+            # Quick check: Does this TX have any outputs TO our address?
+            has_output_to_addr = any(out.address == address for out in tx.outputs)
+            
+            if not has_output_to_addr:
+                # No outputs to our address, so our address MUST be in inputs (spending)
+                # We need to fetch prev txs to verify
+                tx_needs_input_check.add(tx.txid)
+                for inp in tx.inputs:
+                    if inp.txid:
+                        all_input_txids.add(inp.txid)
+            # else: TX sends TO our address, we don't need to check inputs
+        
+        logger.info(f"⚡ Batch fetching {len(all_input_txids)} input transactions (for {len(tx_needs_input_check)} TXs that might spend from address)...")
         input_txs = await blockchain_service.fetch_transactions_batch(list(all_input_txids))
         input_tx_map = {tx.txid: tx for tx in input_txs if tx}
         
@@ -369,35 +380,38 @@ async def trace_from_address(
             outputs_to_addr = [(idx, out) for idx, out in enumerate(tx.outputs) if out.address == address]
             
             # Check if any input spends from our address (TX spending FROM address)
-            # We need to look up the previous transaction's output to get the address
+            # OPTIMIZATION: Only check if this TX was flagged as needing input resolution
             inputs_from_addr = []
-            logger.info(f"  Checking {len(tx.inputs)} inputs for TX {tx.txid[:20]}...")
-            for inp in tx.inputs:
-                if not inp.txid:
-                    logger.debug(f"    Input has no txid (coinbase?), skipping")
-                    continue
-                if inp.txid not in input_tx_map:
-                    logger.warning(f"    ⚠️  Input {inp.txid[:12]}:{inp.vout} NOT IN input_tx_map!")
-                    continue
-                prev_tx = input_tx_map[inp.txid]
-                if inp.vout >= len(prev_tx.outputs):
-                    logger.warning(f"    ⚠️  Input {inp.txid[:12]}:{inp.vout} - vout {inp.vout} >= {len(prev_tx.outputs)} outputs!")
-                    continue
-                prev_output = prev_tx.outputs[inp.vout]
-                logger.debug(f"    Input {inp.txid[:12]}:{inp.vout} -> address={prev_output.address[:15] if prev_output.address else 'None'}... (looking for {address[:15]}...)")
-                if prev_output.address == address:
-                    # Create a new input object with the address and value populated
-                    inp_with_data = TransactionInput(
-                        txid=inp.txid,
-                        vout=inp.vout,
-                        script_sig=inp.script_sig,
-                        sequence=inp.sequence,
-                        witness=inp.witness,
-                        address=prev_output.address,
-                        value=prev_output.value
-                    )
-                    inputs_from_addr.append(inp_with_data)
-                    logger.info(f"    ✅ FOUND INPUT from address: {prev_output.value} sats")
+            if tx.txid in tx_needs_input_check:
+                logger.info(f"  Checking {len(tx.inputs)} inputs for TX {tx.txid[:20]}...")
+                for inp in tx.inputs:
+                    if not inp.txid:
+                        logger.debug(f"    Input has no txid (coinbase?), skipping")
+                        continue
+                    if inp.txid not in input_tx_map:
+                        logger.warning(f"    ⚠️  Input {inp.txid[:12]}:{inp.vout} NOT IN input_tx_map!")
+                        continue
+                    prev_tx = input_tx_map[inp.txid]
+                    if inp.vout >= len(prev_tx.outputs):
+                        logger.warning(f"    ⚠️  Input {inp.txid[:12]}:{inp.vout} - vout {inp.vout} >= {len(prev_tx.outputs)} outputs!")
+                        continue
+                    prev_output = prev_tx.outputs[inp.vout]
+                    logger.debug(f"    Input {inp.txid[:12]}:{inp.vout} -> address={prev_output.address[:15] if prev_output.address else 'None'}... (looking for {address[:15]}...)")
+                    if prev_output.address == address:
+                        # Create a new input object with the address and value populated
+                        inp_with_data = TransactionInput(
+                            txid=inp.txid,
+                            vout=inp.vout,
+                            script_sig=inp.script_sig,
+                            sequence=inp.sequence,
+                            witness=inp.witness,
+                            address=prev_output.address,
+                            value=prev_output.value
+                        )
+                        inputs_from_addr.append(inp_with_data)
+                        logger.info(f"    ✅ FOUND INPUT from address: {prev_output.value} sats")
+            else:
+                logger.debug(f"  Skipping input check for TX {tx.txid[:20]} (has outputs to address)")
             
             logger.info(f"TX {tx.txid[:20]}: {len(outputs_to_addr)} outputs to addr, {len(inputs_from_addr)} inputs from addr")
                 
