@@ -449,14 +449,6 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                   </span>
                 </div>
                 <div className="detail-row">
-                  <span className="detail-label">Total Received:</span>
-                  <span className="detail-value">{formatBTC(addressInfo.total_received)}</span>
-                </div>
-                <div className="detail-row">
-                  <span className="detail-label">Total Sent:</span>
-                  <span className="detail-value">{formatBTC(addressInfo.total_sent)}</span>
-                </div>
-                <div className="detail-row">
                   <span className="detail-label">TX Count:</span>
                   <span className="detail-value">{addressInfo.tx_count}</span>
                 </div>

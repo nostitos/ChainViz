@@ -351,19 +351,12 @@ class BlockchainDataService:
         balance = balance_data.get("confirmed", 0)
         unconfirmed = balance_data.get("unconfirmed", 0)
         
-        # For total_received and total_sent, we need to fetch transactions
-        # For now, use a simplified calculation based on balance
-        # If balance is 0 but has transactions, it means it received and spent everything
-        if balance == 0 and len(txids) > 0:
-            # Address has no balance but has transactions - received and spent everything
-            # We can't calculate exact amounts without fetching all transactions
-            # Set to 0 for now (could be improved by fetching TXs)
-            total_received = 0
-            total_sent = 0
-        else:
-            # Address has balance - use balance as total_received
-            total_received = balance
-            total_sent = 0
+        # For total_received and total_sent - we cannot calculate these accurately
+        # without fetching and analyzing all transactions (which would be very slow)
+        # Instead, set these to None/0 to indicate they're not available
+        # The UI can still show the balance and transaction count
+        total_received = 0  # Unknown - would need to fetch all transactions
+        total_sent = 0      # Unknown - would need to fetch all transactions
 
         # Try to get first_seen and last_seen from transaction history
         first_seen = None
