@@ -41,12 +41,18 @@ async def get_transaction(
         coinjoin_detector = CoinJoinDetector()
         coinjoin_info = coinjoin_detector.detect_coinjoin(transaction)
 
+        # Calculate fee rate (sat/vB)
+        fee_rate = None
+        if transaction.fee is not None and transaction.vsize > 0:
+            fee_rate = round(transaction.fee / transaction.vsize, 2)
+        
         return TransactionResponse(
             transaction=transaction,
             change_output=change_result.output_index if change_result else None,
             change_confidence=change_result.confidence if change_result else None,
             coinjoin_info=coinjoin_info,
             cluster_inputs=None,  # Would need full clustering
+            fee_rate=fee_rate,
         )
 
     except Exception as e:

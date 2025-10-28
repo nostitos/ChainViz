@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, ExternalLink, Expand, ArrowRight, ArrowLeft, Copy, Check } from 'lucide-react';
 import type { Node } from '@xyflow/react';
+import { CollapsibleSection } from './CollapsibleSection';
 
 interface EntityPanelProps {
   entity: Node;
@@ -13,6 +14,17 @@ interface TransactionDetails {
   outputs: Array<{ address: string; value: number; vout: number }>;
   change_output: number | null;
   change_confidence: number | null;
+  // NEW FIELDS:
+  size: number;
+  vsize: number;
+  weight: number;
+  fee: number | null;
+  fee_rate: number | null;
+  confirmations: number;
+  block_height: number | null;
+  block_hash: string | null;
+  version: number;
+  locktime: number;
 }
 
 interface AddressInfo {
@@ -21,6 +33,17 @@ interface AddressInfo {
   total_sent: number;
   tx_count: number;
   transactions: string[];
+  // NEW FIELDS:
+  utxos: Array<{
+    txid: string;
+    vout: number;
+    value: number;
+    confirmations: number;
+    height: number | null;
+  }>;
+  first_seen: number | null;
+  last_seen: number | null;
+  script_type: string | null;
 }
 
 // Improved change detection: pick at most ONE candidate with highest score
@@ -52,7 +75,6 @@ function getChangeDecision(inputs: any[], outputs: any[]): ChangeDecision {
 
   const amounts = outputs.map((o: any) => o.value).sort((a: number,b: number)=>a-b);
   const median = amounts[Math.floor(amounts.length/2)];
-  const max = Math.max(...amounts);
 
   const isRoundAmount = (sats: number) => sats % 1000000 === 0 || sats % 100000 === 0;
 
@@ -101,8 +123,8 @@ function getChangeDecision(inputs: any[], outputs: any[]): ChangeDecision {
 
 export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
   const isTransaction = entity.type === 'transaction';
-  const data = entity.data;
-  const metadata = data.metadata || {};
+  const data = entity.data as any; // Cast to any for flexibility with node data
+  const metadata = (data.metadata || {}) as any;
   const [txDetails, setTxDetails] = useState<TransactionDetails | null>(null);
   const [addressInfo, setAddressInfo] = useState<AddressInfo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -135,6 +157,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
           .then(async (data) => {
             const tx = data.transaction;
             console.log('📦 Fetched TX data:', tx);
+            console.log('📦 Block height:', tx.block_height, 'Block hash:', tx.block_hash);
             
             // For inputs, we need to fetch previous TXs to get addresses
             const inputsWithAddrs = await Promise.all(
@@ -171,6 +194,17 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
               outputs,
               change_output: data.change_output,
               change_confidence: data.change_confidence,
+              // NEW FIELDS:
+              size: tx.size || 0,
+              vsize: tx.vsize || 0,
+              weight: tx.weight || 0,
+              fee: tx.fee !== undefined ? tx.fee : null,
+              fee_rate: data.fee_rate !== undefined ? data.fee_rate : null,
+              confirmations: tx.confirmations || 0,
+              block_height: tx.block_height !== undefined ? tx.block_height : null,
+              block_hash: tx.block_hash || null,
+              version: tx.version || 1,
+              locktime: tx.locktime || 0,
             });
           })
           .catch(err => console.error('Failed to fetch TX details:', err))
@@ -196,6 +230,11 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
             total_sent: data.total_sent || 0,
             tx_count: data.tx_count || 0,
             transactions: data.transactions || [],
+            // NEW FIELDS:
+            utxos: data.utxos || [],
+            first_seen: data.first_seen || null,
+            last_seen: data.last_seen || null,
+            script_type: data.script_type || null,
           });
         })
         .catch(err => console.error('Failed to fetch address info:', err))
@@ -258,8 +297,13 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
         {isTransaction ? (
           <>
             {renderField('Transaction ID', data.txid || metadata.txid, true)}
-            {renderField('Depth', metadata.depth)}
-            {renderField('Timestamp', metadata.timestamp ? new Date(metadata.timestamp * 1000).toLocaleString() : null)}
+            {txDetails 
+              ? renderField('Timestamp', txDetails.block_height !== null 
+                  ? (metadata.timestamp ? `${new Date(metadata.timestamp * 1000).toLocaleString()} (Block #${txDetails.block_height})` : `Block #${txDetails.block_height}`)
+                  : (metadata.timestamp ? `${new Date(metadata.timestamp * 1000).toLocaleString()} (Unconfirmed)` : 'Unconfirmed'))
+              : renderField('Timestamp', metadata.timestamp ? `${new Date(metadata.timestamp * 1000).toLocaleString()}` : null)}
+            {txDetails && !txDetails.block_height && renderField('Size', `${txDetails.size} bytes (vsize: ${txDetails.vsize}, weight: ${txDetails.weight})`)}
+            {txDetails && txDetails.fee !== null && txDetails.fee_rate !== null && renderField('Fee', `${formatBTC(txDetails.fee)} (${txDetails.fee_rate} sat/vB)`) }
 
             {/* Show Inputs and Outputs */}
             {loading ? (
@@ -368,6 +412,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                             );
                           })()}
                         </div>
+
               </>
             ) : null}
           </>
@@ -433,6 +478,114 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                     </div>
                   </div>
                 )}
+                
+                {/* UTXO List Section */}
+                {addressInfo.utxos && addressInfo.utxos.length > 0 && (
+                  <CollapsibleSection title={`UTXOs (${addressInfo.utxos.length})`} defaultOpen={false}>
+                    <div style={{ 
+                      maxHeight: '250px', 
+                      overflowY: 'auto',
+                      marginTop: '8px'
+                    }}>
+                      {addressInfo.utxos.map((utxo) => (
+                        <div 
+                          key={`${utxo.txid}-${utxo.vout}`}
+                          style={{
+                            padding: '10px',
+                            background: 'rgba(76, 175, 80, 0.1)',
+                            marginBottom: '8px',
+                            borderRadius: '6px',
+                            borderLeft: '3px solid #4caf50',
+                            fontSize: '12px'
+                          }}
+                        >
+                          <div style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between',
+                            marginBottom: '6px',
+                            alignItems: 'center'
+                          }}>
+                            <span style={{ 
+                              fontWeight: 'bold', 
+                              color: '#4caf50',
+                              fontFamily: 'monospace'
+                            }}>
+                              {formatBTC(utxo.value)}
+                            </span>
+                            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                              {utxo.confirmations} conf{utxo.confirmations !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <div style={{ 
+                            fontSize: '11px', 
+                            fontFamily: 'monospace',
+                            color: 'var(--text-secondary)',
+                            wordBreak: 'break-all'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span title={utxo.txid}>
+                                {utxo.txid.substring(0, 16)}...{utxo.txid.substring(utxo.txid.length - 16)}:{utxo.vout}
+                              </span>
+                              <button
+                                onClick={() => copyToClipboard(utxo.txid, 'id')}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  padding: '2px',
+                                  display: 'flex',
+                                  color: copiedId === utxo.txid ? '#4caf50' : 'var(--text-secondary)'
+                                }}
+                                title="Copy TXID"
+                              >
+                                {copiedId === utxo.txid ? <Check size={12} /> : <Copy size={12} />}
+                              </button>
+                            </div>
+                          </div>
+                          {utxo.height !== null && (
+                            <div style={{ 
+                              fontSize: '10px', 
+                              color: 'var(--text-secondary)',
+                              marginTop: '4px'
+                            }}>
+                              Block #{utxo.height}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleSection>
+                )}
+                
+                {/* Address Details Section */}
+                <CollapsibleSection title="Address Details" defaultOpen={false}>
+                  <div style={{ marginTop: '8px' }}>
+                    {addressInfo.first_seen && (
+                      <div className="detail-row">
+                        <span className="detail-label">First Seen:</span>
+                        <span className="detail-value">{new Date(addressInfo.first_seen * 1000).toLocaleString()}</span>
+                      </div>
+                    )}
+                    {addressInfo.last_seen && (
+                      <div className="detail-row">
+                        <span className="detail-label">Last Seen:</span>
+                        <span className="detail-value">{new Date(addressInfo.last_seen * 1000).toLocaleString()}</span>
+                      </div>
+                    )}
+                    {addressInfo.script_type && (
+                      <div className="detail-row">
+                        <span className="detail-label">Script Type:</span>
+                        <span className="detail-value" style={{ 
+                          textTransform: 'uppercase',
+                          fontFamily: 'monospace',
+                          color: '#64b5f6'
+                        }}>
+                          {addressInfo.script_type}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </CollapsibleSection>
               </div>
             ) : null}
             

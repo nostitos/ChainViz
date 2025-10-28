@@ -51,6 +51,7 @@ async def get_address(
             cluster_id=None,  # Would need clustering analysis
             first_seen=address_info.first_seen,
             last_seen=address_info.last_seen,
+            script_type=str(address_info.script_type) if address_info.script_type else None,
         )
 
     except Exception as e:

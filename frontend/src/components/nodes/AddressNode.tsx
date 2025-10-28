@@ -2,12 +2,28 @@ import { memo, useState, useEffect } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { Wallet, AlertCircle } from 'lucide-react';
 
+interface AddressNodeData {
+  address?: string;
+  metadata?: {
+    address?: string;
+    is_change?: boolean;
+    change_reasons?: string[];
+    cluster_id?: string;
+    is_starting_point?: boolean;
+  };
+  onExpand?: (nodeId: string, direction: 'inputs' | 'outputs' | 'spending' | 'receiving') => void;
+}
+
 export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
-  const address = data.address || data.metadata?.address || 'Unknown';
-  const isChange = data.metadata?.is_change ?? false;
-  const changeReasons = data.metadata?.change_reasons || [];
-  const clusterId = data.metadata?.cluster_id;
+  const nodeData = data as AddressNodeData;
+  const address = nodeData.address || nodeData.metadata?.address || 'Unknown';
+  const isChange = nodeData.metadata?.is_change ?? false;
+  const changeReasons = nodeData.metadata?.change_reasons || [];
+  const clusterId = nodeData.metadata?.cluster_id;
+  const isStartingPoint = nodeData.metadata?.is_starting_point ?? false;
   const [balance, setBalance] = useState<number | null>(null);
+  const [txCount, setTxCount] = useState<number | null>(null);
+  const [utxoCount, setUtxoCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   
   // Show only first and last 6 characters
@@ -20,7 +36,7 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
     ? changeReasons.join(', ') 
     : 'Change detected';
   
-  // Fetch balance on mount
+  // Fetch balance and metadata on mount
   useEffect(() => {
     if (!address || address === 'Unknown') return;
     
@@ -29,6 +45,8 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
       .then(res => res.json())
       .then(data => {
         setBalance(data.balance / 100000000); // Convert satoshis to BTC
+        setTxCount(data.tx_count || 0);
+        setUtxoCount(data.utxos ? data.utxos.length : 0);
         setLoading(false);
       })
       .catch(err => {
@@ -36,14 +54,19 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
         setLoading(false);
       });
   }, [address]);
+  
+  // Build tooltip text
+  const tooltipText = !loading && balance !== null && txCount !== null && utxoCount !== null
+    ? `Balance: ${balance.toFixed(8)} BTC\nTX Count: ${txCount}\nUTXOs: ${utxoCount}`
+    : address;
 
   const handleExpandSpending = (e: React.MouseEvent) => {
     e.stopPropagation();
     console.log('🔍 Expanding spending for:', address);
-    console.log('onExpand available?', !!data.onExpand);
-    if (data.onExpand) {
+    console.log('onExpand available?', !!nodeData.onExpand);
+    if (nodeData.onExpand) {
       console.log('✅ Calling onExpand with:', id, 'spending');
-      data.onExpand(id, 'spending');
+      nodeData.onExpand(id, 'spending');
     } else {
       console.error('❌ No onExpand callback!');
     }
@@ -52,10 +75,10 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
   const handleExpandReceiving = (e: React.MouseEvent) => {
     e.stopPropagation();
     console.log('🔍 Expanding receiving for:', address);
-    console.log('onExpand available?', !!data.onExpand);
-    if (data.onExpand) {
+    console.log('onExpand available?', !!nodeData.onExpand);
+    if (nodeData.onExpand) {
       console.log('✅ Calling onExpand with:', id, 'receiving');
-      data.onExpand(id, 'receiving');
+      nodeData.onExpand(id, 'receiving');
     } else {
       console.error('❌ No onExpand callback!');
     }
@@ -64,7 +87,16 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
   // External link button removed (available in side panel)
 
   return (
-    <div className={`address-node ${selected ? 'selected' : ''} ${isChange ? 'change' : ''}`}>
+    <div 
+      className={`address-node ${selected ? 'selected' : ''} ${isChange ? 'change' : ''} ${isStartingPoint ? 'starting-point' : ''}`}
+      title={tooltipText}
+      style={isStartingPoint ? {
+        borderColor: '#fbbf24',
+        borderWidth: '3px',
+        boxShadow: '0 0 15px rgba(251, 191, 36, 0.5)',
+        background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(251, 191, 36, 0.05))'
+      } : undefined}
+    >
       {/* LEFT side expand button */}
       <div className="handle-container left">
         <button className="expand-handle-btn nodrag" onClick={handleExpandReceiving} title="Expand more">

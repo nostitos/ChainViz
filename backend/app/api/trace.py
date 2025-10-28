@@ -63,13 +63,13 @@ async def trace_utxo(
             # Fetch the starting transaction
             start_tx = await blockchain_service.fetch_transaction(request.txid)
             if start_tx:
-                # Add the transaction node
+                # Add the transaction node (mark as starting point)
                 result.nodes.append(NodeData(
                     id=f"tx_{request.txid}",
                     label=f"{request.txid[:16]}...",
                     type="transaction",
                     value=None,
-                    metadata={"txid": request.txid, "depth": 0, "timestamp": start_tx.timestamp}
+                    metadata={"txid": request.txid, "depth": 0, "timestamp": start_tx.timestamp, "is_starting_point": True}
                 ))
                 tx_nodes.append(result.nodes[-1])
                 logger.info(f"✅ Added starting TX node")
@@ -326,14 +326,14 @@ async def trace_from_address(
         nodes = []
         edges = []
         
-        # Add address node
+        # Add address node (mark as starting point)
         addr_node_id = f"addr_{address}"
         nodes.append(NodeData(
             id=addr_node_id,
             label=address,
             type="address",
             value=None,
-            metadata={"address": address, "is_change": False, "cluster_id": None}
+            metadata={"address": address, "is_change": False, "cluster_id": None, "is_starting_point": True}
         ))
         
         # Add ALL transaction nodes (both receiving and spending)

@@ -214,11 +214,18 @@ class BlockchainDataService:
 
         if cached:
             data = json.loads(cached)
-            return Transaction(**data)
+            # Check if cached data has block info - if not, re-fetch
+            if data.get("block_height") is None:
+                logger.info(f"TX {txid[:20]}: Cached data missing block_height, re-fetching...")
+            else:
+                return Transaction(**data)
 
         # Fetch from Electrum (use fresh client)
         electrum = get_electrum_client()
         tx_data = await electrum.get_transaction(txid, verbose=True)
+        
+        # Debug: Log what Electrum actually returned
+        logger.info(f"TX {txid[:20]}: Electrum returned - blockheight={tx_data.get('blockheight')}, blockhash={tx_data.get('blockhash')[:20] if tx_data.get('blockhash') else 'None'}, confirmations={tx_data.get('confirmations')}")
         
         # Fetch input values from previous transactions - DISABLED (too slow, use batching instead)
         # The trace.py endpoint already handles batching for input values
@@ -266,26 +273,32 @@ class BlockchainDataService:
             cached = await self._get_cache(cache_key)
             if cached:
                 data = json.loads(cached)
-                result.append(Transaction(**data))
-                cached_indices[i] = len(result) - 1
+                # Check if cached data has block info - if not, re-fetch
+                if data.get("block_height") is None:
+                    logger.info(f"TX {txid[:20]}: Cached data missing block_height, will re-fetch...")
+                    uncached_txids.append((i, txid))
+                else:
+                    result.append(Transaction(**data))
+                    cached_indices[i] = len(result) - 1
             else:
                 uncached_txids.append((i, txid))
 
-        # Batch fetch uncached transactions
+        # Batch fetch uncached transactions (with verbose=True to get block info)
         if uncached_txids:
             txids_to_fetch = [txid for _, txid in uncached_txids]
             electrum = get_electrum_client()
-            tx_data_list = await electrum.get_transactions_batch(txids_to_fetch)
+            tx_data_list = await electrum.get_transactions_batch(txids_to_fetch, verbose=True)
 
             for (original_idx, txid), tx_data in zip(uncached_txids, tx_data_list):
                 if tx_data:
+                    # DEBUG: Log block info for ALL transactions
+                    block_height = tx_data.get('blockheight')
+                    block_hash = tx_data.get('blockhash')
+                    logger.debug(f"TX {txid[:20]} from Electrum: blockheight={block_height}, blockhash={block_hash[:20] if block_hash else 'None'}, confirmations={tx_data.get('confirmations')}")
+                    
                     # DEBUG: Log for problematic transaction
                     if txid and txid.startswith("b1b980bb"):
                         logger.warning(f"DEBUG: fetch_transactions_batch received TX b1b980bb with {len(tx_data.get('vin', []))} inputs from Electrum")
-                    
-                    # DEBUG: Log BEFORE fetching input values
-                    if txid and txid.startswith("b1b980bb"):
-                        logger.warning(f"DEBUG: BEFORE fetching input values: {len(tx_data.get('vin', []))} inputs")
                     
                     # Fetch input values from previous transactions
                     for vin in tx_data.get("vin", []):
@@ -437,6 +450,14 @@ class BlockchainDataService:
         total_out = sum(out.value for out in outputs)
         fee = total_in - total_out if total_in > 0 else None
 
+        block_height = tx_data.get("blockheight")
+        block_hash = tx_data.get("blockhash")
+        timestamp = tx_data.get("blocktime")
+        confirmations = tx_data.get("confirmations", 0)
+        
+        # Debug logging for block information
+        logger.debug(f"TX {txid[:20]}: blockheight={block_height}, blockhash={block_hash[:20] if block_hash else None}, blocktime={timestamp}, confirmations={confirmations}")
+        
         return Transaction(
             txid=txid,
             version=tx_data.get("version", 1),
@@ -446,10 +467,10 @@ class BlockchainDataService:
             weight=tx_data.get("weight", tx_data.get("size", 0) * 4),
             inputs=inputs,
             outputs=outputs,
-            block_height=tx_data.get("blockheight"),
-            block_hash=tx_data.get("blockhash"),
-            timestamp=tx_data.get("blocktime"),
-            confirmations=tx_data.get("confirmations", 0),
+            block_height=block_height,
+            block_hash=block_hash,
+            timestamp=timestamp,
+            confirmations=confirmations,
             fee=fee,
         )
 

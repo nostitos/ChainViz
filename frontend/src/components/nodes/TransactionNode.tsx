@@ -2,12 +2,27 @@ import { memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { ArrowRightLeft, Clock } from 'lucide-react';
 
+interface TransactionNodeData {
+  txid?: string;
+  metadata?: {
+    txid?: string;
+    timestamp?: number;
+    depth?: number;
+    inputCount?: number;
+    outputCount?: number;
+    is_starting_point?: boolean;
+  };
+  onExpand?: (nodeId: string, direction: 'inputs' | 'outputs') => void;
+}
+
 export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
-  const txid = data.txid || data.metadata?.txid || 'Unknown';
-  const timestamp = data.metadata?.timestamp;
-  const depth = data.metadata?.depth ?? 0;
-  const inputCount = data.metadata?.inputCount ?? 0;
-  const outputCount = data.metadata?.outputCount ?? 0;
+  const nodeData = data as TransactionNodeData;
+  const txid = nodeData.txid || nodeData.metadata?.txid || 'Unknown';
+  const timestamp = nodeData.metadata?.timestamp;
+  const depth = nodeData.metadata?.depth ?? 0;
+  const inputCount = nodeData.metadata?.inputCount ?? 0;
+  const outputCount = nodeData.metadata?.outputCount ?? 0;
+  const isStartingPoint = nodeData.metadata?.is_starting_point ?? false;
   
   const formattedDate = timestamp 
     ? new Date(timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -17,15 +32,25 @@ export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
   const shortTxid = txid.length > 12 
     ? `${txid.substring(0, 6)}...${txid.substring(txid.length - 6)}`
     : txid;
+  
+  // Build tooltip text
+  const tooltipParts = [txid];
+  if (inputCount > 0 || outputCount > 0) {
+    tooltipParts.push(`Inputs: ${inputCount}, Outputs: ${outputCount}`);
+  }
+  if (timestamp) {
+    tooltipParts.push(`Time: ${new Date(timestamp * 1000).toLocaleString()}`);
+  }
+  const tooltipText = tooltipParts.join('\n');
 
   const handleExpandInputs = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
     console.log('🔍 Expanding inputs for:', txid);
-    console.log('🔍 data.onExpand exists?', !!data.onExpand);
-    if (data.onExpand) {
+    console.log('🔍 nodeData.onExpand exists?', !!nodeData.onExpand);
+    if (nodeData.onExpand) {
       console.log('✅ Calling onExpand with inputs');
-      data.onExpand(id, 'inputs');
+      nodeData.onExpand(id, 'inputs');
     } else {
       console.error('❌ No onExpand handler!');
     }
@@ -35,10 +60,10 @@ export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
     e.stopPropagation();
     e.preventDefault();
     console.log('🔍 Expanding outputs for:', txid);
-    console.log('🔍 data.onExpand exists?', !!data.onExpand);
-    if (data.onExpand) {
+    console.log('🔍 nodeData.onExpand exists?', !!nodeData.onExpand);
+    if (nodeData.onExpand) {
       console.log('✅ Calling onExpand with outputs');
-      data.onExpand(id, 'outputs');
+      nodeData.onExpand(id, 'outputs');
     } else {
       console.error('❌ No onExpand handler!');
     }
@@ -47,7 +72,16 @@ export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
   // External link button removed (available in side panel)
 
   return (
-    <div className={`transaction-node ${selected ? 'selected' : ''}`}>
+    <div 
+      className={`transaction-node ${selected ? 'selected' : ''} ${isStartingPoint ? 'starting-point' : ''}`}
+      title={tooltipText}
+      style={isStartingPoint ? {
+        borderColor: '#fbbf24',
+        borderWidth: '3px',
+        boxShadow: '0 0 15px rgba(251, 191, 36, 0.5)',
+        background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(251, 191, 36, 0.05))'
+      } : undefined}
+    >
       {/* LEFT side expand button */}
       <div className="handle-container left nodrag">
         <button className="expand-handle-btn nodrag" onClick={handleExpandInputs} title="Expand inputs">

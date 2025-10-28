@@ -120,6 +120,7 @@ class AddressResponse(BaseModel):
     cluster_id: Optional[str] = Field(None, description="Cluster ID if clustered")
     first_seen: Optional[int] = Field(None, description="First transaction timestamp")
     last_seen: Optional[int] = Field(None, description="Last transaction timestamp")
+    script_type: Optional[str] = Field(None, description="Address script type")
 
 
 class TransactionResponse(BaseModel):
@@ -130,6 +131,7 @@ class TransactionResponse(BaseModel):
     change_confidence: Optional[float] = Field(None, description="Change detection confidence")
     coinjoin_info: Optional[CoinJoinInfo] = Field(None, description="CoinJoin information if detected")
     cluster_inputs: Optional[str] = Field(None, description="Cluster ID for input addresses")
+    fee_rate: Optional[float] = Field(None, description="Fee rate in sat/vB")
 
 
 class PeelChainResponse(BaseModel):
