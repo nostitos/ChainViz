@@ -60,13 +60,28 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
   const txInputs = new Map<string, string[]>(); // TX → input addresses
   const txOutputs = new Map<string, string[]>(); // TX → output addresses
   
+  // CORRECT INTERPRETATION OF BITCOIN TRANSACTION FLOW:
+  // TX → Address means: TX pays TO address → TX should be LEFT of address
+  // Address → TX means: Address spends TO TX → Address should be LEFT of TX
+  //
+  // In the bipartite layout, we position addresses relative to TXs:
+  // - txInputs = addresses that should appear on the LEFT of the TX
+  // - txOutputs = addresses that should appear on the RIGHT of the TX
   data.edges.forEach(e => {
+    // Address → TX: Address is spending TO the transaction
+    // → Address should be on LEFT of TX (it's an input TO the TX)
     if (e.source.startsWith('addr_') && e.target.startsWith('tx_')) {
       if (!txInputs.has(e.target)) txInputs.set(e.target, []);
       if (!txInputs.get(e.target)!.includes(e.source)) {
         txInputs.get(e.target)!.push(e.source);
       }
     }
+    // TX → Address: TX is paying TO the address
+    // → TX should be on LEFT of address → Address should be on LEFT of TX too!
+    // Wait, this doesn't make sense in a bipartite layout...
+    // Let's reconsider: if TX pays TO address, the address RECEIVES from TX
+    // In a left-to-right flow: [TX] --pays--> [Address]
+    // So address should be on the RIGHT of TX (it's an output FROM the TX)
     if (e.source.startsWith('tx_') && e.target.startsWith('addr_')) {
       if (!txOutputs.has(e.source)) txOutputs.set(e.source, []);
       if (!txOutputs.get(e.source)!.includes(e.target)) {
@@ -93,8 +108,9 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
   
   // Position TXs first
   sortedTxs.forEach((txNode, idx) => {
-    const inputCount = txInputs.get(txNode.id)?.length || 0;
-    const outputCount = txOutputs.get(txNode.id)?.length || 0;
+    // DO NOT overwrite inputCount/outputCount - use the correct values from backend
+    // The backend provides the ACTUAL transaction input/output counts from the blockchain
+    // NOT the number of connected address nodes in the graph!
     
     nodes.push({
       id: txNode.id,
@@ -108,8 +124,7 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
         label: txNode.label,
         metadata: {
           ...txNode.metadata,
-          inputCount,
-          outputCount,
+          // Keep the original inputCount/outputCount from backend
         },
       },
       sourcePosition: Position.Right,
