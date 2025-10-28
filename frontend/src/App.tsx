@@ -1342,110 +1342,174 @@ function AppContent() {
     if (nodes.length === 0) return;
     
     console.log('⬅️ Expanding graph by 1 hop backward...');
+    
+    // Get visible nodes in viewport
+    const visibleNodeIds = areNodesVisible(nodes);
+    
+    // Find all visible nodes (addresses AND transactions) that haven't been expanded backward yet
+    const nodesToExpand = nodes.filter(n => {
+      if (!visibleNodeIds.has(n.id)) return false; // Not visible
+      
+      // Check if already expanded in this direction
+      const direction = n.type === 'address' ? 'receiving' : 'inputs';
+      const expandKey = `${n.id}-${direction}`;
+      if (expandedNodes.has(expandKey)) {
+        console.log(`⏭️ Skipping ${n.id} - already expanded backward`);
+        return false;
+      }
+      
+      return true; // Include this node for expansion
+    });
+    
+    console.log(`Found ${nodesToExpand.length} visible unexpanded nodes to expand backward`);
+    
+    if (nodesToExpand.length === 0) {
+      setError('All visible nodes already expanded backward');
+      setTimeout(() => setError(null), 2000);
+      return;
+    }
+    
+    // Warn if too many nodes to expand
+    if (nodesToExpand.length > 20) {
+      const proceed = window.confirm(
+        `This will expand ${nodesToExpand.length} nodes, which may take a while and add many new nodes to the graph.\n\n` +
+        `Consider zooming in to show fewer nodes, or adjusting Max Outputs/Transactions settings.\n\n` +
+        `Continue anyway?`
+      );
+      if (!proceed) {
+        return;
+      }
+    }
+    
     setIsLoading(true);
     
     try {
-      // Find all transaction nodes at the leftmost edge
-      const leftmostNodes = nodes
-        .filter(n => n.type === 'transaction')
-        .sort((a, b) => a.position.x - b.position.x)
-        .slice(0, 10); // Take up to 10 leftmost transactions
+      let expandedCount = 0;
+      let skippedCount = 0;
       
-      console.log(`Found ${leftmostNodes.length} leftmost transactions to expand`);
-      
-      for (const node of leftmostNodes) {
-        const txid = node.data.txid || node.data.metadata?.txid;
-        if (!txid) continue;
+      // Expand in batches to show progress
+      const BATCH_SIZE = 5;
+      for (let i = 0; i < nodesToExpand.length; i += BATCH_SIZE) {
+        const batch = nodesToExpand.slice(i, i + BATCH_SIZE);
         
-        console.log(`Expanding transaction ${txid.substring(0, 16)}... backward`);
-        
-        // Expand by 1 hop backward
-        const data = await traceFromUTXO(txid, 0, 1, 0);
-        const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(
-          data, 
-          edgeScaleMax, 
-          maxTransactions, 
-          true, 
-          maxOutputs
-        );
-        
-        // Merge with existing graph
-        setNodes((nds) => {
-          const existingIds = new Set(nds.map(n => n.id));
-          const nodesToAdd = newNodes.filter(n => !existingIds.has(n.id));
-          return [...nds, ...nodesToAdd];
+        setCurrentProgress({
+          current: i,
+          total: nodesToExpand.length,
+          step: `⬅️ Expanding ${i + 1}-${Math.min(i + BATCH_SIZE, nodesToExpand.length)} of ${nodesToExpand.length} nodes backward...`
         });
         
-        setEdges((eds) => {
-          const existingIds = new Set(eds.map(e => e.id));
-          const edgesToAdd = newEdges.filter(e => !existingIds.has(e.id));
-          return [...eds, ...edgesToAdd];
-        });
+        for (const node of batch) {
+          try {
+            if (node.type === 'address') {
+              await handleExpandNode(node.id, 'receiving');
+            } else if (node.type === 'transaction') {
+              await handleExpandNode(node.id, 'inputs');
+            }
+            expandedCount++;
+          } catch (err) {
+            console.warn(`Failed to expand ${node.id}:`, err);
+            skippedCount++;
+          }
+        }
       }
       
+      addLog('success', `✅ Expanded ${expandedCount} nodes backward${skippedCount > 0 ? ` (${skippedCount} skipped)` : ''}`);
       console.log('✅ Backward expansion complete');
     } catch (error) {
       console.error('❌ Error expanding backward:', error);
       setError('Failed to expand graph backward');
     } finally {
       setIsLoading(false);
+      setCurrentProgress(undefined);
     }
-  }, [nodes, edgeScaleMax, maxTransactions, maxOutputs]);
+  }, [nodes, expandedNodes, areNodesVisible, handleExpandNode, addLog, setCurrentProgress]);
 
   // Expand graph by one hop forward
   const handleExpandForward = useCallback(async () => {
     if (nodes.length === 0) return;
     
     console.log('➡️ Expanding graph by 1 hop forward...');
+    
+    // Get visible nodes in viewport
+    const visibleNodeIds = areNodesVisible(nodes);
+    
+    // Find all visible nodes (addresses AND transactions) that haven't been expanded forward yet
+    const nodesToExpand = nodes.filter(n => {
+      if (!visibleNodeIds.has(n.id)) return false; // Not visible
+      
+      // Check if already expanded in this direction
+      const direction = n.type === 'address' ? 'spending' : 'outputs';
+      const expandKey = `${n.id}-${direction}`;
+      if (expandedNodes.has(expandKey)) {
+        console.log(`⏭️ Skipping ${n.id} - already expanded forward`);
+        return false;
+      }
+      
+      return true; // Include this node for expansion
+    });
+    
+    console.log(`Found ${nodesToExpand.length} visible unexpanded nodes to expand forward`);
+    
+    if (nodesToExpand.length === 0) {
+      setError('All visible nodes already expanded forward');
+      setTimeout(() => setError(null), 2000);
+      return;
+    }
+    
+    // Warn if too many nodes to expand
+    if (nodesToExpand.length > 20) {
+      const proceed = window.confirm(
+        `This will expand ${nodesToExpand.length} nodes, which may take a while and add many new nodes to the graph.\n\n` +
+        `Consider zooming in to show fewer nodes, or adjusting Max Outputs/Transactions settings.\n\n` +
+        `Continue anyway?`
+      );
+      if (!proceed) {
+        return;
+      }
+    }
+    
     setIsLoading(true);
     
     try {
-      // Find all transaction nodes at the rightmost edge
-      const rightmostNodes = nodes
-        .filter(n => n.type === 'transaction')
-        .sort((a, b) => b.position.x - a.position.x)
-        .slice(0, 10); // Take up to 10 rightmost transactions
+      let expandedCount = 0;
+      let skippedCount = 0;
       
-      console.log(`Found ${rightmostNodes.length} rightmost transactions to expand`);
-      
-      for (const node of rightmostNodes) {
-        const txid = node.data.txid || node.data.metadata?.txid;
-        if (!txid) continue;
+      // Expand in batches to show progress
+      const BATCH_SIZE = 5;
+      for (let i = 0; i < nodesToExpand.length; i += BATCH_SIZE) {
+        const batch = nodesToExpand.slice(i, i + BATCH_SIZE);
         
-        console.log(`Expanding transaction ${txid.substring(0, 16)}... forward`);
-        
-        // Expand by 1 hop forward
-        const data = await traceFromUTXO(txid, 0, 0, 1);
-        const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(
-          data, 
-          edgeScaleMax, 
-          maxTransactions, 
-          true, 
-          maxOutputs
-        );
-        
-        // Merge with existing graph
-        setNodes((nds) => {
-          const existingIds = new Set(nds.map(n => n.id));
-          const nodesToAdd = newNodes.filter(n => !existingIds.has(n.id));
-          return [...nds, ...nodesToAdd];
+        setCurrentProgress({
+          current: i,
+          total: nodesToExpand.length,
+          step: `➡️ Expanding ${i + 1}-${Math.min(i + BATCH_SIZE, nodesToExpand.length)} of ${nodesToExpand.length} nodes forward...`
         });
         
-        setEdges((eds) => {
-          const existingIds = new Set(eds.map(e => e.id));
-          const edgesToAdd = newEdges.filter(e => !existingIds.has(e.id));
-          return [...eds, ...edgesToAdd];
-        });
+        for (const node of batch) {
+          try {
+            if (node.type === 'address') {
+              await handleExpandNode(node.id, 'spending');
+            } else if (node.type === 'transaction') {
+              await handleExpandNode(node.id, 'outputs');
+            }
+            expandedCount++;
+          } catch (err) {
+            console.warn(`Failed to expand ${node.id}:`, err);
+            skippedCount++;
+          }
+        }
       }
       
+      addLog('success', `✅ Expanded ${expandedCount} nodes forward${skippedCount > 0 ? ` (${skippedCount} skipped)` : ''}`);
       console.log('✅ Forward expansion complete');
     } catch (error) {
       console.error('❌ Error expanding forward:', error);
       setError('Failed to expand graph forward');
     } finally {
       setIsLoading(false);
+      setCurrentProgress(undefined);
     }
-  }, [nodes, edgeScaleMax, maxTransactions, maxOutputs]);
+  }, [nodes, expandedNodes, areNodesVisible, handleExpandNode, addLog, setCurrentProgress]);
 
   // Get query from URL (reactive to changes)
   const [urlQuery, setUrlQuery] = useState(() => {
