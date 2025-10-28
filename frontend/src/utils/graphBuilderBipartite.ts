@@ -60,16 +60,12 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
   const txInputs = new Map<string, string[]>(); // TX → input addresses
   const txOutputs = new Map<string, string[]>(); // TX → output addresses
   
-  // CORRECT INTERPRETATION OF BITCOIN TRANSACTION FLOW:
-  // TX → Address means: TX pays TO address → TX should be LEFT of address
-  // Address → TX means: Address spends TO TX → Address should be LEFT of TX
-  //
-  // In the bipartite layout, we position addresses relative to TXs:
-  // - txInputs = addresses that should appear on the LEFT of the TX
-  // - txOutputs = addresses that should appear on the RIGHT of the TX
+  // Build adjacency maps based on edge direction
+  // - txInputs = addresses on the LEFT of TX (addresses that spend TO the TX)
+  // - txOutputs = addresses on the RIGHT of TX (addresses that receive FROM the TX)
   data.edges.forEach(e => {
     // Address → TX: Address is spending TO the transaction
-    // → Address should be on LEFT of TX (it's an input TO the TX)
+    // → Address goes on LEFT of TX (input side)
     if (e.source.startsWith('addr_') && e.target.startsWith('tx_')) {
       if (!txInputs.has(e.target)) txInputs.set(e.target, []);
       if (!txInputs.get(e.target)!.includes(e.source)) {
@@ -77,11 +73,7 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
       }
     }
     // TX → Address: TX is paying TO the address
-    // → TX should be on LEFT of address → Address should be on LEFT of TX too!
-    // Wait, this doesn't make sense in a bipartite layout...
-    // Let's reconsider: if TX pays TO address, the address RECEIVES from TX
-    // In a left-to-right flow: [TX] --pays--> [Address]
-    // So address should be on the RIGHT of TX (it's an output FROM the TX)
+    // → Address goes on RIGHT of TX (output side)
     if (e.source.startsWith('tx_') && e.target.startsWith('addr_')) {
       if (!txOutputs.has(e.source)) txOutputs.set(e.source, []);
       if (!txOutputs.get(e.source)!.includes(e.target)) {
