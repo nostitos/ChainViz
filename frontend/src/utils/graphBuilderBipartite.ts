@@ -18,6 +18,9 @@ interface TraceData {
       cluster_id?: string;
       timestamp?: number;
       is_starting_point?: boolean;
+      inputCount?: number;
+      outputCount?: number;
+      is_bidirectional?: boolean;
     };
   }>;
   edges: Array<{
@@ -59,10 +62,12 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
   // Build adjacency maps
   const txInputs = new Map<string, string[]>(); // TX → input addresses
   const txOutputs = new Map<string, string[]>(); // TX → output addresses
+  const txBidirectional = new Map<string, string[]>(); // TX → addresses that are BOTH input AND output
   
   // Build adjacency maps based on edge direction
   // - txInputs = addresses on the LEFT of TX (addresses that spend TO the TX)
   // - txOutputs = addresses on the RIGHT of TX (addresses that receive FROM the TX)
+  // - txBidirectional = addresses BELOW TX (addresses that are both input and output)
   data.edges.forEach(e => {
     // Address → TX: Address is spending TO the transaction
     // → Address goes on LEFT of TX (input side)
@@ -87,6 +92,22 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     const tA = a.metadata?.timestamp || 0;
     const tB = b.metadata?.timestamp || 0;
     return tA - tB;
+  });
+  
+  // Detect bidirectional addresses (appear in BOTH input and output for same TX)
+  sortedTxs.forEach(txNode => {
+    const inputs = txInputs.get(txNode.id) || [];
+    const outputs = txOutputs.get(txNode.id) || [];
+    const bidirectional = inputs.filter(addr => outputs.includes(addr));
+    
+    if (bidirectional.length > 0) {
+      console.log(`🔄 TX ${txNode.id.substring(0, 20)} has ${bidirectional.length} bidirectional addresses`);
+      txBidirectional.set(txNode.id, bidirectional);
+      
+      // Remove from inputs and outputs
+      txInputs.set(txNode.id, inputs.filter(addr => !bidirectional.includes(addr)));
+      txOutputs.set(txNode.id, outputs.filter(addr => !bidirectional.includes(addr)));
+    }
   });
 
   // Layout: Simple left-to-right with TXs evenly spaced
@@ -303,6 +324,40 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
           },
           sourcePosition: Position.Right,
           targetPosition: Position.Left,
+        });
+        positioned.add(addrNode.id);
+      });
+    }
+    
+    // Bidirectional addresses (BELOW TX) - addresses that are both input and output
+    const bidirectionalAddrIds = txBidirectional.get(txNode.id) || [];
+    const bidirectionalAddrs = bidirectionalAddrIds.map(id => addrData.find(a => a.id === id)!).filter(Boolean);
+    
+    if (bidirectionalAddrs.length > 0) {
+      console.log(`🔄 Positioning ${bidirectionalAddrs.length} bidirectional addresses below TX ${txNode.id.substring(0, 20)}`);
+      
+      // Position bidirectional addresses in a horizontal row below the TX
+      const startX = txNodeInGraph.position.x - ((bidirectionalAddrs.length - 1) * ROW_SPACING) / 2;
+      bidirectionalAddrs.forEach((addrNode, idx) => {
+        if (positioned.has(addrNode.id)) return;
+        
+        nodes.push({
+          id: addrNode.id,
+          type: 'address',
+          position: {
+            x: startX + (idx * ROW_SPACING), // Spread horizontally
+            y: txNodeInGraph.position.y + 300, // 300px below TX
+          },
+          data: {
+            ...addrNode,
+            label: addrNode.label,
+            metadata: {
+              ...addrNode.metadata,
+              is_bidirectional: true, // Mark as bidirectional for styling
+            },
+          },
+          sourcePosition: Position.Top, // Can connect upward
+          targetPosition: Position.Top, // Can connect upward
         });
         positioned.add(addrNode.id);
       });
