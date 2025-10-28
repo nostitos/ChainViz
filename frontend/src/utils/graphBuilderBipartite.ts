@@ -59,30 +59,44 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     }).slice(0, maxTransactions);
   }
   
-  // Build adjacency maps
-  const txInputs = new Map<string, string[]>(); // TX → input addresses
-  const txOutputs = new Map<string, string[]>(); // TX → output addresses
-  const txBidirectional = new Map<string, string[]>(); // TX → addresses that are BOTH input AND output
+  // Build adjacency maps from BOTH perspectives for symmetric bidirectional detection
+  
+  // Transaction perspective (TX → Addresses)
+  const txInputs = new Map<string, string[]>(); // TX → input addresses (LEFT)
+  const txOutputs = new Map<string, string[]>(); // TX → output addresses (RIGHT)
+  const txBidirectional = new Map<string, string[]>(); // TX → addresses that are BOTH input AND output (BELOW)
+  
+  // Address perspective (Address → TXs)
+  const addrReceiving = new Map<string, string[]>(); // Address → TXs where address receives (LEFT)
+  const addrSending = new Map<string, string[]>(); // Address → TXs where address sends (RIGHT)
+  const addrBidirectional = new Map<string, string[]>(); // Address → TXs that are BOTH receiving AND sending (BELOW)
   
   // Build adjacency maps based on edge direction
-  // - txInputs = addresses on the LEFT of TX (addresses that spend TO the TX)
-  // - txOutputs = addresses on the RIGHT of TX (addresses that receive FROM the TX)
-  // - txBidirectional = addresses BELOW TX (addresses that are both input and output)
   data.edges.forEach(e => {
     // Address → TX: Address is spending TO the transaction
-    // → Address goes on LEFT of TX (input side)
     if (e.source.startsWith('addr_') && e.target.startsWith('tx_')) {
+      // TX perspective: address is an input (LEFT of TX)
       if (!txInputs.has(e.target)) txInputs.set(e.target, []);
       if (!txInputs.get(e.target)!.includes(e.source)) {
         txInputs.get(e.target)!.push(e.source);
       }
+      // Address perspective: TX is where address sends (RIGHT of address)
+      if (!addrSending.has(e.source)) addrSending.set(e.source, []);
+      if (!addrSending.get(e.source)!.includes(e.target)) {
+        addrSending.get(e.source)!.push(e.target);
+      }
     }
     // TX → Address: TX is paying TO the address
-    // → Address goes on RIGHT of TX (output side)
     if (e.source.startsWith('tx_') && e.target.startsWith('addr_')) {
+      // TX perspective: address is an output (RIGHT of TX)
       if (!txOutputs.has(e.source)) txOutputs.set(e.source, []);
       if (!txOutputs.get(e.source)!.includes(e.target)) {
         txOutputs.get(e.source)!.push(e.target);
+      }
+      // Address perspective: TX is where address receives (LEFT of address)
+      if (!addrReceiving.has(e.target)) addrReceiving.set(e.target, []);
+      if (!addrReceiving.get(e.target)!.includes(e.source)) {
+        addrReceiving.get(e.target)!.push(e.source);
       }
     }
   });
@@ -94,7 +108,9 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     return tA - tB;
   });
   
-  // Detect bidirectional addresses (appear in BOTH input and output for same TX)
+  // Detect bidirectional connections from BOTH perspectives
+  
+  // 1. Detect bidirectional addresses (appear in BOTH input and output for same TX)
   sortedTxs.forEach(txNode => {
     const inputs = txInputs.get(txNode.id) || [];
     const outputs = txOutputs.get(txNode.id) || [];
@@ -109,6 +125,22 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
       txOutputs.set(txNode.id, outputs.filter(addr => !bidirectional.includes(addr)));
     }
   });
+  
+  // 2. Detect bidirectional transactions (TX appears in BOTH receiving and sending for same address)
+  addrData.forEach(addrNode => {
+    const receiving = addrReceiving.get(addrNode.id) || [];
+    const sending = addrSending.get(addrNode.id) || [];
+    const bidirectional = receiving.filter(tx => sending.includes(tx));
+    
+    if (bidirectional.length > 0) {
+      console.log(`🔄 Address ${addrNode.id.substring(0, 25)} has ${bidirectional.length} bidirectional transactions`);
+      addrBidirectional.set(addrNode.id, bidirectional);
+      
+      // Remove from receiving and sending
+      addrReceiving.set(addrNode.id, receiving.filter(tx => !bidirectional.includes(tx)));
+      addrSending.set(addrNode.id, sending.filter(tx => !bidirectional.includes(tx)));
+    }
+  });
 
   // Layout: Simple left-to-right with TXs evenly spaced
   const TX_SPACING = 800;
@@ -119,7 +151,14 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
   const CLUSTER_HEADER_HEIGHT = 45; // padding + font + margin + spacing
   const CLUSTER_ROW_HEIGHT = 14; // EXPLICIT in CSS: .cluster-item { height: 14px }
   
-  // Position TXs first
+  // Position TXs first (on horizontal center line)
+  // BUT: Mark bidirectional TXs for later repositioning below their connected origin address
+  const bidirectionalTxs = new Set<string>();
+  addrData.forEach(addr => {
+    const bidirTxIds = addrBidirectional.get(addr.id) || [];
+    bidirTxIds.forEach(txId => bidirectionalTxs.add(txId));
+  });
+  
   sortedTxs.forEach((txNode, idx) => {
     // Calculate ACTUAL input/output counts from the transaction data
     // Count the number of edges, not just connected addresses in the graph
@@ -130,12 +169,14 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     const inputCount = txNode.metadata?.inputCount ?? inputAddresses.length;
     const outputCount = txNode.metadata?.outputCount ?? outputAddresses.length;
     
+    const isBidirectional = bidirectionalTxs.has(txNode.id);
+    
     nodes.push({
       id: txNode.id,
       type: 'transaction',
       position: {
         x: idx * TX_SPACING,
-        y: 0,
+        y: 0, // Will be repositioned later if bidirectional
       },
       data: {
         ...txNode,
@@ -144,10 +185,11 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
           ...txNode.metadata,
           inputCount,
           outputCount,
+          is_bidirectional: isBidirectional, // Mark for repositioning
         },
       },
-      sourcePosition: Position.Right,
-      targetPosition: Position.Left,
+      sourcePosition: isBidirectional ? Position.Top : Position.Right,
+      targetPosition: isBidirectional ? Position.Top : Position.Left,
     });
   });
 
@@ -362,6 +404,32 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
         positioned.add(addrNode.id);
       });
     }
+  });
+  
+  // Reposition bidirectional transactions below their connected addresses
+  // This creates symmetric behavior: addresses below TXs, TXs below addresses
+  addrData.forEach(addrNode => {
+    const bidirTxIds = addrBidirectional.get(addrNode.id) || [];
+    if (bidirTxIds.length === 0) return;
+    
+    const addrInGraph = nodes.find(n => n.id === addrNode.id);
+    if (!addrInGraph) return;
+    
+    console.log(`🔄 Repositioning ${bidirTxIds.length} bidirectional TXs below address ${addrNode.id.substring(0, 25)}`);
+    
+    // Position bidirectional TXs in a horizontal row below the address
+    const startX = addrInGraph.position.x - ((bidirTxIds.length - 1) * ROW_SPACING) / 2;
+    bidirTxIds.forEach((txId, idx) => {
+      const txInGraph = nodes.find(n => n.id === txId);
+      if (!txInGraph) return;
+      
+      // Reposition TX below the address
+      txInGraph.position = {
+        x: startX + (idx * ROW_SPACING), // Spread horizontally
+        y: addrInGraph.position.y + 300, // 300px below address
+      };
+      console.log(`  ↓ Moved TX ${txId.substring(0, 20)} below address`);
+    });
   });
 
   // Remove duplicate standalone address nodes that are now part of clusters
