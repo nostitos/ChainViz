@@ -365,14 +365,34 @@ class BlockchainDataService:
             total_received = balance
             total_sent = 0
 
+        # Try to get first_seen and last_seen from transaction history
+        first_seen = None
+        last_seen = None
+        
+        if txids and len(txids) > 0:
+            try:
+                # Fetch the first and last transactions to get timestamps
+                first_tx = await electrum.get_transaction(txids[0], verbose=True)
+                last_tx = await electrum.get_transaction(txids[-1], verbose=True)
+                
+                # Get blocktime from transactions (if confirmed)
+                if first_tx and "blocktime" in first_tx:
+                    first_seen = first_tx["blocktime"]
+                if last_tx and "blocktime" in last_tx:
+                    last_seen = last_tx["blocktime"]
+                    
+                logger.debug(f"Address {address}: first_seen={first_seen}, last_seen={last_seen}")
+            except Exception as e:
+                logger.debug(f"Could not fetch timestamps for address {address}: {e}")
+        
         return Address(
             address=address,
             balance=balance,
             total_received=total_received,
             total_sent=total_sent,
             tx_count=len(txids),
-            first_seen=None,  # Would need to fetch earliest TX
-            last_seen=None,  # Would need to fetch latest TX
+            first_seen=first_seen,
+            last_seen=last_seen,
         )
 
     def _parse_transaction(self, txid: str, tx_data: Dict[str, Any]) -> Transaction:
