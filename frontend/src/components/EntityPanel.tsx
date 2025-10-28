@@ -158,6 +158,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
             const tx = data.transaction;
             console.log('📦 Fetched TX data:', tx);
             console.log('📦 Block height:', tx.block_height, 'Block hash:', tx.block_hash);
+            console.log('📦 Full transaction object:', JSON.stringify(tx, null, 2));
             
             // For inputs, we need to fetch previous TXs to get addresses
             const inputsWithAddrs = await Promise.all(
