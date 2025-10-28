@@ -296,6 +296,45 @@ function AppContent() {
     }
   }, [getViewport]);
 
+  // Helper to get IDs of nodes visible in current viewport
+  const getVisibleNodeIds = useCallback((nodesToCheck: Node[]): Set<string> => {
+    if (nodesToCheck.length === 0) return new Set();
+    
+    try {
+      const viewport = getViewport();
+      const viewportWidth = window.innerWidth / viewport.zoom;
+      const viewportHeight = window.innerHeight / viewport.zoom;
+      const viewportLeft = -viewport.x / viewport.zoom;
+      const viewportTop = -viewport.y / viewport.zoom;
+      const viewportRight = viewportLeft + viewportWidth;
+      const viewportBottom = viewportTop + viewportHeight;
+      
+      const visibleIds = new Set<string>();
+      
+      nodesToCheck.forEach(node => {
+        const nodeRight = node.position.x + 200; // approximate node width
+        const nodeBottom = node.position.y + 100; // approximate node height
+        
+        const isVisible = (
+          node.position.x >= viewportLeft &&
+          nodeRight <= viewportRight &&
+          node.position.y >= viewportTop &&
+          nodeBottom <= viewportBottom
+        );
+        
+        if (isVisible) {
+          visibleIds.add(node.id);
+        }
+      });
+      
+      return visibleIds;
+    } catch (err) {
+      // If viewport check fails, return all node IDs
+      console.warn('Viewport check failed:', err);
+      return new Set(nodesToCheck.map(n => n.id));
+    }
+  }, [getViewport]);
+
   // Handle optimize layout
   const handleOptimizeLayout = useCallback(() => {
     console.log('🎯 User clicked Optimize Layout');
@@ -1344,7 +1383,7 @@ function AppContent() {
     console.log('⬅️ Expanding graph by 1 hop backward...');
     
     // Get visible nodes in viewport
-    const visibleNodeIds = areNodesVisible(nodes);
+    const visibleNodeIds = getVisibleNodeIds(nodes);
     
     // Find all visible nodes (addresses AND transactions) that haven't been expanded backward yet
     const nodesToExpand = nodes.filter(n => {
@@ -1422,7 +1461,7 @@ function AppContent() {
       setIsLoading(false);
       setCurrentProgress(undefined);
     }
-  }, [nodes, expandedNodes, areNodesVisible, handleExpandNode, addLog, setCurrentProgress]);
+  }, [nodes, expandedNodes, getVisibleNodeIds, handleExpandNode, addLog, setCurrentProgress]);
 
   // Expand graph by one hop forward
   const handleExpandForward = useCallback(async () => {
@@ -1431,7 +1470,7 @@ function AppContent() {
     console.log('➡️ Expanding graph by 1 hop forward...');
     
     // Get visible nodes in viewport
-    const visibleNodeIds = areNodesVisible(nodes);
+    const visibleNodeIds = getVisibleNodeIds(nodes);
     
     // Find all visible nodes (addresses AND transactions) that haven't been expanded forward yet
     const nodesToExpand = nodes.filter(n => {
@@ -1509,7 +1548,7 @@ function AppContent() {
       setIsLoading(false);
       setCurrentProgress(undefined);
     }
-  }, [nodes, expandedNodes, areNodesVisible, handleExpandNode, addLog, setCurrentProgress]);
+  }, [nodes, expandedNodes, getVisibleNodeIds, handleExpandNode, addLog, setCurrentProgress]);
 
   // Get query from URL (reactive to changes)
   const [urlQuery, setUrlQuery] = useState(() => {
