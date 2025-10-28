@@ -21,13 +21,13 @@ export interface TraceResponse {
   depth_reached: number;
 }
 
-export async function traceFromAddress(address: string, maxDepth: number = 5, maxTransactions: number = 100): Promise<TraceResponse> {
+export async function traceFromAddress(address: string, maxHops: number = 1, maxTransactions: number = 100): Promise<TraceResponse> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout
+  const timeout = setTimeout(() => controller.abort(), 180000); // 180s timeout for complex addresses
 
   try {
     const response = await fetch(
-      `${API_BASE_URL}/trace/address?address=${encodeURIComponent(address)}&max_depth=${maxDepth}&max_transactions=${maxTransactions}`,
+      `${API_BASE_URL}/trace/address?address=${encodeURIComponent(address)}&max_hops=${maxHops}&max_transactions=${maxTransactions}`,
       {
         method: 'POST',
         headers: {
@@ -54,13 +54,13 @@ export async function traceFromAddress(address: string, maxDepth: number = 5, ma
   }
 }
 
-export async function traceFromAddressWithStats(address: string, maxDepth: number = 5): Promise<{ data: TraceResponse; bytes: number }> {
+export async function traceFromAddressWithStats(address: string, maxHops: number = 1): Promise<{ data: TraceResponse; bytes: number }> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60000);
+  const timeout = setTimeout(() => controller.abort(), 180000); // 180s timeout for complex addresses
 
   try {
     const response = await fetch(
-      `${API_BASE_URL}/trace/address?address=${encodeURIComponent(address)}&max_depth=${maxDepth}`,
+      `${API_BASE_URL}/trace/address?address=${encodeURIComponent(address)}&max_hops=${maxHops}`,
       {
         method: 'POST',
         headers: {
