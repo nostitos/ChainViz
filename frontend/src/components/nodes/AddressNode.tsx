@@ -1,5 +1,5 @@
 import { memo, useState, useEffect } from 'react';
-import { Handle, Position, NodeToolbar, type NodeProps } from '@xyflow/react';
+import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { Wallet, AlertCircle } from 'lucide-react';
 
 interface AddressNodeData {
@@ -22,8 +22,6 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
   const clusterId = nodeData.metadata?.cluster_id;
   const isStartingPoint = nodeData.metadata?.is_starting_point ?? false;
   const [balance, setBalance] = useState<number | null>(null);
-  const [txCount, setTxCount] = useState<number | null>(null);
-  const [utxoCount, setUtxoCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   
   // Show only first and last 6 characters
@@ -45,8 +43,6 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
       .then(res => res.json())
       .then(data => {
         setBalance(data.balance / 100000000); // Convert satoshis to BTC
-        setTxCount(data.tx_count || 0);
-        setUtxoCount(data.utxos ? data.utxos.length : 0);
         setLoading(false);
       })
       .catch(err => {
@@ -55,10 +51,6 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
       });
   }, [address]);
   
-  // Build tooltip text
-  const tooltipText = !loading && balance !== null && txCount !== null && utxoCount !== null
-    ? `Balance: ${balance.toFixed(8)} BTC\nTX Count: ${txCount}\nUTXOs: ${utxoCount}`
-    : address;
 
   const handleExpandSpending = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -87,31 +79,15 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
   // External link button removed (available in side panel)
 
   return (
-    <>
-      <NodeToolbar>
-        <div style={{ 
-          background: 'rgba(0, 0, 0, 0.9)', 
-          color: 'white', 
-          padding: '8px 12px', 
-          borderRadius: '6px',
-          fontSize: '12px',
-          whiteSpace: 'pre-line',
-          maxWidth: '250px',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
-        }}>
-          {tooltipText}
-        </div>
-      </NodeToolbar>
-      
-      <div 
-        className={`address-node ${selected ? 'selected' : ''} ${isChange ? 'change' : ''} ${isStartingPoint ? 'starting-point' : ''}`}
-        style={isStartingPoint ? {
-          borderColor: '#fbbf24',
-          borderWidth: '3px',
-          boxShadow: '0 0 15px rgba(251, 191, 36, 0.5)',
-          background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(251, 191, 36, 0.05))'
-        } : undefined}
-      >
+    <div 
+      className={`address-node ${selected ? 'selected' : ''} ${isChange ? 'change' : ''} ${isStartingPoint ? 'starting-point' : ''}`}
+      style={isStartingPoint ? {
+        borderColor: '#fbbf24',
+        borderWidth: '3px',
+        boxShadow: '0 0 15px rgba(251, 191, 36, 0.5)',
+        background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(251, 191, 36, 0.05))'
+      } : undefined}
+    >
         {/* LEFT side expand button */}
       <div className="handle-container left">
         <button className="expand-handle-btn nodrag" onClick={handleExpandReceiving} title="Expand more">
@@ -147,8 +123,7 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
           </div>
         )}
       </div>
-      </div>
-    </>
+    </div>
   );
 });
 

@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Handle, Position, NodeToolbar, type NodeProps } from '@xyflow/react';
+import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { ArrowRightLeft, Clock } from 'lucide-react';
 
 interface TransactionNodeData {
@@ -33,15 +33,6 @@ export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
     ? `${txid.substring(0, 6)}...${txid.substring(txid.length - 6)}`
     : txid;
   
-  // Build tooltip text
-  const tooltipParts = [txid];
-  if (inputCount > 0 || outputCount > 0) {
-    tooltipParts.push(`Inputs: ${inputCount}, Outputs: ${outputCount}`);
-  }
-  if (timestamp) {
-    tooltipParts.push(`Time: ${new Date(timestamp * 1000).toLocaleString()}`);
-  }
-  const tooltipText = tooltipParts.join('\n');
 
   const handleExpandInputs = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -72,31 +63,15 @@ export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
   // External link button removed (available in side panel)
 
   return (
-    <>
-      <NodeToolbar>
-        <div style={{ 
-          background: 'rgba(0, 0, 0, 0.9)', 
-          color: 'white', 
-          padding: '8px 12px', 
-          borderRadius: '6px',
-          fontSize: '12px',
-          whiteSpace: 'pre-line',
-          maxWidth: '250px',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
-        }}>
-          {tooltipText}
-        </div>
-      </NodeToolbar>
-      
-      <div 
-        className={`transaction-node ${selected ? 'selected' : ''} ${isStartingPoint ? 'starting-point' : ''}`}
-        style={isStartingPoint ? {
-          borderColor: '#fbbf24',
-          borderWidth: '3px',
-          boxShadow: '0 0 15px rgba(251, 191, 36, 0.5)',
-          background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(251, 191, 36, 0.05))'
-        } : undefined}
-      >
+    <div 
+      className={`transaction-node ${selected ? 'selected' : ''} ${isStartingPoint ? 'starting-point' : ''}`}
+      style={isStartingPoint ? {
+        borderColor: '#fbbf24',
+        borderWidth: '3px',
+        boxShadow: '0 0 15px rgba(251, 191, 36, 0.5)',
+        background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(251, 191, 36, 0.05))'
+      } : undefined}
+    >
       {/* LEFT side expand button */}
       <div className="handle-container left nodrag">
         <button className="expand-handle-btn nodrag" onClick={handleExpandInputs} title="Expand inputs">
@@ -148,8 +123,7 @@ export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
         
       {/* Actions removed to keep node compact */}
       </div>
-      </div>
-    </>
+    </div>
   );
 });
 
