@@ -563,34 +563,36 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                 )}
                 
                 {/* Address Details Section */}
-                <CollapsibleSection title="Address Details" defaultOpen={false}>
-                  <div style={{ marginTop: '8px' }}>
-                    {addressInfo.first_seen && (
-                      <div className="detail-row">
-                        <span className="detail-label">First Seen:</span>
-                        <span className="detail-value">{new Date(addressInfo.first_seen * 1000).toLocaleString()}</span>
-                      </div>
-                    )}
-                    {addressInfo.last_seen && (
-                      <div className="detail-row">
-                        <span className="detail-label">Last Seen:</span>
-                        <span className="detail-value">{new Date(addressInfo.last_seen * 1000).toLocaleString()}</span>
-                      </div>
-                    )}
-                    {addressInfo.script_type && (
-                      <div className="detail-row">
-                        <span className="detail-label">Script Type:</span>
-                        <span className="detail-value" style={{ 
-                          textTransform: 'uppercase',
-                          fontFamily: 'monospace',
-                          color: '#64b5f6'
-                        }}>
-                          {addressInfo.script_type}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </CollapsibleSection>
+                {(addressInfo.first_seen || addressInfo.last_seen || addressInfo.script_type) && (
+                  <CollapsibleSection title="Address Details" defaultOpen={false}>
+                    <div style={{ marginTop: '8px' }}>
+                      {addressInfo.first_seen && (
+                        <div className="detail-row">
+                          <span className="detail-label">First Seen:</span>
+                          <span className="detail-value">{new Date(addressInfo.first_seen * 1000).toLocaleString()}</span>
+                        </div>
+                      )}
+                      {addressInfo.last_seen && (
+                        <div className="detail-row">
+                          <span className="detail-label">Last Seen:</span>
+                          <span className="detail-value">{new Date(addressInfo.last_seen * 1000).toLocaleString()}</span>
+                        </div>
+                      )}
+                      {addressInfo.script_type && (
+                        <div className="detail-row">
+                          <span className="detail-label">Script Type:</span>
+                          <span className="detail-value" style={{ 
+                            textTransform: 'uppercase',
+                            fontFamily: 'monospace',
+                            color: '#64b5f6'
+                          }}>
+                            {addressInfo.script_type}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </CollapsibleSection>
+                )}
               </div>
             ) : null}
             
