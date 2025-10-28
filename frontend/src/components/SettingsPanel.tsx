@@ -21,9 +21,10 @@ export function SettingsPanel({
   maxTransactions,
   onMaxTransactionsChange
 }: SettingsPanelProps) {
-  const [electrumHost, setElectrumHost] = useState('192.168.2.114');
+  const [electrumHost, setElectrumHost] = useState('192.168.8.234');
   const [electrumPort, setElectrumPort] = useState('50002');
   const [useSSL, setUseSSL] = useState(false);
+  const [selectedPreset, setSelectedPreset] = useState('Custom');
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; latency_ms?: number } | null>(null);
@@ -95,8 +96,9 @@ export function SettingsPanel({
   };
 
   const presets = [
-    { name: 'Custom', host: 'iu1b96e.glddns.com', port: '50002', ssl: false },
-    { name: 'DIYNodes (Fastest)', host: 'electrum.diynodes.com', port: '50002', ssl: true },
+    { name: 'Custom', host: '192.168.8.234', port: '50002', ssl: false },
+    { name: 'iu1b96e.glddns.com', host: 'iu1b96e.glddns.com', port: '50002', ssl: false },
+    { name: 'DIYNodes', host: 'electrum.diynodes.com', port: '50002', ssl: true },
     { name: 'Fulcrum (Seth)', host: 'fulcrum.sethforprivacy.com', port: '50002', ssl: true },
     { name: 'Bitcoin.lu.ke', host: 'bitcoin.lu.ke', port: '50002', ssl: true },
     { name: 'Electrum Emzy', host: 'electrum.emzy.de', port: '50002', ssl: true },
@@ -165,20 +167,35 @@ export function SettingsPanel({
         <div className="settings-section">
           <h3>Electrum Server</h3>
           
-          <div className="settings-presets">
-            {presets.map((preset) => (
-              <button
-                key={preset.name}
-                className="preset-button"
-                onClick={() => {
+          <div className="setting-field">
+            <label>Server:</label>
+            <select
+              value={selectedPreset}
+              onChange={(e) => {
+                const preset = presets.find(p => p.name === e.target.value);
+                if (preset) {
+                  setSelectedPreset(preset.name);
                   setElectrumHost(preset.host);
                   setElectrumPort(preset.port);
                   setUseSSL(preset.ssl);
-                }}
-              >
-                {preset.name}
-              </button>
-            ))}
+                }
+              }}
+              style={{
+                width: '100%',
+                padding: '8px',
+                borderRadius: '4px',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                background: 'rgba(0, 0, 0, 0.3)',
+                color: 'white',
+                fontSize: '14px',
+              }}
+            >
+              {presets.map((preset) => (
+                <option key={preset.name} value={preset.name}>
+                  {preset.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="setting-field">

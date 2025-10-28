@@ -9,11 +9,11 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    # Electrum Server (Seth's Fulcrum primary)
-    electrum_host: str = "electrum.diynodes.com"
+    # Electrum Server (Local server primary)
+    electrum_host: str = "192.168.8.234"
     electrum_port: int = 50002
-    electrum_use_ssl: bool = True
-    electrum_fallback_host: str = "bitcoin.lu.ke"
+    electrum_use_ssl: bool = False
+    electrum_fallback_host: str = "iu1b96e.glddns.com"
     electrum_fallback_port: int = 50002
 
     # Redis
