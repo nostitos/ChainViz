@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { Handle, Position, NodeToolbar, type NodeProps } from '@xyflow/react';
 import { ArrowRightLeft, Clock } from 'lucide-react';
 
 interface TransactionNodeData {
@@ -72,16 +72,31 @@ export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
   // External link button removed (available in side panel)
 
   return (
-    <div 
-      className={`transaction-node ${selected ? 'selected' : ''} ${isStartingPoint ? 'starting-point' : ''}`}
-      title={tooltipText}
-      style={isStartingPoint ? {
-        borderColor: '#fbbf24',
-        borderWidth: '3px',
-        boxShadow: '0 0 15px rgba(251, 191, 36, 0.5)',
-        background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(251, 191, 36, 0.05))'
-      } : undefined}
-    >
+    <>
+      <NodeToolbar>
+        <div style={{ 
+          background: 'rgba(0, 0, 0, 0.9)', 
+          color: 'white', 
+          padding: '8px 12px', 
+          borderRadius: '6px',
+          fontSize: '12px',
+          whiteSpace: 'pre-line',
+          maxWidth: '250px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
+        }}>
+          {tooltipText}
+        </div>
+      </NodeToolbar>
+      
+      <div 
+        className={`transaction-node ${selected ? 'selected' : ''} ${isStartingPoint ? 'starting-point' : ''}`}
+        style={isStartingPoint ? {
+          borderColor: '#fbbf24',
+          borderWidth: '3px',
+          boxShadow: '0 0 15px rgba(251, 191, 36, 0.5)',
+          background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(251, 191, 36, 0.05))'
+        } : undefined}
+      >
       {/* LEFT side expand button */}
       <div className="handle-container left nodrag">
         <button className="expand-handle-btn nodrag" onClick={handleExpandInputs} title="Expand inputs">
@@ -133,7 +148,8 @@ export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
         
       {/* Actions removed to keep node compact */}
       </div>
-    </div>
+      </div>
+    </>
   );
 });
 
