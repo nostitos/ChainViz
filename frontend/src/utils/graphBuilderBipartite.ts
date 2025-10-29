@@ -160,14 +160,17 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
   });
   
   sortedTxs.forEach((txNode, idx) => {
-    // Calculate ACTUAL input/output counts from the transaction data
-    // Count the number of edges, not just connected addresses in the graph
-    const inputAddresses = txInputs.get(txNode.id) || [];
-    const outputAddresses = txOutputs.get(txNode.id) || [];
+    // ALWAYS use backend counts - they're the source of truth!
+    // Edges are UI elements showing what's DISPLAYED, not what EXISTS
+    const inputCount = txNode.metadata?.inputCount ?? 0;
+    const outputCount = txNode.metadata?.outputCount ?? 0;
     
-    // If backend provided counts, use those; otherwise use edge counts
-    const inputCount = txNode.metadata?.inputCount ?? inputAddresses.length;
-    const outputCount = txNode.metadata?.outputCount ?? outputAddresses.length;
+    // Log warning if counts are missing from backend
+    if (!txNode.metadata?.inputCount || !txNode.metadata?.outputCount) {
+      console.warn(`⚠️ TX ${txNode.id.substring(0, 25)} missing inputCount/outputCount from backend!`);
+    }
+    
+    // Note: We don't need to count addresses from edge maps - backend provides the truth
     
     const isBidirectional = bidirectionalTxs.has(txNode.id);
     
@@ -199,7 +202,11 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
   sortedTxs.forEach(txNode => {
     const txNodeInGraph = nodes.find(n => n.id === txNode.id)!;
     
-    // Input addresses (LEFT of TX)
+    // Get ACTUAL counts from backend metadata
+    const actualInputCount = txNodeInGraph.data.metadata?.inputCount ?? 0;
+    const actualOutputCount = txNodeInGraph.data.metadata?.outputCount ?? 0;
+    
+    // Input addresses (LEFT of TX) - these are what we're DISPLAYING, not the total
     const inputAddrIds = txInputs.get(txNode.id) || [];
     const inputAddrs = inputAddrIds.map(id => addrData.find(a => a.id === id)!).filter(Boolean);
     
@@ -207,9 +214,9 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     const isStartTx = startTxid && txNode.metadata?.txid === startTxid;
     const hasOriginAddress = inputAddrs.some(a => a.metadata?.is_starting_point === true);
     
-    // If 10+ inputs AND not the starting TX AND no origin addresses, create cluster node
-    // For starting TX or origin addresses, show all addresses individually (up to maxOutputs limit)
-    if (inputAddrs.length >= 10 && !isStartTx && !hasOriginAddress) {
+    // Use BACKEND count for clustering decision, not displayed address count!
+    // If 10+ ACTUAL inputs AND not the starting TX AND no origin addresses, create cluster node
+    if (actualInputCount >= 10 && !isStartTx && !hasOriginAddress) {
       const clusterId = `cluster-inputs-${txNode.id}`;
       
       // Get amounts from edges
@@ -236,7 +243,7 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
         data: {
           addresses: addressAmounts,
           direction: 'inputs',
-          label: `${inputAddrs.length} Inputs`,
+          label: `${actualInputCount} Inputs${inputAddrs.length < actualInputCount ? ` (${inputAddrs.length} shown)` : ''}`,
           onExpand: undefined, // Will be set later
         },
         sourcePosition: Position.Right,
@@ -280,9 +287,9 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     const regularAddrs = outputAddrs.filter(a => a.metadata?.is_change !== true);
     const hasOriginOutput = outputAddrs.some(a => a.metadata?.is_starting_point === true);
     
-    // If 10+ outputs AND not the starting TX AND no origin addresses, create cluster node
-    // For starting TX or origin addresses, show all addresses individually (up to maxOutputs limit)
-    if (regularAddrs.length >= 10 && !isStartTx && !hasOriginOutput) {
+    // Use BACKEND count for clustering decision, not displayed address count!
+    // If 10+ ACTUAL outputs AND not the starting TX AND no origin addresses, create cluster node
+    if (actualOutputCount >= 10 && !isStartTx && !hasOriginOutput) {
       const clusterId = `cluster-outputs-${txNode.id}`;
       
       // Get amounts and vout from edges
@@ -311,7 +318,7 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
         data: {
           addresses: addressAmounts,
           direction: 'outputs',
-          label: `${regularAddrs.length} Outputs`,
+          label: `${actualOutputCount} Outputs${regularAddrs.length < actualOutputCount ? ` (${regularAddrs.length} shown)` : ''}`,
           onExpand: undefined, // Will be set later
         },
         sourcePosition: Position.Right,
