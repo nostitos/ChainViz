@@ -123,187 +123,300 @@ if (inputAddrs.length >= 10 && !isStartTx && !hasOriginAddress) {
 
 ## Solutions
 
-### Solution 1: Add Fast Single-Transaction Endpoint
+### Solution 1: Fix Backend to Respect Hop Levels
 
-**New endpoint**: `GET /api/transaction/{txid}/graph`
+**Problem**: Backend fetches ALL input addresses even when `hops_before=0` or `max_hops=0`
+
+**Root Cause**: The backend logic at lines 77-140 ALWAYS fetches input addresses regardless of hop settings.
+
+**Fix**: Wrap input/output address fetching in hop level checks
+
+**Location**: `backend/app/api/trace.py` lines 77-166
 
 ```python
-@router.get("/{txid}/graph", response_model=TraceGraphResponse)
-async def get_transaction_graph(
-    txid: str,
-    fetch_addresses: bool = False,  # Only fetch if explicitly requested
-    max_addresses_per_side: int = 100,
-    blockchain_service: BlockchainDataService = Depends(get_blockchain_service),
-):
-    """
-    Get a single transaction as a graph node with optional address expansion
+# Step 1: Batch fetch all main transactions
+main_txids = [n.metadata.get('txid') for n in tx_nodes if n.metadata and n.metadata.get('txid')]
+if not main_txids:
+    logger.info("No TXs to process")
+else:
+    logger.info(f"⚡ Batch fetching {len(main_txids)} transactions...")
+    main_txs = await blockchain_service.fetch_transactions_batch(main_txids)
+    main_tx_map = dict(zip(main_txids, main_txs))
     
-    - fetch_addresses=False: Returns TX node with input/output COUNTS only (fast)
-    - fetch_addresses=True: Fetches addresses up to max_addresses_per_side (slower)
+    # ADD inputCount/outputCount to transaction metadata
+    for tx_node_data in tx_nodes:
+        txid = tx_node_data.metadata.get('txid') if tx_node_data.metadata else None
+        if txid and txid in main_tx_map:
+            tx = main_tx_map[txid]
+            if tx and tx_node_data.metadata:
+                tx_node_data.metadata["inputCount"] = len(tx.inputs)
+                tx_node_data.metadata["outputCount"] = len(tx.outputs)
+                logger.info(f"  ✅ TX {txid[:20]} metadata: {len(tx.inputs)} inputs, {len(tx.outputs)} outputs")
     
-    This is optimized for viewing large transactions (100+ inputs/outputs)
-    """
-    tx = await blockchain_service.fetch_transaction(txid)
-    
-    # Create TX node with COUNTS
-    nodes = [NodeData(
-        id=f"tx_{txid}",
-        label=f"{txid[:16]}...",
-        type="transaction",
-        value=None,
-        metadata={
-            "txid": txid,
-            "timestamp": tx.timestamp,
-            "is_starting_point": True,
-            "inputCount": len(tx.inputs),   # ACTUAL count
-            "outputCount": len(tx.outputs),  # ACTUAL count
-        }
-    )]
-    
-    edges = []
-    
-    # Only fetch addresses if requested
-    if fetch_addresses:
-        # Fetch limited number of input addresses
-        input_txids = [inp.txid for inp in tx.inputs[:max_addresses_per_side] if inp.txid]
-        input_txs = await blockchain_service.fetch_transactions_batch(input_txids)
-        # ... add input address nodes and edges
+    # ONLY fetch input/output addresses if hops_before > 0 or hops_after > 0
+    # For single transaction view (hops=0), we ONLY need the counts above
+    if request.hops_before > 0 or request.hops_after > 0:
+        logger.info(f"📥 Fetching addresses for multi-hop trace (hops_before={request.hops_before}, hops_after={request.hops_after})")
         
-        # Add output addresses (no additional fetches needed)
-        for out in tx.outputs[:max_addresses_per_side]:
-            # ... add output address nodes and edges
-    
-    return TraceGraphResponse(
-        nodes=nodes,
-        edges=edges,
-        clusters=[],
-        coinjoins=[],
-        peel_chains=[],
-        start_txid=txid,
-        start_vout=0,
-        total_nodes=len(nodes),
-        total_edges=len(edges),
-    )
+        # Step 2: Collect all input TXIDs that need to be fetched
+        input_txids = set()
+        for tx in main_txs:
+            if tx:
+                for inp in tx.inputs:
+                    if inp.txid:
+                        input_txids.add(inp.txid)
+        
+        logger.info(f"⚡ Batch fetching {len(input_txids)} input transactions...")
+        input_txs = await blockchain_service.fetch_transactions_batch(list(input_txids))
+        input_tx_map = dict(zip(input_txids, input_txs))
+        
+        # Step 3: Process all transactions with pre-fetched data
+        # ... (existing code for adding addresses)
+    else:
+        logger.info(f"⏭️ Skipping address fetching for single transaction view (hops=0)")
 ```
 
 **Benefits**:
-- Returns in < 1 second (no address fetching)
-- Frontend gets accurate input/output counts
-- Can request address expansion later if needed
+- **Respects the user's hop setting** - if they want 0 hops, don't fetch anything extra
+- Returns in < 1 second for single TX view
+- Frontend gets accurate counts for clustering decisions
+- No new endpoint needed - fixes existing behavior
 
-### Solution 2: Add Input/Output Counts to All TX Nodes
+### Solution 2: Use Backend Counts in Frontend (Don't Count Edges!)
 
-**Change**: `backend/app/api/trace.py` line 67-73
+**Problem**: Frontend currently counts edges to determine input/output counts - this is WRONG!
 
-```python
-result.nodes.append(NodeData(
-    id=f"tx_{request.txid}",
-    label=f"{request.txid[:16]}...",
-    type="transaction",
-    value=None,
-    metadata={
-        "txid": request.txid,
-        "timestamp": start_tx.timestamp,
-        "is_starting_point": True,
-        "inputCount": len(start_tx.inputs),    # ADD THIS
-        "outputCount": len(start_tx.outputs),  # ADD THIS
-    }
-))
+**Why it's wrong**:
+- Edges are UI elements showing what's DISPLAYED, not what EXISTS
+- If backend only fetches 60 of 350 inputs, edges will show 60
+- Clustering decisions based on edge counts are inaccurate
+
+**Fix**: Frontend must use `metadata.inputCount` and `metadata.outputCount` from backend
+
+**Location**: `frontend/src/utils/graphBuilderBipartite.ts` lines 158-163
+
+**CURRENT (WRONG)**:
+```typescript
+const inputAddresses = txInputs.get(txNode.id) || [];
+const outputAddresses = txOutputs.get(txNode.id) || [];
+
+// If backend provided counts, use those; otherwise use edge counts
+const inputCount = txNode.metadata?.inputCount ?? inputAddresses.length;  // ❌ WRONG FALLBACK
+const outputCount = txNode.metadata?.outputCount ?? outputAddresses.length; // ❌ WRONG FALLBACK
 ```
 
-**Apply to**: All locations where transaction nodes are created
+**FIXED**:
+```typescript
+// ALWAYS use backend counts - they're the source of truth
+const inputCount = txNode.metadata?.inputCount ?? 0;
+const outputCount = txNode.metadata?.outputCount ?? 0;
+
+// Log warning if counts are missing from backend
+if (!txNode.metadata?.inputCount || !txNode.metadata?.outputCount) {
+  console.warn(`⚠️ TX ${txNode.id} missing inputCount/outputCount from backend!`);
+}
+
+// inputAddresses/outputAddresses are just what we're DISPLAYING, not the actual count
+const inputAddresses = txInputs.get(txNode.id) || [];
+const outputAddresses = txOutputs.get(txNode.id) || [];
+```
+
+**Apply to**: All clustering logic that checks address counts
 
 **Benefits**:
-- Frontend gets accurate counts
-- Clustering logic works correctly
-- No need to count edges
+- Clustering decisions based on ACTUAL transaction data
+- "350 inputs" displayed correctly, not "60 inputs"
+- Edge counts only used for positioning, not decision-making
 
-### Solution 3: Add User Confirmation for Clustering
+### Solution 3: Prompt User Before Clustering (Critical UX)
 
-**Change**: `frontend/src/utils/graphBuilderBipartite.ts`
+**Problem**: Auto-clustering without asking can overload rendering even if backend handles it
+
+**Why prompt is needed**:
+- 350 inputs might render fine, or might crash the browser
+- User should decide based on their machine capabilities
+- Rendering performance != backend performance
+
+**Approach A**: Simple threshold check with confirmation dialog
+
+**Location**: `frontend/src/utils/graphBuilderBipartite.ts` lines 168-182
 
 ```typescript
-// Before creating cluster, check if user wants confirmation
-if (inputAddrs.length >= 10 && !isStartTx && !hasOriginAddress) {
-  // Return a special flag indicating clustering decision needed
-  // OR: Create cluster but mark it as "needs confirmation"
-  // Frontend can show dialog: "This transaction has 350 inputs. Display all or show as cluster?"
-  
-  // For now, respect maxOutputs setting
-  const addrsToShow = inputAddrs.slice(0, maxOutputs);
-  if (inputAddrs.length > maxOutputs) {
-    console.warn(`⚠️ Limiting inputs from ${inputAddrs.length} to ${maxOutputs}`);
-  }
-  // ... create individual nodes for addrsToShow
+// Check backend-provided counts for clustering decision
+const actualInputCount = txNode.metadata?.inputCount ?? 0;
+const actualOutputCount = txNode.metadata?.outputCount ?? 0;
+
+// If large number of addresses, need user decision
+if (actualInputCount >= 50 || actualOutputCount >= 50) {
+  // Create a "needs confirmation" marker
+  // This will be checked in App.tsx before rendering
+  txNode.metadata.needsClusteringConfirmation = true;
+  txNode.metadata.suggestedAction = {
+    inputCount: actualInputCount,
+    outputCount: actualOutputCount,
+    message: `This transaction has ${actualInputCount} inputs and ${actualOutputCount} outputs. How would you like to display them?`,
+    options: ['Show as clusters', 'Show first 20', 'Show all (may be slow)']
+  };
 }
 ```
 
-**Alternative**: Add callback parameter to graph builder
+**Approach B**: Callback-based (more flexible)
+
 ```typescript
 export function buildGraphFromTraceDataBipartite(
   data: TraceData,
-  edgeScaleMax: number = 10,
-  maxTransactions: number = 20,
-  maxOutputs: number = 20,
-  startTxid?: string,
-  onClusterNeeded?: (type: 'inputs' | 'outputs', count: number) => Promise<'show-all' | 'cluster'>
+  options: {
+    edgeScaleMax?: number;
+    maxTransactions?: number;
+    maxOutputs?: number;
+    startTxid?: string;
+    onClusterDecision?: (info: {
+      type: 'inputs' | 'outputs';
+      txid: string;
+      count: number;
+      maxOutputs: number;
+    }) => 'cluster' | 'limit' | 'all';
+  }
 )
 ```
 
-### Solution 4: Respect Max Outputs Setting
+**Benefits**:
+- User maintains control over rendering performance
+- Can choose based on their machine/browser
+- Prevents unexpected browser crashes
 
-**Change**: `frontend/src/utils/graphBuilderBipartite.ts`
+### Solution 4: Respect Max Outputs Setting Everywhere
+
+**Problem**: `maxOutputs` setting ignored when creating clusters or for starting TX
+
+**Fix**: Apply maxOutputs limit BEFORE making clustering decisions
+
+**Location**: `frontend/src/utils/graphBuilderBipartite.ts`
 
 ```typescript
-// ALWAYS respect maxOutputs, even for starting TX
+// Use backend counts for clustering decision
+const actualInputCount = txNode.metadata?.inputCount ?? 0;
+const actualOutputCount = txNode.metadata?.outputCount ?? 0;
+
+// But respect user's maxOutputs setting for what we actually fetch/display
 const inputAddrsToShow = inputAddrs.slice(0, maxOutputs);
 const outputAddrsToShow = outputAddrs.slice(0, maxOutputs);
 
-if (inputAddrs.length > maxOutputs) {
-  console.log(`⚠️ Limiting ${inputAddrs.length} inputs to ${maxOutputs}`);
-}
-if (outputAddrs.length > maxOutputs) {
-  console.log(`⚠️ Limiting ${outputAddrs.length} outputs to ${maxOutputs}`);
+// Show clustering only if ACTUAL count exceeds threshold
+// But display only up to maxOutputs
+if (actualInputCount >= 10 && inputAddrsToShow.length > 0) {
+  console.log(`TX has ${actualInputCount} inputs, showing first ${inputAddrsToShow.length}`);
+  // Create cluster node showing: "350 inputs (20 shown)"
 }
 ```
 
-### Solution 5: Lazy Address Loading
+### Solution 5: Lazy Address Loading with User Control
+
+**Problem**: Need to load addresses progressively without overwhelming user
 
 **Approach**: 
-1. Frontend requests TX with counts only (fast)
-2. User sees: "350 inputs (60 shown), 375 outputs (16 shown)"
-3. User can click "Load more" to fetch additional batches
-4. Or "Load all" to fetch everything (with warning)
+1. Backend returns TX with counts only (Solution 1 ensures this when hops=0)
+2. Frontend displays: "TX with 350 inputs and 375 outputs"
+3. User prompted: "How to display?"
+   - **Option A**: "Show as clusters" → Create cluster nodes, no addresses loaded yet
+   - **Option B**: "Show first N" → Backend fetches N addresses, rest in cluster
+   - **Option C**: "Show all" → Warning: "This may take 30+ seconds and affect browser performance. Continue?"
+4. User can expand clusters later with "Load more" button
 
 **Benefits**:
-- Initial load is instant
-- User controls data fetching
+- Initial load: < 1 second (just the TX node with counts)
+- User decides data vs performance tradeoff
 - Progressive disclosure of complexity
+- No surprise browser hangs
 
 ---
 
 ## Implementation Priority
 
-### Phase 1: Quick Fixes (30 minutes)
-1. ✅ Add inputCount/outputCount to all TX node metadata
-2. ✅ Respect maxOutputs setting everywhere
-3. ✅ Add warning logs when limiting addresses
+### Phase 1: Backend - Respect Hop Levels (15 minutes) ⚡ CRITICAL
+**Issue**: Backend ignores hop settings and fetches everything
+**Fix**: Solution 1 - Wrap address fetching in hop level check
+**Impact**: 2+ minutes → < 1 second for single TX view
+**Files**: `backend/app/api/trace.py`
 
-### Phase 2: Performance (1 hour)
-4. ✅ Add fast single-transaction endpoint
-5. ✅ Update frontend to use fast endpoint for initial load
-6. ✅ Add "load more addresses" button functionality
+Steps:
+1. Add inputCount/outputCount to TX metadata (lines 67-73, 147-154)
+2. Wrap input/output address fetching in `if request.hops_before > 0 or request.hops_after > 0` check
+3. Log skipping message when hops=0
 
-### Phase 3: UX Improvements (1 hour)
-7. ✅ Add clustering confirmation dialog
-8. ✅ Show accurate counts in clusters ("350 inputs" not "60 inputs")
-9. ✅ Add progressive loading UI
+### Phase 2: Frontend - Use Backend Counts (15 minutes) ⚡ CRITICAL
+**Issue**: Frontend counts edges instead of using backend metadata
+**Fix**: Solution 2 - Always use metadata.inputCount/outputCount
+**Impact**: Accurate counts for clustering decisions
+**Files**: `frontend/src/utils/graphBuilderBipartite.ts`
 
-### Phase 4: Testing
-10. ✅ Test with TX ae24e3ba... (350 inputs, 375 outputs)
-11. ✅ Verify < 1 second initial load
-12. ✅ Verify correct counts displayed
-13. ✅ Verify user can expand addresses progressively
+Steps:
+1. Change fallback from `inputAddresses.length` to `0`
+2. Add warning log if backend counts missing
+3. Update ALL clustering logic to use metadata counts, not edge counts
+4. Test that "350 inputs" displays correctly, not "60 inputs"
+
+### Phase 3: UX - Clustering Confirmation (30 minutes) 
+**Issue**: Auto-clustering can overwhelm rendering
+**Fix**: Solution 3 - Prompt user before displaying large TX
+**Impact**: User control over performance vs detail
+**Files**: `frontend/src/App.tsx`, `frontend/src/utils/graphBuilderBipartite.ts`
+
+**Decision Needed**: Approach A (metadata flag) or Approach B (callback)?
+- **Approach A** (Recommended): Simpler, metadata-based
+- **Approach B**: More flexible, callback-based
+
+### Phase 4: Respect Settings (15 minutes)
+**Issue**: maxOutputs setting ignored
+**Fix**: Solution 4 - Apply limit before clustering
+**Impact**: User settings actually work
+**Files**: `frontend/src/utils/graphBuilderBipartite.ts`
+
+### Phase 5: Lazy Loading (Future Enhancement)
+**Issue**: No progressive loading of addresses
+**Fix**: Solution 5 - "Load more" functionality
+**Impact**: Better UX for very large transactions
+**Files**: Multiple - requires expand functionality
+
+---
+
+## Testing Plan
+
+### Test 1: Single Transaction with Counts Only
+```bash
+curl -X POST "http://localhost:8000/api/trace/utxo" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "txid": "ae24e3ba533427883809b267e5b55064827b29b43d9f2e38b8423dcdcc22ab9a",
+    "vout": 0,
+    "hops_before": 0,
+    "hops_after": 0
+  }' --max-time 5
+```
+
+**Expected**:
+- ✅ Returns in < 1 second
+- ✅ TX node with metadata: `"inputCount": 350, "outputCount": 375`
+- ✅ No address nodes (hops=0)
+- ✅ Backend logs: "Skipping address fetching for single transaction view"
+
+### Test 2: Frontend Displays Accurate Counts
+**Action**: Load TX ae24e3ba... in frontend with hops=0
+
+**Expected**:
+- ✅ Transaction node shows "350 inputs, 375 outputs"
+- ✅ No addresses displayed initially
+- ✅ No "60 inputs" or other incorrect count
+- ✅ Console logs: Using metadata counts
+
+### Test 3: User Confirmation for Large TX
+**Action**: User requests to expand inputs
+
+**Expected**:
+- ✅ Dialog appears: "This transaction has 350 inputs. How would you like to display them?"
+- ✅ Options: "Show as cluster", "Show first 20", "Show all"
+- ✅ User's choice is respected
+- ✅ Setting "max outputs: 16" is honored
 
 ---
 
