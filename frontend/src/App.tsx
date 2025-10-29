@@ -570,7 +570,7 @@ function AppContent() {
       trackRequest(0, bytes);
       addLog('success', `✓ Received ${data.nodes.length} nodes, ${data.edges.length} edges (${(bytes / 1024).toFixed(1)} KB)`);
       
-      const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(data, edgeScaleMax, maxTransactions, true, maxOutputs, txid);
+      const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(data, edgeScaleMax, maxTransactions, maxOutputs, txid);
       
       // Add expand handler to all nodes
       const nodesWithHandlers = newNodes.map(node => ({
@@ -850,7 +850,7 @@ function AppContent() {
         const data = await traceFromAddress(address, 1, maxTransactions);
         
         // Merge new nodes/edges with existing
-        const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(data, edgeScaleMax, maxTransactions, true, maxOutputs);
+        const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(data, edgeScaleMax, maxTransactions, maxOutputs);
         
         console.log('📦 Got new data:', newNodes.length, 'nodes');
         
@@ -1131,7 +1131,7 @@ function AppContent() {
         const data = await traceFromUTXO(txid, 0, hopsBefore, hopsAfter);
         
         // Merge new nodes/edges
-        const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(data, edgeScaleMax, maxTransactions, true, maxOutputs);
+        const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(data, edgeScaleMax, maxTransactions, maxOutputs);
         console.log('📦 Got new data:', newNodes.length, 'nodes');
         
         setNodes((nds) => {
