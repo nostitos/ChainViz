@@ -1208,11 +1208,16 @@ function AppContent() {
           );
           
           if (newAddresses.length === 0 && newTransactions.length === 0) {
-            console.log('⚠️ No new nodes found');
+            console.log('⚠️ No new nodes found - all addresses already in graph');
+            console.log('   Requested addresses:', newNodes.map(n => n.id));
+            console.log('   Already have:', Array.from(existingIds));
             return nds;
           }
           
           console.log('🆕 Adding addresses:', newAddresses.length, 'and TXs:', newTransactions.length);
+          if (newAddresses.length > 0) {
+            console.log('   New addresses:', newAddresses.map(n => n.data.address?.substring(0, 20)));
+          }
           
           // Position based on direction: LEFT = input TXs (parents), RIGHT = output TXs (children)
           const sourceNode = nds.find(n => n.id === nodeId);
