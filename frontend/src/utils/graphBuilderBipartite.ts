@@ -269,8 +269,12 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
       });
     }
     
-    // Skip the normal TX-centric bipartite layout
-    // Jump to edge creation
+    // Mark all TXs as processed so they don't get repositioned
+    receivingTxs.forEach(txId => positioned.add(txId));
+    sendingTxs.forEach(txId => positioned.add(txId));
+    bidirTxs.forEach(txId => positioned.add(txId));
+    
+    // Skip the normal TX-centric bipartite layout - we're done with address-centric
   } else {
     // Normal TX-centric bipartite layout
     // Position TXs first (on horizontal center line)
@@ -585,8 +589,9 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
   // This handles:
   // 1. The 0,0 hops case (just the address node)
   // 2. Addresses that have no edges (shouldn't happen but safety net)
+  // SKIP this if using address-centric layout (other addresses will be added with edges)
   const unpositionedAddrs = addrData.filter(addr => !positioned.has(addr.id));
-  if (unpositionedAddrs.length > 0) {
+  if (unpositionedAddrs.length > 0 && !useAddressCentricLayout) {
     console.log(`📍 Positioning ${unpositionedAddrs.length} standalone addresses`);
     
     // If there are NO transactions at all, center the address
@@ -847,12 +852,10 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
   edges.forEach(e => {
     if (!edgeMap.has(e.id)) {
       edgeMap.set(e.id, e);
-    } else {
-      console.log(`⚠️ Duplicate edge detected: ${e.id}`);
     }
+    // Duplicates are silently merged (keep first occurrence)
   });
   edges = Array.from(edgeMap.values());
-  console.log(`✅ Deduplicated edges: ${edges.length} unique edges`);
 
   return { nodes, edges };
 }
