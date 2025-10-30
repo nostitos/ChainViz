@@ -565,8 +565,8 @@ function AppContent() {
     try {
       // Start immediate neighborhood
       addLog('info', `📍 Starting trace from TX: ${txid.substring(0, 16)}...`);
-      addLog('electrum', `Fetching initial ${hopsBefore} hops backward...`);
-      const { data, bytes } = await traceFromUTXOWithStats(txid, vout, hopsBefore, 0, maxOutputs);
+      addLog('electrum', `Fetching ${hopsBefore} hops backward, ${hopsAfter} hops forward...`);
+      const { data, bytes } = await traceFromUTXOWithStats(txid, vout, hopsBefore, hopsAfter, maxOutputs);
       trackRequest(0, bytes);
       addLog('success', `✓ Received ${data.nodes.length} nodes, ${data.edges.length} edges (${(bytes / 1024).toFixed(1)} KB)`);
       
@@ -766,7 +766,7 @@ function AppContent() {
       setIsLoading(false);
       setCurrentProgress(undefined);
     }
-  }, [setNodes, setEdges, fitView, addLog]);
+  }, [setNodes, setEdges, fitView, addLog, maxOutputs, edgeScaleMax, maxTransactions, handleExpandNode]);
 
   // Expand a node (fetch more connections)
   const handleExpandNode = useCallback(async (nodeId: string, direction?: 'inputs' | 'outputs' | 'spending' | 'receiving') => {
