@@ -573,6 +573,7 @@ function AppContent() {
       // Start immediate neighborhood
       addLog('info', `📍 Starting trace from TX: ${txid.substring(0, 16)}...`);
       addLog('electrum', `Fetching ${hopsBefore} hops backward, ${hopsAfter} hops forward...`);
+      console.log(`🔧 Using maxOutputs=${maxOutputs} for this trace`);
       const { data, bytes } = await traceFromUTXOWithStats(txid, vout, hopsBefore, hopsAfter, maxOutputs);
       trackRequest(0, bytes);
       addLog('success', `✓ Received ${data.nodes.length} nodes, ${data.edges.length} edges (${(bytes / 1024).toFixed(1)} KB)`);
