@@ -300,22 +300,27 @@ class BlockchainDataService:
                     if txid and txid.startswith("b1b980bb"):
                         logger.warning(f"DEBUG: fetch_transactions_batch received TX b1b980bb with {len(tx_data.get('vin', []))} inputs from Electrum")
                     
-                    # Fetch input values from previous transactions
-                    for vin in tx_data.get("vin", []):
-                        if "value" not in vin or vin.get("value") is None:
-                            prev_txid = vin.get("txid")
-                            prev_vout = vin.get("vout")
-                            if prev_txid and prev_vout is not None:
-                                try:
-                                    prev_tx = await electrum.get_transaction(prev_txid, verbose=True)
-                                    if prev_vout < len(prev_tx.get("vout", [])):
-                                        vin["value"] = int(prev_tx["vout"][prev_vout].get("value", 0) * 100_000_000)
-                                except Exception as e:
-                                    logger.debug(f"Could not fetch input value for {prev_txid}:{prev_vout}: {e}")
-                    
-                    # DEBUG: Log AFTER fetching input values
-                    if txid and txid.startswith("b1b980bb"):
-                        logger.warning(f"DEBUG: AFTER fetching input values: {len(tx_data.get('vin', []))} inputs")
+                    # DISABLED: Recursive input value fetching
+                    # This causes exponential request growth for large transactions!
+                    # For hops=1, we only need specific outputs from input TXs, not ALL input values
+                    # The trace endpoint handles getting specific input values when needed
+                    # 
+                    # If input values are needed in the future, fetch them only for:
+                    # 1. Specific inputs we're tracing (not all inputs of all TXs)
+                    # 2. Only when verbose=True responses don't include values (modern servers do)
+                    #
+                    # Old recursive code (disabled):
+                    # for vin in tx_data.get("vin", []):
+                    #     if "value" not in vin or vin.get("value") is None:
+                    #         prev_txid = vin.get("txid")
+                    #         prev_vout = vin.get("vout")
+                    #         if prev_txid and prev_vout is not None:
+                    #             try:
+                    #                 prev_tx = await electrum.get_transaction(prev_txid, verbose=True)
+                    #                 if prev_vout < len(prev_tx.get("vout", [])):
+                    #                     vin["value"] = int(prev_tx["vout"][prev_vout].get("value", 0) * 100_000_000)
+                    #             except Exception as e:
+                    #                 logger.debug(f"Could not fetch input value for {prev_txid}:{prev_vout}: {e}")
                     
                     transaction = self._parse_transaction(txid, tx_data)
                     result.insert(original_idx, transaction)
