@@ -196,87 +196,139 @@ class ElectrumClient:
     
     async def _batch_call_single(self, requests: List[Tuple[str, List[Any]]]) -> List[Any]:
         """
-        Make a single batch request (internal helper)
+        Make a single batch request (internal helper) with retry logic
         """
         if not requests:
             return []
 
-        async with self._lock:
-            if not self.connected:
-                await self.connect()
-
-            # Count request types for logging
-            method_counts = {}
-            for method, params in requests:
-                method_counts[method] = method_counts.get(method, 0) + 1
+        MAX_RETRIES = 3
+        RETRY_DELAYS = [0.5, 1.0, 2.0]  # Exponential backoff: 0.5s, 1s, 2s
+        
+        # Track results across retries
+        results = [None] * len(requests)
+        requests_to_retry = list(range(len(requests)))  # Indices of requests that need (re)trying
+        
+        for attempt in range(MAX_RETRIES):
+            if not requests_to_retry:
+                break  # All requests succeeded
             
-            # Log batch summary
-            method_summary = ", ".join([f"{method}({count})" for method, count in sorted(method_counts.items())])
-            logger.info(f"📡 Batch RPC: {len(requests)} requests [{method_summary}]")
+            # Build batch for this attempt
+            retry_requests = [requests[i] for i in requests_to_retry]
+            
+            async with self._lock:
+                if not self.connected:
+                    await self.connect()
 
-            # Build batch request
-            batch_request = []
-            for method, params in requests:
-                self.request_id += 1
-                # Log individual request details
-                if method == "blockchain.transaction.get":
-                    txid = params[0] if params else "unknown"
-                    verbose = params[1] if len(params) > 1 else False
-                    logger.debug(f"  → #{self.request_id}: {method}(txid={txid[:16]}..., verbose={verbose})")
-                elif method == "blockchain.scripthash.get_history":
-                    scripthash = params[0] if params else "unknown"
-                    logger.debug(f"  → #{self.request_id}: {method}(scripthash={scripthash[:16]}...)")
-                elif method == "blockchain.scripthash.get_balance":
-                    scripthash = params[0] if params else "unknown"
-                    logger.debug(f"  → #{self.request_id}: {method}(scripthash={scripthash[:16]}...)")
-                else:
-                    logger.debug(f"  → #{self.request_id}: {method}({len(params)} params)")
+                # Count request types for logging
+                method_counts = {}
+                for method, params in retry_requests:
+                    method_counts[method] = method_counts.get(method, 0) + 1
                 
-                batch_request.append({
-                    "jsonrpc": "2.0",
-                    "id": self.request_id,
-                    "method": method,
-                    "params": params,
-                })
-
-            # Send batch request
-            request_str = json.dumps(batch_request) + "\n"
-            self.writer.write(request_str.encode())
-            await self.writer.drain()
-
-            # Read batch response
-            response_str = await asyncio.wait_for(
-                self.reader.readline(), timeout=self.timeout
-            )
-            responses = json.loads(response_str.decode())
-
-            # Extract results in order
-            results = []
-            for i, response in enumerate(responses):
-                if isinstance(response, dict) and "error" in response:
-                    logger.warning(f"Batch item error: {response['error']}")
-                    results.append(None)
-                elif isinstance(response, dict):
-                    result = response.get("result")
-                    # Log transaction batch items for debugging
-                    if isinstance(result, dict) and "vin" in result:
-                        method = batch_request[i].get("method", "")
-                        if method == "blockchain.transaction.get":
-                            txid = batch_request[i].get("params", [None])[0]
-                            if txid:
-                                txid_short = txid[:20] if txid else "unknown"
-                                num_inputs = len(result.get("vin", []))
-                                logger.debug(f"Batch RPC response for TX {txid_short}: {num_inputs} inputs")
-                                # Extra logging for problematic transaction
-                                if txid and "b1b980bb" in txid:
-                                    logger.warning(f"DEBUG: Full txid for b1b980bb: {txid}")
-                                    logger.warning(f"DEBUG: First 3 inputs: {[v.get('txid', 'N/A')[:12] + '...' for v in result.get('vin', [])[:3]]}")
-                    results.append(result)
+                # Log batch summary
+                method_summary = ", ".join([f"{method}({count})" for method, count in sorted(method_counts.items())])
+                if attempt == 0:
+                    logger.info(f"📡 Batch RPC attempt 1/{MAX_RETRIES}: {len(retry_requests)} requests [{method_summary}]")
                 else:
-                    logger.warning(f"Unexpected response type: {type(response)}")
-                    results.append(None)
+                    logger.info(f"🔄 Retrying {len(retry_requests)} failed requests (attempt {attempt + 1}/{MAX_RETRIES}, delay {RETRY_DELAYS[attempt - 1]}s)")
+                    await asyncio.sleep(RETRY_DELAYS[attempt - 1])  # Wait before retry
 
-            return results
+                # Build batch request
+                batch_request = []
+                for method, params in retry_requests:
+                    self.request_id += 1
+                    # Log individual request details (only on first attempt to reduce noise)
+                    if attempt == 0:
+                        if method == "blockchain.transaction.get":
+                            txid = params[0] if params else "unknown"
+                            verbose = params[1] if len(params) > 1 else False
+                            logger.debug(f"  → #{self.request_id}: {method}(txid={txid[:16]}..., verbose={verbose})")
+                        elif method == "blockchain.scripthash.get_history":
+                            scripthash = params[0] if params else "unknown"
+                            logger.debug(f"  → #{self.request_id}: {method}(scripthash={scripthash[:16]}...)")
+                        elif method == "blockchain.scripthash.get_balance":
+                            scripthash = params[0] if params else "unknown"
+                            logger.debug(f"  → #{self.request_id}: {method}(scripthash={scripthash[:16]}...)")
+                        else:
+                            logger.debug(f"  → #{self.request_id}: {method}({len(params)} params)")
+                    
+                    batch_request.append({
+                        "jsonrpc": "2.0",
+                        "id": self.request_id,
+                        "method": method,
+                        "params": params,
+                    })
+
+                try:
+                    # Send batch request
+                    request_str = json.dumps(batch_request) + "\n"
+                    self.writer.write(request_str.encode())
+                    await self.writer.drain()
+
+                    # Read batch response
+                    response_str = await asyncio.wait_for(
+                        self.reader.readline(), timeout=self.timeout
+                    )
+                    responses = json.loads(response_str.decode())
+
+                    # Process responses and track which succeeded/failed
+                    succeeded_count = 0
+                    failed_indices = []
+                    
+                    for i, response in enumerate(responses):
+                        original_idx = requests_to_retry[i]
+                        
+                        if isinstance(response, dict) and "error" in response:
+                            logger.debug(f"Batch item {original_idx} error: {response['error']}")
+                            failed_indices.append(original_idx)
+                        elif isinstance(response, dict):
+                            result = response.get("result")
+                            # Log transaction batch items for debugging
+                            if isinstance(result, dict) and "vin" in result:
+                                method = batch_request[i].get("method", "")
+                                if method == "blockchain.transaction.get":
+                                    txid = batch_request[i].get("params", [None])[0]
+                                    if txid:
+                                        txid_short = txid[:20] if txid else "unknown"
+                                        num_inputs = len(result.get("vin", []))
+                                        logger.debug(f"Batch RPC response for TX {txid_short}: {num_inputs} inputs")
+                            results[original_idx] = result
+                            succeeded_count += 1
+                        else:
+                            logger.debug(f"Unexpected response type for item {original_idx}: {type(response)}")
+                            failed_indices.append(original_idx)
+                    
+                    # Log attempt results
+                    logger.info(f"  ✅ Attempt {attempt + 1}: {succeeded_count} succeeded, {len(failed_indices)} failed")
+                    
+                    # Update requests to retry
+                    requests_to_retry = failed_indices
+                    
+                except Exception as e:
+                    logger.error(f"  ❌ Batch RPC attempt {attempt + 1} failed completely: {type(e).__name__}: {e}")
+                    # All requests in this batch failed - will retry all of them
+                    if attempt == MAX_RETRIES - 1:
+                        # Final attempt failed - mark all as None
+                        for idx in requests_to_retry:
+                            results[idx] = None
+        
+        # Final summary
+        success_count = sum(1 for r in results if r is not None)
+        fail_count = len(results) - success_count
+        if fail_count > 0:
+            logger.warning(f"🔴 After {MAX_RETRIES} attempts: {success_count} succeeded, {fail_count} FAILED")
+            # Log first 5 failed request params for debugging
+            failed_params = []
+            for i, result in enumerate(results):
+                if result is None and len(failed_params) < 5:
+                    method, params = requests[i]
+                    if method == "blockchain.transaction.get" and params:
+                        failed_params.append(f"{params[0][:16]}...")
+            if failed_params:
+                logger.warning(f"   Failed TXIDs (first 5): {', '.join(failed_params)}")
+        else:
+            logger.info(f"✅ All {success_count} requests succeeded")
+
+        return results
 
     async def get_balance(self, address: str) -> Dict[str, int]:
         """

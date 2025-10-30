@@ -89,23 +89,14 @@ async def trace_utxo(
                 input_txs = await blockchain_service.fetch_transactions_batch(input_txids)
                 input_tx_map = {tx.txid: tx for tx in input_txs if tx}
                 logger.info(f"  ✅ Successfully fetched {len(input_tx_map)}/{len(input_txids)} input transactions")
-                
-                # Retry failed transactions in smaller batches
-                failed_txids = [txid for txid in input_txids if txid not in input_tx_map]
-                if failed_txids:
-                    logger.warning(f"  ⚠️ Failed to fetch {len(failed_txids)} input transactions, retrying in smaller batches...")
-                    retry_batch_size = 10  # Smaller batches for retry
-                    for i in range(0, len(failed_txids), retry_batch_size):
-                        retry_batch = failed_txids[i:i + retry_batch_size]
-                        logger.info(f"  🔄 Retrying batch {i//retry_batch_size + 1}: {len(retry_batch)} transactions")
-                        retry_txs = await blockchain_service.fetch_transactions_batch(retry_batch)
-                        for tx in retry_txs:
-                            if tx:
-                                input_tx_map[tx.txid] = tx
-                    
-                    logger.info(f"  ✅ After retry: {len(input_tx_map)}/{len(input_txids)} input transactions")
-                    if len(input_tx_map) < len(input_txids):
-                        logger.warning(f"  ⚠️ Still failed to fetch {len(input_txids) - len(input_tx_map)} input transactions after retry")
+                if len(input_tx_map) < len(input_txids):
+                    failed_count = len(input_txids) - len(input_tx_map)
+                    logger.warning(f"  ⚠️ Failed to fetch {failed_count} input transactions")
+                    # Log which specific TXIDs failed (first 5)
+                    failed_txids = [txid for txid in input_txids if txid not in input_tx_map]
+                    if failed_txids:
+                        sample = failed_txids[:5]
+                        logger.warning(f"     Failed TXIDs (first 5 of {len(failed_txids)}): {', '.join([tx[:16] + '...' for tx in sample])}")
                 
                 for inp in inputs_to_fetch:
                     if inp.txid and inp.txid in input_tx_map:
