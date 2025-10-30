@@ -456,29 +456,95 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     }
   });
   
-  // Handle standalone addresses (when there are no transactions)
-  // This handles the case of 0,0 hops showing just the address node
+  // Handle standalone addresses (when there are no transactions OR address wasn't positioned)
+  // This handles:
+  // 1. The 0,0 hops case (just the address node)
+  // 2. Addresses that have no edges (shouldn't happen but safety net)
   const unpositionedAddrs = addrData.filter(addr => !positioned.has(addr.id));
   if (unpositionedAddrs.length > 0) {
-    console.log(`📍 Positioning ${unpositionedAddrs.length} standalone addresses (no connected TXs)`);
-    unpositionedAddrs.forEach((addrNode, idx) => {
-      const isStartingPoint = addrNode.metadata?.is_starting_point ?? false;
-      nodes.push({
-        id: addrNode.id,
-        type: 'address',
-        position: {
-          x: 0, // Center
-          y: idx * ROW_SPACING, // Stack vertically if multiple
-        },
-        data: {
-          ...addrNode,
-          label: addrNode.label,
-        },
-        sourcePosition: Position.Right,
-        targetPosition: Position.Left,
+    console.log(`📍 Positioning ${unpositionedAddrs.length} standalone addresses`);
+    
+    // If there are NO transactions at all, center the address
+    if (sortedTxs.length === 0) {
+      unpositionedAddrs.forEach((addrNode, idx) => {
+        nodes.push({
+          id: addrNode.id,
+          type: 'address',
+          position: {
+            x: 0, // Center of viewport
+            y: idx * ROW_SPACING, // Stack vertically if multiple
+          },
+          data: {
+            ...addrNode,
+            label: addrNode.label,
+          },
+          sourcePosition: Position.Right,
+          targetPosition: Position.Left,
+        });
+        positioned.add(addrNode.id);
       });
-      positioned.add(addrNode.id);
-    });
+    } else {
+      // If there ARE transactions but address wasn't positioned, place it at center
+      // and position orphan TXs to the sides based on edge direction
+      unpositionedAddrs.forEach((addrNode, idx) => {
+        const addrX = 0; // Center
+        const addrY = idx * ROW_SPACING;
+        
+        nodes.push({
+          id: addrNode.id,
+          type: 'address',
+          position: { x: addrX, y: addrY },
+          data: {
+            ...addrNode,
+            label: addrNode.label,
+          },
+          sourcePosition: Position.Right,
+          targetPosition: Position.Left,
+        });
+        positioned.add(addrNode.id);
+        
+        // Find TXs connected to this address and reposition them
+        const receivingTxs = addrReceiving.get(addrNode.id) || [];
+        const sendingTxs = addrSending.get(addrNode.id) || [];
+        const bidirTxs = addrBidirectional.get(addrNode.id) || [];
+        
+        // Position receiving TXs on LEFT (stacked vertically)
+        receivingTxs.forEach((txId, txIdx) => {
+          const txNode = nodes.find(n => n.id === txId);
+          if (txNode) {
+            txNode.position = {
+              x: addrX - ADDR_OFFSET, // LEFT of address
+              y: addrY + (txIdx - receivingTxs.length / 2) * ROW_SPACING,
+            };
+          }
+        });
+        
+        // Position sending TXs on RIGHT (stacked vertically)
+        sendingTxs.forEach((txId, txIdx) => {
+          const txNode = nodes.find(n => n.id === txId);
+          if (txNode) {
+            txNode.position = {
+              x: addrX + ADDR_OFFSET, // RIGHT of address
+              y: addrY + (txIdx - sendingTxs.length / 2) * ROW_SPACING,
+            };
+          }
+        });
+        
+        // Position bidirectional TXs BELOW (stacked horizontally)
+        if (bidirTxs.length > 0) {
+          const startX = addrX - ((bidirTxs.length - 1) * ROW_SPACING) / 2;
+          bidirTxs.forEach((txId, txIdx) => {
+            const txNode = nodes.find(n => n.id === txId);
+            if (txNode) {
+              txNode.position = {
+                x: startX + (txIdx * ROW_SPACING),
+                y: addrY + 300, // BELOW address
+              };
+            }
+          });
+        }
+      });
+    }
   }
   
   // Reposition bidirectional transactions below their connected addresses
