@@ -156,10 +156,38 @@ This confirms: Each input comes from a different address!
 
 ---
 
+## Critical Bug Found: Address Hop Logic
+
+**Issue**: Frontend sends `hopsBefore` as `max_hops`, completely ignoring `hopsAfter`!
+
+```typescript
+// frontend/src/App.tsx line 462
+const data = await traceFromAddress(address, hopsBefore, txLimit);
+//                                            ^^^^^^^^^^
+//                                  Should be: Math.max(hopsBefore, hopsAfter)
+```
+
+**Result**:
+- Setting "0 back, 2 forward" sends `max_hops=0` → shows nothing ❌
+- Setting "1 back, 0 forward" sends `max_hops=1` → shows TXs ✅
+- Setting "2 back, 2 forward" sends `max_hops=2` → shows TXs + addresses ✅
+
+**The backend `/api/trace/address` endpoint doesn't support directional hops!**
+
+It only has one `max_hops` parameter, which controls overall depth, not direction.
+
+**This needs fixing**: Either:
+1. Change frontend to pass `Math.max(hopsBefore, hopsAfter)`
+2. OR change backend to accept `hops_before` and `hops_after` separately
+3. OR use the UTXO endpoint instead (which does support directional hops)
+
+---
+
 ## Next Steps
 
 1. ✅ Flush Redis cache (done - had corrupted data)
-2. ⏳ Implement hybrid model for input fetching
-3. ⏳ Add mempool.space fallback for failed Electrum batches
-4. ⏳ Monitor and compare performance in production
+2. ⏳ Fix address hop logic (hopsBefore vs hopsAfter issue)
+3. ⏳ Implement hybrid model for input fetching
+4. ⏳ Add mempool.space fallback for failed Electrum batches
+5. ⏳ Monitor and compare performance in production
 
