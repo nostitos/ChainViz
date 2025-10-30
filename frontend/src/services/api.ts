@@ -23,7 +23,7 @@ export interface TraceResponse {
 
 export async function traceFromAddress(address: string, maxHops: number = 1, maxTransactions: number = 100): Promise<TraceResponse> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 180000); // 180s timeout for complex addresses
+  const timeout = setTimeout(() => controller.abort(), 300000); // 300s (5 min) timeout for complex transactions with many large inputs
 
   try {
     const response = await fetch(
@@ -56,7 +56,7 @@ export async function traceFromAddress(address: string, maxHops: number = 1, max
 
 export async function traceFromAddressWithStats(address: string, maxHops: number = 1): Promise<{ data: TraceResponse; bytes: number }> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 180000); // 180s timeout for complex addresses
+  const timeout = setTimeout(() => controller.abort(), 300000); // 300s (5 min) timeout for complex transactions with many large inputs
 
   try {
     const response = await fetch(
