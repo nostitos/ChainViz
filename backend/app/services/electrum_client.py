@@ -308,7 +308,16 @@ class ElectrumClient:
                         original_idx = requests_to_retry[i]
                         
                         if isinstance(response, dict) and "error" in response:
-                            logger.debug(f"Batch item {original_idx} error: {response['error']}")
+                            error_msg = str(response['error'])
+                            # Detect rate limiting errors
+                            if 'cost' in error_msg.lower() or 'limit' in error_msg.lower() or 'killing batch' in error_msg.lower():
+                                logger.error(f"⚠️ RATE LIMIT DETECTED: {error_msg}")
+                                logger.error(f"💡 Suggestion: Your Electrum server is rate limiting requests.")
+                                logger.error(f"   - Increase server's cost limit (currently exceeded)")
+                                logger.error(f"   - Reduce 'Max Outputs/Transactions' in UI settings")
+                                logger.error(f"   - Wait a few seconds before retrying")
+                            else:
+                                logger.debug(f"Batch item {original_idx} error: {response['error']}")
                             failed_indices.append(original_idx)
                         elif isinstance(response, dict):
                             result = response.get("result")
@@ -357,6 +366,20 @@ class ElectrumClient:
         fail_count = len(results) - success_count
         if fail_count > 0:
             logger.warning(f"🔴 After {MAX_RETRIES} attempts: {success_count} succeeded, {fail_count} FAILED")
+            
+            # Provide helpful guidance based on failure rate
+            failure_rate = fail_count / len(results)
+            if failure_rate > 0.5:  # More than 50% failed
+                logger.error(f"⚠️ HIGH FAILURE RATE ({failure_rate:.0%}):")
+                logger.error(f"   This is likely due to Electrum server rate limiting.")
+                logger.error(f"   Your server's cost limit may be too low for large batch requests.")
+                logger.error(f"   ")
+                logger.error(f"   Solutions:")
+                logger.error(f"   1. Increase Fulcrum cost limit: max_batch_cost in fulcrum.conf")
+                logger.error(f"      (Current recommended value: 50,000,000 or higher)")
+                logger.error(f"   2. Reduce batch size in UI: Lower 'Max Outputs' setting to 100-200")
+                logger.error(f"   3. Wait 10-30 seconds before retrying the same transaction")
+            
             # Log first 5 failed request params for debugging
             failed_params = []
             for i, result in enumerate(results):
