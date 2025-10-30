@@ -152,63 +152,96 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
       const txid = data.txid || metadata.txid;
       if (txid) {
         setLoading(true);
-        fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/transaction/${txid}`)
-          .then(res => res.json())
-          .then(async (data) => {
-            const tx = data.transaction;
-            console.log('📦 Fetched TX data:', tx);
-            console.log('📦 Block height:', tx.block_height, 'Block hash:', tx.block_hash);
-            console.log('📦 Full transaction object:', JSON.stringify(tx, null, 2));
+        // Use mempool.space API - it provides complete transaction data in one request
+        // No need to recursively fetch previous transactions!
+        const mempoolSpaceUrl = 'http://192.168.8.234:3006/api';
+        fetch(`${mempoolSpaceUrl}/tx/${txid}`)
+          .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+          })
+          .then((tx: any) => {
+            console.log('📦 Fetched TX data from mempool.space:', tx);
             
-            // For inputs, we need to fetch previous TXs to get addresses
-            const inputsWithAddrs = await Promise.all(
-              tx.inputs.map(async (inp: any) => {
-                if (inp.txid && inp.address === null) {
-                  // Fetch previous TX to get the address
-                  try {
-                    const prevTxRes = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/transaction/${inp.txid}`);
-                    const prevTxData = await prevTxRes.json();
-                    const prevOut = prevTxData.transaction.outputs[inp.vout];
-                    return {
-                      address: prevOut.address || 'Unknown',
-                      value: prevOut.value || 0
-                    };
-                  } catch (e) {
-                    return { address: 'Unknown', value: 0 };
-                  }
-                }
-                return {
-                  address: inp.address || 'Unknown',
-                  value: inp.value || 0
-                };
-              })
-            );
+            // Mempool.space provides complete input/output data
+            const inputsWithAddrs = tx.vin.map((vin: any, idx: number) => {
+              // Mempool.space includes prevout data directly
+              const prevout = vin.prevout;
+              return {
+                txid: vin.txid,
+                vout: vin.vout,
+                address: prevout?.scriptpubkey_address || 'Unknown',
+                value: prevout?.value || 0,
+                scriptpubkey_type: prevout?.scriptpubkey_type || 'Unknown',
+              };
+            });
             
-            const outputs = tx.outputs.map((out: any) => ({
-              address: out.address || 'Unknown',
-              value: out.value || 0,
-              vout: out.n
+            const outputs = tx.vout.map((vout: any) => ({
+              address: vout.scriptpubkey_address || 'Unknown',
+              value: vout.value || 0,
+              vout: vout.n,
+              scriptpubkey_type: vout.scriptpubkey_type || 'Unknown',
             }));
 
             setTxDetails({
               inputs: inputsWithAddrs,
               outputs,
-              change_output: data.change_output,
-              change_confidence: data.change_confidence,
-              // NEW FIELDS:
+              change_output: null, // Not provided by mempool.space
+              change_confidence: null,
               size: tx.size || 0,
-              vsize: tx.vsize || 0,
+              vsize: tx.vsize || (tx.weight ? Math.ceil(tx.weight / 4) : 0),
               weight: tx.weight || 0,
               fee: tx.fee !== undefined ? tx.fee : null,
-              fee_rate: data.fee_rate !== undefined ? data.fee_rate : null,
-              confirmations: tx.confirmations || 0,
-              block_height: tx.block_height !== undefined ? tx.block_height : null,
-              block_hash: tx.block_hash || null,
+              fee_rate: tx.fee !== undefined && tx.vsize ? Math.round(tx.fee / tx.vsize) : null,
+              confirmations: tx.status?.block_height ? (tx.status.block_height > 0 ? (tx.status.confirmed ? 6 : 0) : 0) : 0, // Approximate
+              block_height: tx.status?.block_height || null,
+              block_hash: tx.status?.block_hash || null,
               version: tx.version || 1,
               locktime: tx.locktime || 0,
             });
           })
-          .catch(err => console.error('Failed to fetch TX details:', err))
+          .catch(async (err) => {
+            console.warn('Failed to fetch from mempool.space, trying backend:', err);
+            // Fallback to backend if mempool.space fails
+            try {
+              const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/transaction/${txid}`);
+              const data = await res.json();
+              const tx = data.transaction;
+              
+              // Use data as-is (some inputs may not have addresses - that's OK, we'll show what we have)
+              const inputsWithAddrs = tx.inputs.map((inp: any) => ({
+                txid: inp.txid,
+                vout: inp.vout,
+                address: inp.address || 'Unknown',
+                value: inp.value || 0,
+              }));
+              
+              const outputs = tx.outputs.map((out: any) => ({
+                address: out.address || 'Unknown',
+                value: out.value || 0,
+                vout: out.n
+              }));
+
+              setTxDetails({
+                inputs: inputsWithAddrs,
+                outputs,
+                change_output: data.change_output,
+                change_confidence: data.change_confidence,
+                size: tx.size || 0,
+                vsize: tx.vsize || 0,
+                weight: tx.weight || 0,
+                fee: tx.fee !== undefined ? tx.fee : null,
+                fee_rate: data.fee_rate !== undefined ? data.fee_rate : null,
+                confirmations: tx.confirmations || 0,
+                block_height: tx.block_height !== undefined ? tx.block_height : null,
+                block_hash: tx.block_hash || null,
+                version: tx.version || 1,
+                locktime: tx.locktime || 0,
+              });
+            } catch (fallbackErr) {
+              console.error('Failed to fetch TX details from both sources:', fallbackErr);
+            }
+          })
           .finally(() => setLoading(false));
       }
     }
