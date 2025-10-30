@@ -760,6 +760,15 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
   const sqrtBase = Math.sqrt(scaleMaxSats / minAmountSats);
   
   data.edges.forEach((edgeData, index) => {
+    // In address-centric mode, only keep edges that involve the starting address.
+    // This avoids adding the opposite point-of-view edges that connect other
+    // addresses on the wrong side of the same transaction.
+    if (useAddressCentricLayout && startingAddr) {
+      const startingAddrId = startingAddr.id;
+      if (edgeData.source !== startingAddrId && edgeData.target !== startingAddrId) {
+        return; // Skip edges not touching the origin address
+      }
+    }
     const confidence = edgeData.confidence ?? 1.0;
     const amount = edgeData.amount || 0;
     
