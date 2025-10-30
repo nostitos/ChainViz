@@ -508,24 +508,28 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
         const sendingTxs = addrSending.get(addrNode.id) || [];
         const bidirTxs = addrBidirectional.get(addrNode.id) || [];
         
-        // Position receiving TXs on LEFT (stacked vertically)
+        // Position receiving TXs on LEFT (stacked vertically with proper spacing)
+        // Start from top and stack downward
+        const leftStartY = addrY - ((receivingTxs.length - 1) * ROW_SPACING) / 2;
         receivingTxs.forEach((txId, txIdx) => {
           const txNode = nodes.find(n => n.id === txId);
           if (txNode) {
             txNode.position = {
               x: addrX - ADDR_OFFSET, // LEFT of address
-              y: addrY + (txIdx - receivingTxs.length / 2) * ROW_SPACING,
+              y: leftStartY + (txIdx * ROW_SPACING), // Stack vertically with ROW_SPACING
             };
           }
         });
         
-        // Position sending TXs on RIGHT (stacked vertically)
+        // Position sending TXs on RIGHT (stacked vertically with proper spacing)
+        // Start from top and stack downward
+        const rightStartY = addrY - ((sendingTxs.length - 1) * ROW_SPACING) / 2;
         sendingTxs.forEach((txId, txIdx) => {
           const txNode = nodes.find(n => n.id === txId);
           if (txNode) {
             txNode.position = {
               x: addrX + ADDR_OFFSET, // RIGHT of address
-              y: addrY + (txIdx - sendingTxs.length / 2) * ROW_SPACING,
+              y: rightStartY + (txIdx * ROW_SPACING), // Stack vertically with ROW_SPACING
             };
           }
         });
