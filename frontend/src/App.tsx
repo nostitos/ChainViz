@@ -766,7 +766,7 @@ function AppContent() {
       setIsLoading(false);
       setCurrentProgress(undefined);
     }
-  }, [setNodes, setEdges, fitView, addLog, maxOutputs, edgeScaleMax, maxTransactions, handleExpandNode]);
+  }, [setNodes, setEdges, fitView, addLog]);
 
   // Expand a node (fetch more connections)
   const handleExpandNode = useCallback(async (nodeId: string, direction?: 'inputs' | 'outputs' | 'spending' | 'receiving') => {
