@@ -152,7 +152,9 @@ async def trace_utxo(
                 if inputs_tx_not_fetched > 0:
                     logger.warning(f"     {inputs_tx_not_fetched} inputs reference unfetched transactions")
                 if inputs_invalid_vout > 0:
-                    logger.warning(f"     {inputs_invalid_vout} inputs have invalid vout index")
+                    logger.error(f"     ❌ {inputs_invalid_vout} inputs have invalid vout index")
+                    logger.error(f"        This indicates Electrum batch fetch returned truncated transaction data")
+                    logger.error(f"        💡 Solution: Switch to mempool.space API for input fetching (100% accurate)")
                 if inputs_no_address > 0:
                     logger.warning(f"     {inputs_no_address} inputs have no address (OP_RETURN, P2PK, etc.)")
             
