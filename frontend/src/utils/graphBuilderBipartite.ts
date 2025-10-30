@@ -456,6 +456,31 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     }
   });
   
+  // Handle standalone addresses (when there are no transactions)
+  // This handles the case of 0,0 hops showing just the address node
+  const unpositionedAddrs = addrData.filter(addr => !positioned.has(addr.id));
+  if (unpositionedAddrs.length > 0) {
+    console.log(`📍 Positioning ${unpositionedAddrs.length} standalone addresses (no connected TXs)`);
+    unpositionedAddrs.forEach((addrNode, idx) => {
+      const isStartingPoint = addrNode.metadata?.is_starting_point ?? false;
+      nodes.push({
+        id: addrNode.id,
+        type: 'address',
+        position: {
+          x: 0, // Center
+          y: idx * ROW_SPACING, // Stack vertically if multiple
+        },
+        data: {
+          ...addrNode,
+          label: addrNode.label,
+        },
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
+      });
+      positioned.add(addrNode.id);
+    });
+  }
+  
   // Reposition bidirectional transactions below their connected addresses
   // This creates symmetric behavior: addresses below TXs, TXs below addresses
   addrData.forEach(addrNode => {
