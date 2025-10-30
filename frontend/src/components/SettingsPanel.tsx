@@ -10,6 +10,8 @@ interface SettingsPanelProps {
   onMaxOutputsChange: (value: number) => void;
   maxTransactions: number;
   onMaxTransactionsChange: (value: number) => void;
+  balanceFetchingEnabled: boolean;
+  onBalanceFetchingChange: (enabled: boolean) => void;
 }
 
 export function SettingsPanel({ 
@@ -19,7 +21,9 @@ export function SettingsPanel({
   maxOutputs,
   onMaxOutputsChange,
   maxTransactions,
-  onMaxTransactionsChange
+  onMaxTransactionsChange,
+  balanceFetchingEnabled,
+  onBalanceFetchingChange
 }: SettingsPanelProps) {
   const [electrumHost, setElectrumHost] = useState('192.168.8.234');
   const [electrumPort, setElectrumPort] = useState('50002');
@@ -130,13 +134,27 @@ export function SettingsPanel({
           </div>
 
           <div className="setting-field">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={balanceFetchingEnabled}
+                onChange={(e) => onBalanceFetchingChange(e.target.checked)}
+              />
+              <span>Fetch Address Balances</span>
+            </label>
+            <div className="setting-info" style={{ fontSize: '12px', marginTop: '4px' }}>
+              When disabled, saves hundreds of backend requests for large graphs
+            </div>
+          </div>
+
+          <div className="setting-field">
             <label>
               Max Outputs Per Transaction: <strong>{maxOutputs}</strong>
             </label>
             <input
               type="range"
               min="1"
-              max="300"
+              max="1000"
               value={maxOutputs}
               onChange={(e) => onMaxOutputsChange(parseInt(e.target.value))}
               style={{ width: '50%' }}
@@ -153,7 +171,7 @@ export function SettingsPanel({
             <input
               type="range"
               min="1"
-              max="300"
+              max="1000"
               value={maxTransactions}
               onChange={(e) => onMaxTransactionsChange(parseInt(e.target.value))}
               style={{ width: '50%' }}

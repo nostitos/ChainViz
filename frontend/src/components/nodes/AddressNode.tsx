@@ -12,6 +12,7 @@ interface AddressNodeData {
     is_starting_point?: boolean;
   };
   onExpand?: (nodeId: string, direction: 'inputs' | 'outputs' | 'spending' | 'receiving') => void;
+  balanceFetchingEnabled?: boolean;
 }
 
 export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
@@ -21,6 +22,7 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
   const changeReasons = nodeData.metadata?.change_reasons || [];
   const clusterId = nodeData.metadata?.cluster_id;
   const isStartingPoint = nodeData.metadata?.is_starting_point ?? false;
+  const balanceFetchingEnabled = nodeData.balanceFetchingEnabled ?? true;
   const [balance, setBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   
@@ -34,8 +36,9 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
     ? changeReasons.join(', ') 
     : 'Change detected';
   
-  // Fetch balance and metadata on mount
+  // Fetch balance and metadata on mount (only if enabled)
   useEffect(() => {
+    if (!balanceFetchingEnabled) return; // Skip if disabled
     if (!address || address === 'Unknown') return;
     
     setLoading(true);
@@ -49,7 +52,7 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
         console.error('Failed to fetch balance:', err);
         setLoading(false);
       });
-  }, [address]);
+  }, [address, balanceFetchingEnabled]);
   
 
   const handleExpandSpending = (e: React.MouseEvent) => {

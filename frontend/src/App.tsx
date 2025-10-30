@@ -87,6 +87,7 @@ function AppContent() {
   const [forceRepulsionEnabled, setForceRepulsionEnabled] = useState(getCookieBool('forceRepulsionEnabled', true)); // Load from cookie
   const [treeLayoutEnabled, setTreeLayoutEnabled] = useState(getCookieBool('treeLayoutEnabled', false)); // Load from cookie
   const [edgeTensionEnabled, setEdgeTensionEnabled] = useState(getCookieBool('edgeTensionEnabled', false)); // Load from cookie
+  const [balanceFetchingEnabled, setBalanceFetchingEnabled] = useState(getCookieBool('balanceFetchingEnabled', true)); // Load from cookie
 
   const [maxOutputs, setMaxOutputs] = useState(getCookie('maxOutputs', 400));
   const [maxTransactions, setMaxTransactions] = useState(getCookie('maxTransactions', 400));
@@ -100,6 +101,11 @@ function AppContent() {
   const handleMaxTransactionsChange = (value: number) => {
     setMaxTransactions(value);
     setCookie('maxTransactions', value);
+  };
+
+  const handleBalanceFetchingChange = (enabled: boolean) => {
+    setBalanceFetchingEnabled(enabled);
+    setCookieBool('balanceFetchingEnabled', enabled);
   };
   
   // Progress tracking
@@ -461,7 +467,7 @@ function AppContent() {
       // Add expand handler to all nodes
       const nodesWithHandlers = newNodes.map(node => ({
         ...node,
-        data: { ...node.data, onExpand: handleExpandNode }
+        data: { ...node.data, onExpand: handleExpandNode, balanceFetchingEnabled }
       }));
       
       // Debug: Check if handlers were added
@@ -576,7 +582,7 @@ function AppContent() {
       // Add expand handler to all nodes
       const nodesWithHandlers = newNodes.map(node => ({
         ...node,
-        data: { ...node.data, onExpand: handleExpandNode }
+        data: { ...node.data, onExpand: handleExpandNode, balanceFetchingEnabled }
       }));
       
       setNodes(nodesWithHandlers);
@@ -1707,6 +1713,8 @@ function AppContent() {
           onMaxOutputsChange={handleMaxOutputsChange}
           maxTransactions={maxTransactions}
           onMaxTransactionsChange={handleMaxTransactionsChange}
+          balanceFetchingEnabled={balanceFetchingEnabled}
+          onBalanceFetchingChange={handleBalanceFetchingChange}
         />
       )}
 
