@@ -289,6 +289,11 @@ class BlockchainDataService:
             electrum = get_electrum_client()
             tx_data_list = await electrum.get_transactions_batch(txids_to_fetch, verbose=True)
 
+            # Count how many tx_data are None
+            none_tx_data_count = sum(1 for tx_data in tx_data_list if tx_data is None)
+            if none_tx_data_count > 0:
+                logger.warning(f"⚠️ Electrum returned None for {none_tx_data_count}/{len(tx_data_list)} transactions")
+            
             for (original_idx, txid), tx_data in zip(uncached_txids, tx_data_list):
                 if tx_data:
                     # DEBUG: Log block info for ALL transactions
