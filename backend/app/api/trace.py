@@ -563,7 +563,12 @@ async def trace_from_address(
                     label=f"{tx.txid[:16]}...",
                     type="transaction",
                     value=None,
-                    metadata={"txid": tx.txid, "timestamp": tx.timestamp}
+                    metadata={
+                        "txid": tx.txid,
+                        "timestamp": tx.timestamp,
+                        "inputCount": len(tx.inputs),
+                        "outputCount": len(tx.outputs),
+                    }
                 ))
         
         # Collect input TXIDs ONLY for transactions that might spend from our address
