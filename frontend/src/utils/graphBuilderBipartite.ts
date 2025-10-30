@@ -37,21 +37,7 @@ interface TraceData {
 }
 
 export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: number = 10, maxTransactions: number = 20, maxOutputs: number = 20, startTxid?: string): { nodes: Node[]; edges: Edge[] } {
-  console.log('📊 buildGraphFromTraceDataBipartite called with maxTransactions:', maxTransactions, 'maxOutputs:', maxOutputs, 'startTxid:', startTxid);
-  
-  console.log('🔍 RAW INPUT DATA:', {
-    totalNodes: data.nodes.length,
-    txNodes: data.nodes.filter(n => n.type === 'transaction').length,
-    addrNodes: data.nodes.filter(n => n.type === 'address').length,
-    totalEdges: data.edges.length,
-    startingPoint: data.nodes.find(n => n.metadata?.is_starting_point)?.id || 'none',
-  });
-  
-  // Log all TX nodes with their metadata
-  console.log('🔍 ALL TX NODES FROM BACKEND:');
-  data.nodes.filter(n => n.type === 'transaction').forEach((tx, idx) => {
-    console.log(`  ${idx}: ${tx.id.substring(3, 23)} - inputs=${tx.metadata?.inputCount}, outputs=${tx.metadata?.outputCount}`);
-  });
+  console.log('📊 Building graph:', data.nodes.length, 'nodes,', data.edges.length, 'edges');
   
   let nodes: Node[] = [];
   let edges: Edge[] = [];
@@ -157,13 +143,6 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     }
   });
   
-  console.log('🔍 EDGE CATEGORIZATION:', {
-    numTxsWithInputs: txInputs.size,
-    numTxsWithOutputs: txOutputs.size,
-    numAddrsWithReceiving: addrReceiving.size,
-    numAddrsWithSending: addrSending.size,
-    numAddrsWithBidirectional: addrBidirectional.size,
-  });
 
   // Layout: Simple left-to-right with TXs evenly spaced
   const TX_SPACING = 800;
@@ -190,9 +169,9 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     const sendingTxs = addrSending.get(startingAddr.id) || [];
     const bidirTxs = addrBidirectional.get(startingAddr.id) || [];
 
-    console.log(`  Receiving TXs (LEFT): ${receivingTxs.length} - ${receivingTxs.map(t => t.substring(3, 20)).join(', ')}`);
-    console.log(`  Sending TXs (RIGHT): ${sendingTxs.length} - ${sendingTxs.map(t => t.substring(3, 20)).join(', ')}`);
-    console.log(`  Bidirectional TXs (BELOW): ${bidirTxs.length} - ${bidirTxs.map(t => t.substring(3, 20)).join(', ')}`);
+    console.log(`  Receiving TXs (LEFT): ${receivingTxs.length}`);
+    console.log(`  Sending TXs (RIGHT): ${sendingTxs.length}`);
+    console.log(`  Bidirectional TXs (BELOW): ${bidirTxs.length}`);
     
     // Position the starting address at center
     nodes.push({
@@ -213,7 +192,6 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     receivingTxs.forEach((txId, txIdx) => {
       const txNodeData = limitedTxData.find(t => t.id === txId);
       if (txNodeData) {
-        console.log(`  📍 LEFT TX ${txIdx}: ${txId.substring(3, 23)} - inputs=${txNodeData.metadata?.inputCount}, outputs=${txNodeData.metadata?.outputCount}`);
         nodes.push({
           id: txNodeData.id,
           type: 'transaction',
@@ -243,7 +221,6 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     sendingTxs.forEach((txId, txIdx) => {
       const txNodeData = limitedTxData.find(t => t.id === txId);
       if (txNodeData) {
-        console.log(`  📍 RIGHT TX ${txIdx}: ${txId.substring(3, 23)} - inputs=${txNodeData.metadata?.inputCount}, outputs=${txNodeData.metadata?.outputCount}`);
         nodes.push({
           id: txNodeData.id,
           type: 'transaction',

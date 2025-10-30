@@ -606,15 +606,6 @@ async def trace_from_address(
             # Check if any output goes to our address (TX sending TO address)
             outputs_to_addr = [(idx, out) for idx, out in enumerate(tx.outputs) if out.address == address]
             
-            # DEBUG: Log outputs for problematic TX
-            if tx.txid.startswith("348358"):
-                logger.warning(f"🔍 DEBUG TX 348358...")
-                logger.warning(f"   Total outputs: {len(tx.outputs)}")
-                for idx, out in enumerate(tx.outputs):
-                    logger.warning(f"   Output {idx}: address={out.address[:30] if out.address else 'None'}..., value={out.value}")
-                logger.warning(f"   Looking for address: {address[:30]}...")
-                logger.warning(f"   Found {len(outputs_to_addr)} outputs to this address")
-            
             # Check if any input spends from our address (TX spending FROM address)
             # OPTIMIZATION: Only check if this TX was flagged as needing input resolution
             inputs_from_addr = []
@@ -655,7 +646,6 @@ async def trace_from_address(
             # TX → Address (receiving): Include if hops_before > 0
             if hops_before > 0:
                 for vout, output in outputs_to_addr:
-                    logger.info(f"  ✅ Creating RECEIVING edge: {tx_node_id[:25]} → {addr_node_id[:25]} ({output.value / 100000000:.8f} BTC)")
                     edges.append(EdgeData(
                         source=tx_node_id,
                         target=addr_node_id,
@@ -666,12 +656,10 @@ async def trace_from_address(
             
             # Address → TX (sending): Include if hops_after > 0
             if hops_after > 0 and inputs_from_addr:
-                total_amount = sum(inp.value for inp in inputs_from_addr if inp.value is not None)
-                logger.info(f"  ✅ Creating SENDING edge: {addr_node_id[:25]} → {tx_node_id[:25]} ({total_amount / 100000000:.8f} BTC)")
                 edges.append(EdgeData(
                     source=addr_node_id,
                     target=tx_node_id,
-                    amount=total_amount,
+                    amount=sum(inp.value for inp in inputs_from_addr if inp.value is not None),
                     confidence=1.0,
                     metadata={}
                 ))
@@ -686,21 +674,6 @@ async def trace_from_address(
                 logger.warning(f"   TODO: Implement proper recursive expansion")
         
         logger.info(f"✅ Address trace complete: {len(nodes)} nodes, {len(edges)} edges")
-        
-        # DEBUG: Log all edges to identify duplicates
-        logger.info(f"🔍 ALL EDGES CREATED:")
-        edge_counts = {}
-        for idx, edge in enumerate(edges):
-            edge_key = f"{edge.source} → {edge.target}"
-            edge_counts[edge_key] = edge_counts.get(edge_key, 0) + 1
-            logger.info(f"  {idx}: {edge.source.substring(0, 25) if hasattr(edge.source, 'substring') else edge.source[:25]} → {edge.target.substring(0, 25) if hasattr(edge.target, 'substring') else edge.target[:25]} ({edge.amount / 100000000:.8f} BTC)")
-        
-        # Check for duplicates
-        duplicates = {k: v for k, v in edge_counts.items() if v > 1}
-        if duplicates:
-            logger.warning(f"⚠️ DUPLICATE EDGES DETECTED:")
-            for edge_key, count in duplicates.items():
-                logger.warning(f"  {edge_key}: appears {count} times")
         
         return TraceGraphResponse(
             nodes=nodes,

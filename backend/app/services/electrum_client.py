@@ -216,10 +216,13 @@ class ElectrumClient:
                     logger.info(f"🔄 Retrying {len(retry_requests)} failed requests (attempt {attempt + 1}/{MAX_RETRIES}, delay {RETRY_DELAYS[attempt - 1]}s)")
                     await asyncio.sleep(RETRY_DELAYS[attempt - 1])  # Wait before retry
 
-                # Build batch request
+                # Build batch request - track request ID to index mapping
                 batch_request = []
-                for method, params in retry_requests:
+                request_id_to_idx = {}  # Map request ID to original index
+                for idx_in_batch, idx_in_original in enumerate(requests_to_retry):
+                    method, params = retry_requests[idx_in_batch]
                     self.request_id += 1
+                    request_id_to_idx[self.request_id] = idx_in_original
                     batch_request.append({
                         "jsonrpc": "2.0",
                         "id": self.request_id,
@@ -252,18 +255,31 @@ class ElectrumClient:
                         except Exception as e:
                             logger.error(f"Failed to decode double-encoded responses: {e}")
 
-                    # Process responses and track which succeeded/failed
+                    # Process responses - MATCH BY ID, NOT BY ORDER!
                     succeeded_count = 0
                     failed_indices = []
+                    processed_ids = set()
                     
-                    for i, response in enumerate(responses):
-                        # Safety check: if we have fewer responses than requests, mark missing ones as failed
-                        if i >= len(requests_to_retry):
-                            break
+                    for response in responses:
+                        if not isinstance(response, dict):
+                            logger.warning(f"Unexpected response type: {type(response)}")
+                            continue
                         
-                        original_idx = requests_to_retry[i]
+                        # Get the response ID to match it back to the request
+                        response_id = response.get("id")
+                        if response_id is None:
+                            logger.warning(f"Response missing 'id' field: {response}")
+                            continue
                         
-                        if isinstance(response, dict) and "error" in response:
+                        # Find the original index for this request ID
+                        if response_id not in request_id_to_idx:
+                            logger.warning(f"Received response for unknown request ID {response_id}")
+                            continue
+                        
+                        original_idx = request_id_to_idx[response_id]
+                        processed_ids.add(response_id)
+                        
+                        if "error" in response:
                             error_msg = str(response['error'])
                             # Detect rate limiting errors
                             if 'cost' in error_msg.lower() or 'limit' in error_msg.lower() or 'killing batch' in error_msg.lower():
@@ -275,7 +291,7 @@ class ElectrumClient:
                             else:
                                 logger.debug(f"Batch item {original_idx} error: {response['error']}")
                             failed_indices.append(original_idx)
-                        elif isinstance(response, dict):
+                        else:
                             result = response.get("result")
                             # Check if result is None - treat as failure and retry
                             if result is None:
@@ -284,14 +300,12 @@ class ElectrumClient:
                             else:
                                 results[original_idx] = result
                                 succeeded_count += 1
-                        else:
-                            logger.debug(f"Unexpected response type for item {original_idx}: {type(response)}")
-                            failed_indices.append(original_idx)
                     
-                    # Mark any unprocessed requests (beyond response count) as failed
-                    if len(responses) < len(requests_to_retry):
-                        unprocessed = requests_to_retry[len(responses):]
-                        failed_indices.extend(unprocessed)
+                    # Mark requests that got no response as failed
+                    for request_id, original_idx in request_id_to_idx.items():
+                        if request_id not in processed_ids:
+                            logger.debug(f"Request ID {request_id} (index {original_idx}) got no response")
+                            failed_indices.append(original_idx)
                     
                     # Log attempt results
                     logger.info(f"  ✅ Attempt {attempt + 1}: {succeeded_count} succeeded, {len(failed_indices)} failed")
