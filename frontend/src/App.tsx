@@ -566,7 +566,7 @@ function AppContent() {
       // Start immediate neighborhood
       addLog('info', `📍 Starting trace from TX: ${txid.substring(0, 16)}...`);
       addLog('electrum', `Fetching initial ${hopsBefore} hops backward...`);
-      const { data, bytes } = await traceFromUTXOWithStats(txid, vout, hopsBefore, 0);
+      const { data, bytes } = await traceFromUTXOWithStats(txid, vout, hopsBefore, 0, maxOutputs);
       trackRequest(0, bytes);
       addLog('success', `✓ Received ${data.nodes.length} nodes, ${data.edges.length} edges (${(bytes / 1024).toFixed(1)} KB)`);
       
@@ -1128,7 +1128,7 @@ function AppContent() {
         // Determine hops_before and hops_after based on direction
         const hopsBefore = direction === 'backward' ? expandHops : 0;
         const hopsAfter = direction === 'forward' ? expandHops : 0;
-        const data = await traceFromUTXO(txid, 0, hopsBefore, hopsAfter);
+        const data = await traceFromUTXO(txid, 0, hopsBefore, hopsAfter, maxOutputs);
         
         // Merge new nodes/edges
         const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(data, edgeScaleMax, maxTransactions, maxOutputs);

@@ -39,17 +39,24 @@ async def trace_utxo(
     ```
     """
     try:
-        logger.info(f"Tracing UTXO: {request.txid}:{request.vout}, hops_before={request.hops_before}, hops_after={request.hops_after}")
+        logger.info(f"Tracing UTXO: {request.txid}:{request.vout}, hops_before={request.hops_before}, hops_after={request.hops_after}, max_addresses_per_tx={request.max_addresses_per_tx}")
 
-        # Get the base backward trace
-        orchestrator = TraceOrchestrator(blockchain_service)
-        result = await orchestrator.trace_utxo_backward(
-            txid=request.txid,
-            vout=request.vout,
-            max_depth=request.hops_before,
-            include_coinjoin=request.include_coinjoin,
-            confidence_threshold=request.confidence_threshold,
-        )
+        # FAST PATH: For hops_before <= 1, use simple non-recursive fetching
+        # The orchestrator is TOO SLOW for large transactions (348 inputs = 348 recursive calls!)
+        if request.hops_before <= 1 and request.hops_after <= 1:
+            logger.info(f"🚀 Using FAST PATH for simple trace (hops <= 1)")
+            result = TraceGraphResponse(nodes=[], edges=[], clusters=[], coinjoins=[], peel_chains=[], start_txid=request.txid, start_vout=request.vout, total_nodes=0, total_edges=0)
+        else:
+            # SLOW PATH: Use full recursive orchestrator for multi-hop traces
+            logger.info(f"🐌 Using RECURSIVE orchestrator for multi-hop trace (hops > 1)")
+            orchestrator = TraceOrchestrator(blockchain_service)
+            result = await orchestrator.trace_utxo_backward(
+                txid=request.txid,
+                vout=request.vout,
+                max_depth=request.hops_before,
+                include_coinjoin=request.include_coinjoin,
+                confidence_threshold=request.confidence_threshold,
+            )
 
         # ALWAYS add INPUT and OUTPUT addresses for ALL transactions in the result
         # Use BATCHING for major performance improvement!
@@ -117,15 +124,18 @@ async def trace_utxo(
             if request.hops_before > 0 or request.hops_after > 0:
                 logger.info(f"📥 Fetching addresses for multi-hop trace (hops_before={request.hops_before}, hops_after={request.hops_after})")
                 
-                # Step 2: Collect all input TXIDs that need to be fetched
+                # Step 2: Collect input TXIDs that need to be fetched (LIMITED by max_addresses_per_tx)
                 input_txids = set()
                 for tx in main_txs:
                     if tx:
-                        for inp in tx.inputs:
+                        # Limit inputs per transaction to avoid fetching hundreds of addresses
+                        inputs_to_fetch = tx.inputs[:request.max_addresses_per_tx]
+                        logger.info(f"  TX {tx.txid[:20]}: fetching {len(inputs_to_fetch)} of {len(tx.inputs)} inputs (max_addresses_per_tx={request.max_addresses_per_tx})")
+                        for inp in inputs_to_fetch:
                             if inp.txid:
                                 input_txids.add(inp.txid)
                 
-                logger.info(f"⚡ Batch fetching {len(input_txids)} input transactions...")
+                logger.info(f"⚡ Batch fetching {len(input_txids)} input transactions (limited by max_addresses_per_tx)...")
                 input_txs = await blockchain_service.fetch_transactions_batch(list(input_txids))
                 input_tx_map = dict(zip(input_txids, input_txs))
                 
@@ -142,10 +152,12 @@ async def trace_utxo(
                         logger.warning(f"⚠️ Failed to fetch TX {txid}")
                         continue
                     
-                    logger.info(f"📥 Processing inputs for TX {txid[:20]}... ({len(tx.inputs)} inputs)")
+                    # Limit input addresses processed (same limit as collection)
+                    inputs_to_process = tx.inputs[:request.max_addresses_per_tx]
+                    logger.info(f"📥 Processing inputs for TX {txid[:20]}: {len(inputs_to_process)} of {len(tx.inputs)} inputs (max_addresses_per_tx={request.max_addresses_per_tx})")
                     
-                    # Add input addresses
-                    for inp_idx, inp in enumerate(tx.inputs):
+                    # Add input addresses (LIMITED)
+                    for inp_idx, inp in enumerate(inputs_to_process):
                         if inp.txid and inp.txid in input_tx_map:
                             prev_tx = input_tx_map[inp.txid]
                             if prev_tx and inp.vout < len(prev_tx.outputs):
@@ -173,9 +185,10 @@ async def trace_utxo(
                                         ))
                                         logger.info(f"  ➕ Added input edge: {prev_output.address[:20]}... → TX {txid[:20]}")
                     
-                    # ALSO add output addresses for ALL transactions (especially important for starting TX)
-                    logger.info(f"📤 Processing outputs for TX {txid[:20]}... ({len(tx.outputs)} outputs)")
-                    for out_idx, out in enumerate(tx.outputs):
+                    # ALSO add output addresses (LIMITED by max_addresses_per_tx)
+                    outputs_to_fetch = tx.outputs[:request.max_addresses_per_tx]
+                    logger.info(f"📤 Processing outputs for TX {txid[:20]}: {len(outputs_to_fetch)} of {len(tx.outputs)} outputs (max_addresses_per_tx={request.max_addresses_per_tx})")
+                    for out_idx, out in enumerate(outputs_to_fetch):
                         if out.address:
                             out_addr_id = f"addr_{out.address}"
                             # Add address node if not exists

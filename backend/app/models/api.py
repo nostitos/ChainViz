@@ -23,6 +23,9 @@ class TraceUTXORequest(BaseModel):
     vout: int = Field(..., ge=0, description="Output index")
     hops_before: int = Field(default=5, ge=0, le=50, description="Number of hops to trace backward (inputs)")
     hops_after: int = Field(default=5, ge=0, le=50, description="Number of hops to trace forward (outputs)")
+    max_addresses_per_tx: int = Field(
+        default=100, ge=1, le=1000, description="Maximum addresses to fetch per transaction (limits input/output expansion)"
+    )
     include_coinjoin: bool = Field(
         default=False, description="Whether to trace through CoinJoin transactions"
     )

@@ -90,7 +90,7 @@ export async function traceFromAddressWithStats(address: string, maxHops: number
   }
 }
 
-export async function traceFromUTXO(txid: string, vout: number, hopsBefore: number = 5, hopsAfter: number = 5): Promise<TraceResponse> {
+export async function traceFromUTXO(txid: string, vout: number, hopsBefore: number = 5, hopsAfter: number = 5, maxAddressesPerTx: number = 100): Promise<TraceResponse> {
   const response = await fetch(`${API_BASE_URL}/trace/utxo`, {
     method: 'POST',
     headers: {
@@ -101,6 +101,7 @@ export async function traceFromUTXO(txid: string, vout: number, hopsBefore: numb
       vout,
       hops_before: hopsBefore,
       hops_after: hopsAfter,
+      max_addresses_per_tx: maxAddressesPerTx,
       include_coinjoin: true,
       confidence_threshold: 0.5,
     }),
@@ -115,7 +116,7 @@ export async function traceFromUTXO(txid: string, vout: number, hopsBefore: numb
   return response.json();
 }
 
-export async function traceFromUTXOWithStats(txid: string, vout: number, hopsBefore: number = 5, hopsAfter: number = 5): Promise<{ data: TraceResponse; bytes: number }> {
+export async function traceFromUTXOWithStats(txid: string, vout: number, hopsBefore: number = 5, hopsAfter: number = 5, maxAddressesPerTx: number = 100): Promise<{ data: TraceResponse; bytes: number }> {
   const response = await fetch(`${API_BASE_URL}/trace/utxo`, {
     method: 'POST',
     headers: {
@@ -126,6 +127,7 @@ export async function traceFromUTXOWithStats(txid: string, vout: number, hopsBef
       vout,
       hops_before: hopsBefore,
       hops_after: hopsAfter,
+      max_addresses_per_tx: maxAddressesPerTx,
       include_coinjoin: true,
       confidence_threshold: 0.5,
     }),
