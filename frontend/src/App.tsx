@@ -855,7 +855,7 @@ function AppContent() {
         
         // Expand by fetching depth=1 FROM THIS ADDRESS (not the original)
         console.log('📡 Expanding address to show connected TX, depth=1 from', address.substring(0, 20));
-        const data = await traceFromAddress(address, 1, maxTransactions);
+        const data = await traceFromAddress(address, 1, 1, maxTransactions);
         
         // Merge new nodes/edges with existing
         const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(data, edgeScaleMax, maxTransactions, maxOutputs);
