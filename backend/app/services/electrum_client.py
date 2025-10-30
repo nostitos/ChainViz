@@ -270,6 +270,10 @@ class ElectrumClient:
                     )
                     responses = json.loads(response_str.decode())
                     
+                    # DEBUG: Log response structure
+                    if len(responses) > 0:
+                        logger.info(f"  🔍 First response type: {type(responses[0])}, value preview: {str(responses[0])[:100]}")
+                    
                     # Handle case where responses are strings (double-encoded JSON)
                     if len(responses) > 0 and isinstance(responses[0], str):
                         logger.warning(f"  ⚠️ Responses are double-encoded strings, decoding...")
@@ -296,6 +300,11 @@ class ElectrumClient:
                     failed_indices = []
                     
                     for i, response in enumerate(responses):
+                        # Safety check: if we have fewer responses than requests, mark missing ones as failed
+                        if i >= len(requests_to_retry):
+                            logger.warning(f"  ⚠️ Response index {i} exceeds requests_to_retry length {len(requests_to_retry)}")
+                            break
+                        
                         original_idx = requests_to_retry[i]
                         
                         if isinstance(response, dict) and "error" in response:
@@ -322,6 +331,12 @@ class ElectrumClient:
                         else:
                             logger.debug(f"Unexpected response type for item {original_idx}: {type(response)}")
                             failed_indices.append(original_idx)
+                    
+                    # Mark any unprocessed requests (beyond response count) as failed
+                    if len(responses) < len(requests_to_retry):
+                        unprocessed = requests_to_retry[len(responses):]
+                        failed_indices.extend(unprocessed)
+                        logger.warning(f"  ⚠️ Marking {len(unprocessed)} unprocessed requests as failed")
                     
                     # Log attempt results
                     logger.info(f"  ✅ Attempt {attempt + 1}: {succeeded_count} succeeded, {len(failed_indices)} failed")
