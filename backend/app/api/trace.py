@@ -39,14 +39,16 @@ async def trace_utxo(
     ```
     """
     try:
-        logger.info(f"Tracing UTXO: {request.txid}:{request.vout}, hops_before={request.hops_before}, hops_after={request.hops_after}, max_addresses_per_tx={request.max_addresses_per_tx}")
-
+        logger.info(f"🔍 Tracing UTXO: {request.txid}:{request.vout}, hops_before={request.hops_before}, hops_after={request.hops_after}, max_addresses_per_tx={request.max_addresses_per_tx}")
+        logger.info(f"📊 All RPC requests for this trace will be logged below with details")
+        
         # FAST PATH: For hops_before <= 1, use simple non-recursive fetching
         # The orchestrator is TOO SLOW for large transactions (348 inputs = 348 recursive calls!)
         if request.hops_before <= 1 and request.hops_after <= 1:
             logger.info(f"🚀 Using FAST PATH for simple trace (hops <= 1, max_addresses_per_tx={request.max_addresses_per_tx})")
             
             # Fetch the starting transaction
+            logger.info(f"📊 Request #1: Fetching starting transaction {request.txid[:20]}...")
             start_tx = await blockchain_service.fetch_transaction(request.txid)
             
             # Create TX node with counts
@@ -133,9 +135,10 @@ async def trace_utxo(
                             metadata={"vout": idx}
                         ))
             
-            logger.info(f"✅ FAST PATH complete: {len(nodes)} nodes, {len(edges)} edges (in < 5 seconds)")
-            
-            return TraceGraphResponse(
+        logger.info(f"✅ FAST PATH complete: {len(nodes)} nodes, {len(edges)} edges")
+        logger.info(f"📊 Check logs above for detailed RPC request count and types")
+        
+        return TraceGraphResponse(
                 nodes=nodes, edges=edges, clusters=[], coinjoins=[], peel_chains=[],
                 start_txid=request.txid, start_vout=request.vout,
                 total_nodes=len(nodes), total_edges=len(edges),
@@ -298,7 +301,8 @@ async def trace_utxo(
             else:
                 logger.info(f"⏭️ Skipping address fetching for single transaction view (hops_before={request.hops_before}, hops_after={request.hops_after})")
         
-        logger.info(f"✅ Final result: {len(result.nodes)} nodes, {len(result.edges)} edges")
+        logger.info(f"✅ RECURSIVE PATH complete: {len(result.nodes)} nodes, {len(result.edges)} edges")
+        logger.info(f"📊 Check logs above for detailed RPC request count and types")
 
         return result
 

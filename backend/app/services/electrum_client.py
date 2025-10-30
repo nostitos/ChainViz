@@ -107,6 +107,21 @@ class ElectrumClient:
                 await self.connect()
 
             self.request_id += 1
+            
+            # Log request details
+            if method == "blockchain.transaction.get":
+                txid = params[0] if params else "unknown"
+                verbose = params[1] if len(params) > 1 else False
+                logger.info(f"📡 Single RPC #{self.request_id}: {method}(txid={txid[:16]}..., verbose={verbose})")
+            elif method == "blockchain.scripthash.get_history":
+                scripthash = params[0] if params else "unknown"
+                logger.info(f"📡 Single RPC #{self.request_id}: {method}(scripthash={scripthash[:16]}...)")
+            elif method == "blockchain.scripthash.get_balance":
+                scripthash = params[0] if params else "unknown"
+                logger.info(f"📡 Single RPC #{self.request_id}: {method}(scripthash={scripthash[:16]}...)")
+            else:
+                logger.info(f"📡 Single RPC #{self.request_id}: {method}({len(params)} params)")
+            
             request = {
                 "jsonrpc": "2.0",
                 "id": self.request_id,
@@ -115,7 +130,6 @@ class ElectrumClient:
             }
 
             # Send request
-            logger.info(f"Electrum call: {method}")
             request_str = json.dumps(request) + "\n"
             self.writer.write(request_str.encode())
             await self.writer.drain()
@@ -191,10 +205,33 @@ class ElectrumClient:
             if not self.connected:
                 await self.connect()
 
+            # Count request types for logging
+            method_counts = {}
+            for method, params in requests:
+                method_counts[method] = method_counts.get(method, 0) + 1
+            
+            # Log batch summary
+            method_summary = ", ".join([f"{method}({count})" for method, count in sorted(method_counts.items())])
+            logger.info(f"📡 Batch RPC: {len(requests)} requests [{method_summary}]")
+
             # Build batch request
             batch_request = []
             for method, params in requests:
                 self.request_id += 1
+                # Log individual request details
+                if method == "blockchain.transaction.get":
+                    txid = params[0] if params else "unknown"
+                    verbose = params[1] if len(params) > 1 else False
+                    logger.debug(f"  → #{self.request_id}: {method}(txid={txid[:16]}..., verbose={verbose})")
+                elif method == "blockchain.scripthash.get_history":
+                    scripthash = params[0] if params else "unknown"
+                    logger.debug(f"  → #{self.request_id}: {method}(scripthash={scripthash[:16]}...)")
+                elif method == "blockchain.scripthash.get_balance":
+                    scripthash = params[0] if params else "unknown"
+                    logger.debug(f"  → #{self.request_id}: {method}(scripthash={scripthash[:16]}...)")
+                else:
+                    logger.debug(f"  → #{self.request_id}: {method}({len(params)} params)")
+                
                 batch_request.append({
                     "jsonrpc": "2.0",
                     "id": self.request_id,
