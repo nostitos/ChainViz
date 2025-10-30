@@ -606,6 +606,15 @@ async def trace_from_address(
             # Check if any output goes to our address (TX sending TO address)
             outputs_to_addr = [(idx, out) for idx, out in enumerate(tx.outputs) if out.address == address]
             
+            # DEBUG: Log outputs for problematic TX
+            if tx.txid.startswith("348358"):
+                logger.warning(f"🔍 DEBUG TX 348358...")
+                logger.warning(f"   Total outputs: {len(tx.outputs)}")
+                for idx, out in enumerate(tx.outputs):
+                    logger.warning(f"   Output {idx}: address={out.address[:30] if out.address else 'None'}..., value={out.value}")
+                logger.warning(f"   Looking for address: {address[:30]}...")
+                logger.warning(f"   Found {len(outputs_to_addr)} outputs to this address")
+            
             # Check if any input spends from our address (TX spending FROM address)
             # OPTIMIZATION: Only check if this TX was flagged as needing input resolution
             inputs_from_addr = []
