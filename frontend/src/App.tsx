@@ -801,8 +801,9 @@ function AppContent() {
     
     // For transactions only, prevent re-expansion
     if (nodeType === 'transaction' && expandedNodes.has(expandKey)) {
-      console.log('⏭️  Transaction already expanded, skipping');
-      setError('Transaction already expanded');
+      console.log(`⏭️ Transaction already expanded with key: ${expandKey}`);
+      console.log(`   All expanded keys:`, Array.from(expandedNodes));
+      setError('Transaction already expanded in this direction');
       setTimeout(() => setError(null), 2000);
       // Re-enable repulsion if it was enabled
       if (wasRepulsionEnabled) {
@@ -1123,24 +1124,74 @@ function AppContent() {
         });
       }
       
-      // For transactions, show the connected addresses AND their previous/next TXs
+      // For transactions, show the connected addresses (inputs or outputs)
       if (node.type === 'transaction') {
         const txid = node.data.txid || node.data.metadata?.txid;
         if (!txid) return;
         
-        // Expand by ONLY +1 hop in the specified direction
-        const currentHops = (node.data.metadata?.depth ?? 0);
-        const expandHops = currentHops + 1;
-        console.log('📡 Expanding transaction by +1 hop:', expandHops, 'direction:', direction);
+        console.log(`📡 Expanding transaction ${txid.substring(0, 20)} - direction: ${direction}`);
         
-        // Determine hops_before and hops_after based on direction
-        const hopsBefore = direction === 'backward' ? expandHops : 0;
-        const hopsAfter = direction === 'forward' ? expandHops : 0;
-        const data = await traceFromUTXO(txid, 0, hopsBefore, hopsAfter, maxOutputs);
+        // Fetch the transaction details from mempool.space (fast and reliable)
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+        const response = await fetch(`https://mempool.space/api/tx/${txid}`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch transaction: ${response.status}`);
+        }
+        const txData = await response.json();
         
-        // Merge new nodes/edges
-        const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(data, edgeScaleMax, maxTransactions, maxOutputs);
-        console.log('📦 Got new data:', newNodes.length, 'nodes');
+        // Build nodes and edges manually
+        const newNodes: any[] = [];
+        const newEdges: any[] = [];
+        
+        if (direction === 'inputs') {
+          // Show input addresses (LEFT of TX)
+          txData.vin.forEach((input: any, idx: number) => {
+            const inputAddr = input.prevout?.scriptpubkey_address;
+            if (inputAddr) {
+              const addrId = `addr_${inputAddr}`;
+              newNodes.push({
+                id: addrId,
+                type: 'address',
+                data: {
+                  address: inputAddr,
+                  label: inputAddr,
+                  metadata: { address: inputAddr, is_change: false },
+                },
+              });
+              newEdges.push({
+                id: `e-${addrId}-tx_${txid}`,
+                source: addrId,
+                target: `tx_${txid}`,
+                data: { amount: input.prevout?.value || 0 },
+              });
+            }
+          });
+        } else if (direction === 'outputs') {
+          // Show output addresses (RIGHT of TX)
+          txData.vout.forEach((output: any, idx: number) => {
+            const outputAddr = output.scriptpubkey_address;
+            if (outputAddr) {
+              const addrId = `addr_${outputAddr}`;
+              newNodes.push({
+                id: addrId,
+                type: 'address',
+                data: {
+                  address: outputAddr,
+                  label: outputAddr,
+                  metadata: { address: outputAddr, is_change: false },
+                },
+              });
+              newEdges.push({
+                id: `e-tx_${txid}-${addrId}`,
+                source: `tx_${txid}`,
+                target: addrId,
+                data: { amount: output.value || 0 },
+              });
+            }
+          });
+        }
+        
+        console.log(`📦 Got ${newNodes.length} new addresses for ${direction}`);
         
         setNodes((nds) => {
           const existingIds = new Set(nds.map(n => n.id));
