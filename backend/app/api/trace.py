@@ -534,19 +534,57 @@ async def trace_from_address(
         
         logger.info(f"Successfully fetched {len(transactions)} of {len(txids_to_fetch)} transactions")
         
-        # Add ALL transaction nodes (both receiving and spending)
-        logger.info(f"Processing {len(transactions)} transactions...")
+        # FIRST: Resolve ALL input addresses for ALL transactions (for frontend expansion - no extra fetching!)
+        all_input_txids = set()
+        for tx in transactions:
+            for inp in tx.inputs:
+                if inp.txid:
+                    all_input_txids.add(inp.txid)
         
-        # First pass: Determine which TXs to include based on direction
-        # We'll add TX nodes only if they match the hop direction criteria
+        logger.info(f"⚡ Batch fetching {len(all_input_txids)} input transactions to resolve ALL input addresses...")
+        input_txs = await blockchain_service.fetch_transactions_batch(list(all_input_txids))
+        input_tx_map = {tx.txid: tx for tx in input_txs if tx}
+        
+        # Build complete input/output data for each transaction
+        tx_complete_data = {}
+        for tx in transactions:
+            # Resolve inputs
+            resolved_inputs = []
+            for inp in tx.inputs:
+                if inp.txid and inp.txid in input_tx_map:
+                    prev_tx = input_tx_map[inp.txid]
+                    if inp.vout < len(prev_tx.outputs):
+                        prev_output = prev_tx.outputs[inp.vout]
+                        if prev_output.address:
+                            resolved_inputs.append({
+                                "address": prev_output.address,
+                                "value": prev_output.value
+                            })
+            
+            # Outputs (already have addresses)
+            outputs_data = [
+                {"address": out.address, "value": out.value} 
+                for out in tx.outputs if out.address
+            ]
+            
+            tx_complete_data[tx.txid] = {
+                "inputs": resolved_inputs,
+                "outputs": outputs_data
+            }
+        
+        # SECOND: Determine which TXs to include based on direction (using resolved data)
+        logger.info(f"Processing {len(transactions)} transactions...")
         txs_to_include = set()
+        tx_needs_input_check = set()  # For edge creation
         
         for tx in transactions:
             has_output_to_addr = any(out.address == address for out in tx.outputs)
             
-            # Check if address is in inputs (need to verify with input resolution)
-            # For now, assume if NO output to address, then address must be in inputs
-            has_input_from_addr = not has_output_to_addr
+            # Check if address is in inputs (now we can check the resolved data!)
+            has_input_from_addr = any(
+                inp["address"] == address 
+                for inp in tx_complete_data[tx.txid]["inputs"]
+            )
             
             # Include based on hop direction
             include_tx = False
@@ -554,10 +592,13 @@ async def trace_from_address(
                 include_tx = True  # TX sends to address (appears LEFT)
             if has_input_from_addr and hops_after > 0:
                 include_tx = True  # Address sends to TX (appears RIGHT)
+                tx_needs_input_check.add(tx.txid)  # Need to check inputs for edge creation
             
             if include_tx:
                 txs_to_include.add(tx.txid)
                 tx_node_id = f"tx_{tx.txid}"
+                
+                # Include COMPLETE data for frontend expansion
                 nodes.append(NodeData(
                     id=tx_node_id,
                     label=f"{tx.txid[:16]}...",
@@ -568,77 +609,29 @@ async def trace_from_address(
                         "timestamp": tx.timestamp,
                         "inputCount": len(tx.inputs),
                         "outputCount": len(tx.outputs),
+                        "inputs": tx_complete_data[tx.txid]["inputs"],  # Complete resolved inputs
+                        "outputs": tx_complete_data[tx.txid]["outputs"],  # Complete outputs
                     }
                 ))
         
-        # Collect input TXIDs ONLY for transactions that might spend from our address
-        # (Optimization: Skip transactions where we know the address received funds, not spent)
-        all_input_txids = set()
-        tx_needs_input_check = set()  # Track which TXs need input address resolution
-        
-        for tx in transactions:
-            # Quick check: Does this TX have any outputs TO our address?
-            has_output_to_addr = any(out.address == address for out in tx.outputs)
-            
-            if not has_output_to_addr:
-                # No outputs to our address, so our address MUST be in inputs (spending)
-                # We need to fetch prev txs to verify
-                tx_needs_input_check.add(tx.txid)
-                for inp in tx.inputs:
-                    if inp.txid:
-                        all_input_txids.add(inp.txid)
-            # else: TX sends TO our address, we don't need to check inputs
-        
-        logger.info(f"⚡ Batch fetching {len(all_input_txids)} input transactions (for {len(tx_needs_input_check)} TXs that might spend from address)...")
-        input_txs = await blockchain_service.fetch_transactions_batch(list(all_input_txids))
-        input_tx_map = {tx.txid: tx for tx in input_txs if tx}
-        
         logger.info(f"✅ Including {len(txs_to_include)} of {len(transactions)} TXs based on hop direction")
         
-        # Second pass: Add edges and addresses (using pre-fetched data)
+        # THIRD: Create edges (using complete resolved data)
         for tx in transactions:
             # Skip TXs that don't match hop direction criteria
             if tx.txid not in txs_to_include:
                 continue
             
-            tx_node_id = f"tx_{tx.txid}"  # MUST be inside loop to capture correctly
+            tx_node_id = f"tx_{tx.txid}"
             
-            # Check if any output goes to our address (TX sending TO address)
+            # Check if any output goes to our address
             outputs_to_addr = [(idx, out) for idx, out in enumerate(tx.outputs) if out.address == address]
             
-            # Check if any input spends from our address (TX spending FROM address)
-            # OPTIMIZATION: Only check if this TX was flagged as needing input resolution
-            inputs_from_addr = []
-            if tx.txid in tx_needs_input_check:
-                logger.info(f"  Checking {len(tx.inputs)} inputs for TX {tx.txid[:20]}...")
-                for inp in tx.inputs:
-                    if not inp.txid:
-                        logger.debug(f"    Input has no txid (coinbase?), skipping")
-                        continue
-                    if inp.txid not in input_tx_map:
-                        logger.warning(f"    ⚠️  Input {inp.txid[:12]}:{inp.vout} NOT IN input_tx_map!")
-                        continue
-                    prev_tx = input_tx_map[inp.txid]
-                    if inp.vout >= len(prev_tx.outputs):
-                        logger.warning(f"    ⚠️  Input {inp.txid[:12]}:{inp.vout} - vout {inp.vout} >= {len(prev_tx.outputs)} outputs!")
-                        continue
-                    prev_output = prev_tx.outputs[inp.vout]
-                    logger.debug(f"    Input {inp.txid[:12]}:{inp.vout} -> address={prev_output.address[:15] if prev_output.address else 'None'}... (looking for {address[:15]}...)")
-                    if prev_output.address == address:
-                        # Create a new input object with the address and value populated
-                        inp_with_data = TransactionInput(
-                            txid=inp.txid,
-                            vout=inp.vout,
-                            script_sig=inp.script_sig,
-                            sequence=inp.sequence,
-                            witness=inp.witness,
-                            address=prev_output.address,
-                            value=prev_output.value
-                        )
-                        inputs_from_addr.append(inp_with_data)
-                        logger.info(f"    ✅ FOUND INPUT from address: {prev_output.value} sats")
-            else:
-                logger.debug(f"  Skipping input check for TX {tx.txid[:20]} (has outputs to address)")
+            # Check if any input comes from our address (using resolved data)
+            inputs_from_addr = [
+                inp for inp in tx_complete_data[tx.txid]["inputs"]
+                if inp["address"] == address
+            ]
             
             logger.info(f"TX {tx.txid[:20]}: {len(outputs_to_addr)} outputs to addr, {len(inputs_from_addr)} inputs from addr")
             
@@ -656,10 +649,11 @@ async def trace_from_address(
             
             # Address → TX (sending): Include if hops_after > 0
             if hops_after > 0 and inputs_from_addr:
+                total_amount = sum(inp["value"] for inp in inputs_from_addr if inp["value"] is not None)
                 edges.append(EdgeData(
                     source=addr_node_id,
                     target=tx_node_id,
-                    amount=sum(inp.value for inp in inputs_from_addr if inp.value is not None),
+                    amount=total_amount,
                     confidence=1.0,
                     metadata={}
                 ))
