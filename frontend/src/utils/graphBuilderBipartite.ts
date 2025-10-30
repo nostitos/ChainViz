@@ -151,53 +151,176 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
   const CLUSTER_HEADER_HEIGHT = 45; // padding + font + margin + spacing
   const CLUSTER_ROW_HEIGHT = 14; // EXPLICIT in CSS: .cluster-item { height: 14px }
   
-  // Position TXs first (on horizontal center line)
-  // BUT: Mark bidirectional TXs for later repositioning below their connected origin address
-  const bidirectionalTxs = new Set<string>();
-  addrData.forEach(addr => {
-    const bidirTxIds = addrBidirectional.get(addr.id) || [];
-    bidirTxIds.forEach(txId => bidirectionalTxs.add(txId));
-  });
+  // Track which addresses have been positioned
+  const positioned = new Set<string>();
   
-  sortedTxs.forEach((txNode, idx) => {
-    // ALWAYS use backend counts - they're the source of truth!
-    // Edges are UI elements showing what's DISPLAYED, not what EXISTS
-    const inputCount = txNode.metadata?.inputCount ?? 0;
-    const outputCount = txNode.metadata?.outputCount ?? 0;
+  // Check if we have a starting point ADDRESS (not TX)
+  // If so, use ADDRESS-CENTRIC layout instead of TX-centric bipartite
+  const startingAddr = addrData.find(a => a.metadata?.is_starting_point === true);
+  const useAddressCentricLayout = startingAddr && sortedTxs.length > 0;
+  
+  if (useAddressCentricLayout) {
+    console.log(`📍 Using ADDRESS-CENTRIC layout for starting address: ${startingAddr.id.substring(0, 25)}`);
     
-    // Log warning if counts are missing from backend
-    if (!txNode.metadata?.inputCount || !txNode.metadata?.outputCount) {
-      console.warn(`⚠️ TX ${txNode.id.substring(0, 25)} missing inputCount/outputCount from backend!`);
+    // Position the starting address at center
+    nodes.push({
+      id: startingAddr.id,
+      type: 'address',
+      position: { x: 0, y: 0 }, // Center
+      data: {
+        ...startingAddr,
+        label: startingAddr.label,
+      },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+    });
+    positioned.add(startingAddr.id);
+    
+    // Separate TXs by direction relative to this address
+    const receivingTxs = addrReceiving.get(startingAddr.id) || [];
+    const sendingTxs = addrSending.get(startingAddr.id) || [];
+    const bidirTxs = addrBidirectional.get(startingAddr.id) || [];
+    
+    console.log(`  Receiving TXs (LEFT): ${receivingTxs.length}`);
+    console.log(`  Sending TXs (RIGHT): ${sendingTxs.length}`);
+    console.log(`  Bidirectional TXs (BELOW): ${bidirTxs.length}`);
+    
+    // Position receiving TXs on LEFT (stacked vertically)
+    const leftStartY = -((receivingTxs.length - 1) * ROW_SPACING) / 2;
+    receivingTxs.forEach((txId, txIdx) => {
+      const txNodeData = limitedTxData.find(t => t.id === txId);
+      if (txNodeData) {
+        nodes.push({
+          id: txNodeData.id,
+          type: 'transaction',
+          position: {
+            x: -ADDR_OFFSET, // LEFT
+            y: leftStartY + (txIdx * ROW_SPACING),
+          },
+          data: {
+            ...txNodeData,
+            label: txNodeData.label,
+            metadata: {
+              ...txNodeData.metadata,
+              inputCount: txNodeData.metadata?.inputCount ?? 0,
+              outputCount: txNodeData.metadata?.outputCount ?? 0,
+            },
+          },
+          sourcePosition: Position.Right,
+          targetPosition: Position.Left,
+        });
+      }
+    });
+    
+    // Position sending TXs on RIGHT (stacked vertically)
+    const rightStartY = -((sendingTxs.length - 1) * ROW_SPACING) / 2;
+    sendingTxs.forEach((txId, txIdx) => {
+      const txNodeData = limitedTxData.find(t => t.id === txId);
+      if (txNodeData) {
+        nodes.push({
+          id: txNodeData.id,
+          type: 'transaction',
+          position: {
+            x: ADDR_OFFSET, // RIGHT
+            y: rightStartY + (txIdx * ROW_SPACING),
+          },
+          data: {
+            ...txNodeData,
+            label: txNodeData.label,
+            metadata: {
+              ...txNodeData.metadata,
+              inputCount: txNodeData.metadata?.inputCount ?? 0,
+              outputCount: txNodeData.metadata?.outputCount ?? 0,
+            },
+          },
+          sourcePosition: Position.Right,
+          targetPosition: Position.Left,
+        });
+      }
+    });
+    
+    // Position bidirectional TXs BELOW (stacked horizontally)
+    if (bidirTxs.length > 0) {
+      const belowStartX = -((bidirTxs.length - 1) * ROW_SPACING) / 2;
+      bidirTxs.forEach((txId, txIdx) => {
+        const txNodeData = limitedTxData.find(t => t.id === txId);
+        if (txNodeData) {
+          nodes.push({
+            id: txNodeData.id,
+            type: 'transaction',
+            position: {
+              x: belowStartX + (txIdx * ROW_SPACING),
+              y: 300, // BELOW
+            },
+            data: {
+              ...txNodeData,
+              label: txNodeData.label,
+              metadata: {
+                ...txNodeData.metadata,
+                inputCount: txNodeData.metadata?.inputCount ?? 0,
+                outputCount: txNodeData.metadata?.outputCount ?? 0,
+                is_bidirectional: true,
+              },
+            },
+            sourcePosition: Position.Top,
+            targetPosition: Position.Top,
+          });
+        }
+      });
     }
     
-    // Note: We don't need to count addresses from edge maps - backend provides the truth
-    
-    const isBidirectional = bidirectionalTxs.has(txNode.id);
-    
-    nodes.push({
-      id: txNode.id,
-      type: 'transaction',
-      position: {
-        x: idx * TX_SPACING,
-        y: 0, // Will be repositioned later if bidirectional
-      },
-      data: {
-        ...txNode,
-        label: txNode.label,
-        metadata: {
-          ...txNode.metadata,
-          inputCount,
-          outputCount,
-          is_bidirectional: isBidirectional, // Mark for repositioning
-        },
-      },
-      sourcePosition: isBidirectional ? Position.Top : Position.Right,
-      targetPosition: isBidirectional ? Position.Top : Position.Left,
+    // Skip the normal TX-centric bipartite layout
+    // Jump to edge creation
+  } else {
+    // Normal TX-centric bipartite layout
+    // Position TXs first (on horizontal center line)
+    // BUT: Mark bidirectional TXs for later repositioning below their connected origin address
+    const bidirectionalTxs = new Set<string>();
+    addrData.forEach(addr => {
+      const bidirTxIds = addrBidirectional.get(addr.id) || [];
+      bidirTxIds.forEach(txId => bidirectionalTxs.add(txId));
     });
-  });
+    
+    sortedTxs.forEach((txNode, idx) => {
+      // ALWAYS use backend counts - they're the source of truth!
+      // Edges are UI elements showing what's DISPLAYED, not what EXISTS
+      const inputCount = txNode.metadata?.inputCount ?? 0;
+      const outputCount = txNode.metadata?.outputCount ?? 0;
+      
+      // Log warning if counts are missing from backend
+      if (!txNode.metadata?.inputCount || !txNode.metadata?.outputCount) {
+        console.warn(`⚠️ TX ${txNode.id.substring(0, 25)} missing inputCount/outputCount from backend!`);
+      }
+      
+      // Note: We don't need to count addresses from edge maps - backend provides the truth
+      
+      const isBidirectional = bidirectionalTxs.has(txNode.id);
+      
+      nodes.push({
+        id: txNode.id,
+        type: 'transaction',
+        position: {
+          x: idx * TX_SPACING,
+          y: 0, // Will be repositioned later if bidirectional
+        },
+        data: {
+          ...txNode,
+          label: txNode.label,
+          metadata: {
+            ...txNode.metadata,
+            inputCount,
+            outputCount,
+            is_bidirectional: isBidirectional, // Mark for repositioning
+          },
+        },
+        sourcePosition: isBidirectional ? Position.Top : Position.Right,
+        targetPosition: isBidirectional ? Position.Top : Position.Left,
+      });
+    });
+  }
 
-  // Position ALL addresses relative to their connected TXs
-  const positioned = new Set<string>();
+  // Only run the TX-relative address positioning if we're NOT using address-centric layout
+  if (!useAddressCentricLayout) {
   
   sortedTxs.forEach(txNode => {
     const txNodeInGraph = nodes.find(n => n.id === txNode.id)!;
@@ -455,6 +578,8 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
       });
     }
   });
+  
+  } // End of if (!useAddressCentricLayout)
   
   // Handle standalone addresses (when there are no transactions OR address wasn't positioned)
   // This handles:
