@@ -90,37 +90,71 @@ async def trace_utxo(
                 input_txs = await blockchain_service.fetch_transactions_batch(input_txids)
                 input_tx_map = {tx.txid: tx for tx in input_txs if tx}
                 logger.info(f"  ✅ Successfully fetched {len(input_tx_map)} unique input transactions")
-                if len(input_tx_map) < len(input_txids):
-                    failed_count = len(input_txids) - len(input_tx_map)
-                    logger.warning(f"  ⚠️ Failed to fetch {failed_count} input transactions")
-                    # Log which specific TXIDs failed (first 5)
-                    failed_txids = [txid for txid in input_txids if txid not in input_tx_map]
-                    if failed_txids:
-                        sample = failed_txids[:5]
-                        logger.warning(f"     Failed TXIDs (first 5 of {len(failed_txids)}): {', '.join([tx[:16] + '...' for tx in sample])}")
+                
+                # Track statistics
+                inputs_processed = 0
+                inputs_no_txid = 0
+                inputs_tx_not_fetched = 0
+                inputs_invalid_vout = 0
+                inputs_no_address = 0
+                edges_created = 0
                 
                 for inp in inputs_to_fetch:
-                    if inp.txid and inp.txid in input_tx_map:
-                        prev_tx = input_tx_map[inp.txid]
-                        if prev_tx and inp.vout < len(prev_tx.outputs):
-                            prev_output = prev_tx.outputs[inp.vout]
-                            if prev_output.address:
-                                addr_id = f"addr_{prev_output.address}"
-                                if not any(n.id == addr_id for n in nodes):
-                                    nodes.append(NodeData(
-                                        id=addr_id,
-                                        label=prev_output.address,
-                                        type="address",
-                                        value=None,
-                                        metadata={"address": prev_output.address, "is_change": False}
-                                    ))
-                                edges.append(EdgeData(
-                                    source=addr_id,
-                                    target=f"tx_{request.txid}",
-                                    amount=prev_output.value,
-                                    confidence=1.0,
-                                    metadata={"vout": inp.vout}
-                                ))
+                    inputs_processed += 1
+                    
+                    if not inp.txid:
+                        inputs_no_txid += 1
+                        continue
+                    
+                    if inp.txid not in input_tx_map:
+                        inputs_tx_not_fetched += 1
+                        continue
+                    
+                    prev_tx = input_tx_map[inp.txid]
+                    if not prev_tx or inp.vout >= len(prev_tx.outputs):
+                        inputs_invalid_vout += 1
+                        if inputs_invalid_vout <= 3:  # Log first 3 cases
+                            logger.error(f"     ❌ DATA CORRUPTION: Input claims to spend {inp.txid[:16]}...:vout={inp.vout}")
+                            logger.error(f"        But that TX only has {len(prev_tx.outputs) if prev_tx else 0} outputs!")
+                            logger.error(f"        This is a critical Electrum server data issue.")
+                        continue
+                    
+                    prev_output = prev_tx.outputs[inp.vout]
+                    if not prev_output.address:
+                        inputs_no_address += 1
+                        continue
+                    
+                    # Create address node if doesn't exist
+                    addr_id = f"addr_{prev_output.address}"
+                    if not any(n.id == addr_id for n in nodes):
+                        nodes.append(NodeData(
+                            id=addr_id,
+                            label=prev_output.address,
+                            type="address",
+                            value=None,
+                            metadata={"address": prev_output.address, "is_change": False}
+                        ))
+                    
+                    # Always create edge for this input
+                    edges.append(EdgeData(
+                        source=addr_id,
+                        target=f"tx_{request.txid}",
+                        amount=prev_output.value,
+                        confidence=1.0,
+                        metadata={"vout": inp.vout}
+                    ))
+                    edges_created += 1
+                
+                # Log statistics
+                logger.info(f"  📊 Input processing: {edges_created} edges created from {inputs_processed} inputs")
+                if inputs_no_txid > 0:
+                    logger.warning(f"     {inputs_no_txid} inputs missing txid (coinbase)")
+                if inputs_tx_not_fetched > 0:
+                    logger.warning(f"     {inputs_tx_not_fetched} inputs reference unfetched transactions")
+                if inputs_invalid_vout > 0:
+                    logger.warning(f"     {inputs_invalid_vout} inputs have invalid vout index")
+                if inputs_no_address > 0:
+                    logger.warning(f"     {inputs_no_address} inputs have no address (OP_RETURN, P2PK, etc.)")
             
             # Add output addresses (if hops_after > 0)
             if request.hops_after > 0:
