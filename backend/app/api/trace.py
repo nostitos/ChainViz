@@ -598,7 +598,11 @@ async def trace_from_address(
                 txs_to_include.add(tx.txid)
                 tx_node_id = f"tx_{tx.txid}"
                 
-                # Include COMPLETE data for frontend expansion
+                # Include data for frontend expansion (limit to first 100 to prevent huge metadata)
+                MAX_METADATA_ITEMS = 100
+                inputs_data = tx_complete_data[tx.txid]["inputs"][:MAX_METADATA_ITEMS]
+                outputs_data = tx_complete_data[tx.txid]["outputs"][:MAX_METADATA_ITEMS]
+                
                 nodes.append(NodeData(
                     id=tx_node_id,
                     label=f"{tx.txid[:16]}...",
@@ -609,8 +613,8 @@ async def trace_from_address(
                         "timestamp": tx.timestamp,
                         "inputCount": len(tx.inputs),
                         "outputCount": len(tx.outputs),
-                        "inputs": tx_complete_data[tx.txid]["inputs"],  # Complete resolved inputs
-                        "outputs": tx_complete_data[tx.txid]["outputs"],  # Complete outputs
+                        "inputs": inputs_data,  # Limited to prevent memory issues
+                        "outputs": outputs_data,  # Limited to prevent memory issues
                     }
                 ))
         

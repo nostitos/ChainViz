@@ -180,6 +180,7 @@ function AppContent() {
     });
   }, [edgeScaleMax, setEdges]);
   const [history, setHistory] = useState<Array<{nodes: Node[], edges: Edge[]}>>([]);
+  const MAX_HISTORY_SIZE = 10; // Limit history to prevent memory leaks
   const { fitView, getViewport, project } = useReactFlow();
   const forceLayoutRef = useRef<{ reheatSimulation: () => void } | null>(null);
   const addedNodesRef = useRef<Node[] | null>(null);
@@ -250,7 +251,11 @@ function AppContent() {
         const graphData = JSON.parse(e.target?.result as string);
         if (graphData.nodes && graphData.edges) {
           // Save current state to history
-          setHistory(prev => [...prev, { nodes, edges }]);
+          setHistory(prev => {
+            const newHistory = [...prev, { nodes, edges }];
+            // Limit history size to prevent memory leaks
+            return newHistory.slice(-MAX_HISTORY_SIZE);
+          });
           
           // Restore saved graph (onExpand will be re-attached in useEffect)
           setNodes(graphData.nodes);
@@ -474,10 +479,8 @@ function AppContent() {
       // Debug: Check if handlers were added
       console.log('🔍 First node has onExpand?', !!nodesWithHandlers[0]?.data?.onExpand);
       
-      // Save current state to history before replacing
-      if (nodes.length > 0) {
-        setHistory(prev => [...prev, { nodes, edges }]);
-      }
+      // Clear history when loading new graph (not an expansion)
+      setHistory([]);
       
       setNodes(nodesWithHandlers);
       setEdges(newEdges);
