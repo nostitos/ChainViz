@@ -135,12 +135,12 @@ function AppContent() {
     const query = params.get('q');
     if (query && !isLoading && nodes.length === 0) {
       // Auto-load on mount if URL has query parameter
-      // Default to 0 hops backward, 1 hop forward (same as clicking Trace with default settings)
+      // Default to 1 hop in both directions
       console.log('Loading from URL parameter:', query);
       if (/^[0-9a-fA-F]{64}$/.test(query)) {
-        handleTraceTransaction(query, 0, 0, 1); // vout=0, hopsBefore=0, hopsAfter=1
+        handleTraceTransaction(query, 0, 1, 1); // vout=0, hopsBefore=1, hopsAfter=1
       } else {
-        handleTraceAddress(query, 0, 1); // hopsBefore=0, hopsAfter=1
+        handleTraceAddress(query, 1, 1); // hopsBefore=1, hopsAfter=1
       }
     }
   }, []); // Run once on mount
