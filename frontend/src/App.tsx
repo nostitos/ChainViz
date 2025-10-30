@@ -33,6 +33,7 @@ import { ProgressLogger } from './components/ProgressLogger';
 import { traceFromAddress, traceFromUTXO, traceFromAddressWithStats, traceFromUTXOWithStats } from './services/api';
 import { buildGraphFromTraceDataBipartite, optimizeNodePositions } from './utils/graphBuilderBipartite';
 import { buildTreeLayout, findRootNode } from './utils/treeLayout';
+import { expandTransactionNode, expandAddressNode } from './utils/expansionHelpers';
 import { useForceLayout } from './hooks/useForceLayout';
 import { useEdgeTension } from './hooks/useEdgeTension';
 import './App.css';
@@ -776,634 +777,75 @@ function AppContent() {
     }
   }, [setNodes, setEdges, fitView, addLog]);
 
-  // Expand a node (fetch more connections)
+  // Expand a node (show hidden connections from cached data - NO network calls!)
   const handleExpandNode = useCallback(async (nodeId: string, direction?: 'inputs' | 'outputs' | 'spending' | 'receiving') => {
-    console.log('🚀 EXPAND TRIGGERED:', nodeId, direction);
-    console.log('🔍 handleExpandNode called with:', { nodeId, direction });
+    console.log('🚀 Expanding:', nodeId, direction);
     
-    // Temporarily disable repulsion during expansion to prevent interference
-    const wasRepulsionEnabled = forceRepulsionEnabled;
-    if (wasRepulsionEnabled) {
-      console.log('⏸️  Pausing repulsion during expansion');
-      setForceRepulsionEnabled(false);
-    }
+    const expandKey = `${nodeId}-${direction}`;
     
-    // Only check expansion for transactions (addresses can expand multiple times to show all connected TXs)
-    const expandKey = `${nodeId}-${direction || 'default'}`;
-    
-    // Get node type to determine if we should check expansion
-    let nodeType: string | undefined;
-    setNodes((currentNodes) => {
-      const foundNode = currentNodes.find((n) => n.id === nodeId);
-      nodeType = foundNode?.type;
-      return currentNodes;
-    });
-    
-    // For transactions only, prevent re-expansion
-    if (nodeType === 'transaction' && expandedNodes.has(expandKey)) {
-      console.log(`⏭️ Transaction already expanded with key: ${expandKey}`);
-      console.log(`   All expanded keys:`, Array.from(expandedNodes));
-      setError('Transaction already expanded in this direction');
+    // Check if already expanded
+    if (expandedNodes.has(expandKey)) {
+      console.log('Already expanded:', expandKey);
+      setError('Already expanded in this direction');
       setTimeout(() => setError(null), 2000);
-      // Re-enable repulsion if it was enabled
-      if (wasRepulsionEnabled) {
-        setForceRepulsionEnabled(true);
-      }
       return;
     }
     
-    // Extract address from nodeId if it's addr_xxx format
-    let address: string | undefined;
-    if (nodeId.startsWith('addr_')) {
-      address = nodeId.substring(5); // Remove 'addr_' prefix
-      console.log('📍 Extracted address from ID:', address);
-    }
-    
-    // Use setNodes to get fresh nodes state
-    let targetNode: Node | undefined;
-    setNodes((currentNodes) => {
-      targetNode = currentNodes.find((n) => n.id === nodeId);
-      return currentNodes; // Don't change nodes, just read
-    });
-    
-    // If node not found but we have an address, create synthetic node data
-    if (!targetNode && address) {
-      console.log('💡 Node not in graph (clustered address), using address directly');
-      targetNode = {
-        id: nodeId,
-        type: 'address',
-        position: { x: 0, y: 0 },
-        data: {
-          address,
-          metadata: { address },
-        },
-      } as Node;
-    }
-    
-    if (!targetNode) {
-      console.error('❌ Node not found and no address extracted:', nodeId);
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) {
+      console.error('Node not found:', nodeId);
       return;
     }
-
-    console.log('✅ Found node:', targetNode.type, targetNode.data);
+    
     setIsLoading(true);
-    const node = targetNode;
+    
     try {
-      // For addresses, show only the directly connected transaction
-      if (node.type === 'address') {
-        const address = node.data.address || node.data.metadata?.address;
-        if (!address) return;
-        
-        // Expand by fetching depth=1 FROM THIS ADDRESS (not the original)
-        console.log('📡 Expanding address to show connected TX, depth=1 from', address.substring(0, 20));
-        const data = await traceFromAddress(address, 1, 1, maxTransactions);
-        
-        // Merge new nodes/edges with existing
-        const { nodes: newNodes, edges: newEdges } = buildGraphFromTraceDataBipartite(data, edgeScaleMax, maxTransactions, maxOutputs);
-        
-        console.log('📦 Got new data:', newNodes.length, 'nodes');
-        
-        // Check if the source address is now in a cluster
-        const newClusters = newNodes.filter(n => n.type === 'addressCluster' || n.type === 'transactionCluster');
-        const sourceAddressInCluster = newClusters.some(cluster => {
-          if (cluster.type === 'addressCluster' && cluster.data.addresses) {
-            return cluster.data.addresses.some((a: any) => `addr_${a.address}` === nodeId);
-          }
-          return false;
-        });
-        
-        setNodes((nds) => {
-          const existingIds = new Set(nds.map(n => n.id));
-          
-          // If source address is now in a cluster, remove the original node
-          let nodesToKeep = nds;
-          if (sourceAddressInCluster) {
-            console.log(`🗑️ Source address ${nodeId} is now in a cluster - removing original node`);
-            nodesToKeep = nds.filter(n => n.id !== nodeId);
-          }
-          
-          // Find ALL TXs that connect to our address
-          const connectedTxs = newNodes.filter(n => 
-            n.type === 'transaction' &&
-            newEdges.some(e => 
-              (e.source === n.id && e.target === nodeId) ||
-              (e.target === n.id && e.source === nodeId)
-            )
-          );
-          
-          console.log(`🔍 Found ${connectedTxs.length} connected TXs`);
-          
-          // Filter to NEW TXs only (not already in graph)
-          const newTxs = connectedTxs.filter(tx => !existingIds.has(tx.id));
-          
-          if (newTxs.length === 0) {
-            console.log('⚠️ No NEW connected transactions (all already in graph)');
-            return nds;
-          }
-          
-          console.log(`🆕 Found ${newTxs.length} NEW transactions to add`);
-          
-          // If 4 or more TXs, create a transaction cluster node
-          if (newTxs.length > 3) {
-            console.log('📦 Creating transaction cluster for', newTxs.length, 'transactions');
-            
-            const sourceNode = nds.find(n => n.id === nodeId);
-            const clusterId = `tx-cluster-${nodeId}-${Date.now()}`;
-            
-            // Limit to maxTransactions
-            const txsToShow = newTxs.slice(0, maxTransactions);
-            
-            const clusterNode = {
-              id: clusterId,
-              type: 'transactionCluster',
-              position: {
-                x: (sourceNode?.position.x ?? 0) + 400,
-                y: sourceNode?.position.y ?? 0,
-              },
-              data: {
-                transactions: txsToShow.map(tx => ({
-                  txid: tx.data.txid || tx.data.metadata?.txid || tx.id,
-                  time: tx.data.metadata?.time,
-                  blockHeight: tx.data.metadata?.block_height,
-                  totalInput: tx.data.metadata?.total_input,
-                  totalOutput: tx.data.metadata?.total_output,
-                })),
-                direction: direction || 'outputs',
-                label: `${newTxs.length} Transactions${newTxs.length > maxTransactions ? ` (showing ${maxTransactions})` : ''}`,
-              },
-              sourcePosition: Position.Right,
-              targetPosition: Position.Left,
-            };
-            
-            console.log('➕ Adding transaction cluster node');
-            
-            // Add edges to connect the cluster to the source node
-            const clusterEdges = txsToShow.map((tx, idx) => {
-              const txId = tx.data.txid || tx.data.metadata?.txid || tx.id;
-              const edgeId = `e-${nodeId}-${clusterId}-${idx}`;
-              
-              if (direction === 'inputs') {
-                // Input cluster: source node → cluster (right side)
-                return {
-                  id: edgeId,
-                  source: nodeId,
-                  target: clusterId,
-                  // Don't specify sourceHandle - let React Flow auto-connect
-                  targetHandle: `in-${idx}`, // Connect to left handle of cluster
-                  type: 'default',
-                  animated: false,
-                  style: { stroke: '#4caf50', strokeWidth: 2 },
-                };
-              } else {
-                // Output cluster: cluster → source node (left side)
-                return {
-                  id: edgeId,
-                  source: clusterId,
-                  target: nodeId,
-                  sourceHandle: `tx-${idx}`, // Connect to right handle of cluster
-                  // Don't specify targetHandle - let React Flow auto-connect
-                  type: 'default',
-                  animated: false,
-                  style: { stroke: '#4caf50', strokeWidth: 2 },
-                };
-              }
-            });
-            
-            console.log(`🔗 Adding ${clusterEdges.length} edges to connect transaction cluster`);
-            setEdges((eds) => [...eds, ...clusterEdges]);
-            
-            return [...nds, clusterNode];
-          }
-          
-          // If 3 or fewer TXs, show them individually
-          // Use the first new TX
-          const connectedTx = newTxs[0];
-          console.log(`🆕 Adding NEW TX (${newTxs.length} total): ${connectedTx.id.substring(0, 20)}`);
-          
-          // Add the TX (if new) AND ALL addresses connected to it (inputs + outputs)
-          const nodesToAdd = newNodes.filter(n => {
-            if (existingIds.has(n.id)) return false;
-            
-            // Add the TX itself (if new)
-            if (n.id === connectedTx.id) return true;
-            
-            // Add ALL addresses that connect to this TX
-            if (n.type === 'address') {
-              return newEdges.some(e => 
-                (e.source === n.id && e.target === connectedTx.id) ||
-                (e.target === n.id && e.source === connectedTx.id)
-              );
-            }
-            
-            return false;
-          });
-          
-          if (nodesToAdd.length === 0) {
-            console.log('⚠️ No nodes to add');
-            return nds;
-          }
-          
-          console.log('🆕 Adding:', nodesToAdd.length, 'nodes (TX + its OTHER addresses)');
-          
-          // Position: TX goes BETWEEN the source address and new addresses
-          const sourceNode = nds.find(n => n.id === nodeId);
-          
-          // Separate TX and addresses
-          const newTxNode = nodesToAdd.find(n => n.id === connectedTx.id);
-          const newAddrNodes = nodesToAdd.filter(n => n.id !== connectedTx.id);
-          
-          // Determine if addresses are inputs or outputs of the NEW TX
-          const inputAddresses = newAddrNodes.filter(n => 
-            newEdges.some(e => e.source === n.id && e.target === connectedTx.id)
-          );
-          const outputAddresses = newAddrNodes.filter(n => 
-            newEdges.some(e => e.source === connectedTx.id && e.target === n.id)
-          );
-          
-          // Separate change outputs from regular outputs
-          const changeOutputs = outputAddresses.filter(n => n.data.metadata?.is_change === true);
-          const regularOutputs = outputAddresses.filter(n => n.data.metadata?.is_change !== true);
-          
-          // Apply maxOutputs limit
-          const limitedRegularOutputs = regularOutputs.slice(0, maxOutputs);
-          const limitedChangeOutputs = changeOutputs.slice(0, maxOutputs);
-          
-          if (regularOutputs.length > maxOutputs) {
-            console.log(`⚠️ Limiting outputs: showing ${maxOutputs} of ${regularOutputs.length} regular outputs`);
-          }
-          if (changeOutputs.length > maxOutputs) {
-            console.log(`⚠️ Limiting change outputs: showing ${maxOutputs} of ${changeOutputs.length} change outputs`);
-          }
-          
-          console.log(`Expanding from address: ${inputAddresses.length} inputs, ${limitedRegularOutputs.length} outputs (of ${regularOutputs.length}), ${limitedChangeOutputs.length} change (of ${changeOutputs.length})`);
-          
-          const nodesWithHandlers = nodesToAdd.map((node) => {
-            let x, y;
-            
-            if (node.id === connectedTx.id) {
-              // TX goes 400px to the right of source address
-              x = (sourceNode?.position.x ?? 0) + 400;
-              y = sourceNode?.position.y ?? 0;
-            } else if (inputAddresses.includes(node)) {
-              // Input addresses go to the LEFT of the source address (-400px from source)
-              const inputIdx = inputAddresses.indexOf(node);
-              x = (sourceNode?.position.x ?? 0) - 400; // 400px to the left of source
-              y = (sourceNode?.position.y ?? 0) + (inputIdx * 120) - (inputAddresses.length * 60);
-              console.log(`  Input address ${inputIdx} at (${x}, ${y})`);
-            } else if (node.data.metadata?.is_change === true) {
-              // Change outputs go to the RIGHT of TX and slightly ABOVE regular outputs
-              const changeIdx = limitedChangeOutputs.indexOf(node);
-              if (changeIdx === -1) return null; // Skip if not in limited list
-              const txX = (sourceNode?.position.x ?? 0) + 400; // TX position
-              x = txX + 400; // 400px right of TX
-              y = (sourceNode?.position.y ?? 0) - 20 - (changeIdx * 120); // 20px above center, stacked if multiple
-              console.log(`  Change output ${changeIdx} at (${x}, ${y})`);
-            } else {
-              // Regular outputs go to the RIGHT of the TX (+400px from TX)
-              const outputIdx = limitedRegularOutputs.indexOf(node);
-              if (outputIdx === -1) return null; // Skip if not in limited list
-              const txX = (sourceNode?.position.x ?? 0) + 400; // TX position
-              x = txX + 400; // 400px right of TX
-              y = (sourceNode?.position.y ?? 0) + (outputIdx * 120) - (limitedRegularOutputs.length * 60);
-              console.log(`  Regular output ${outputIdx} at (${x}, ${y})`);
-            }
-            
-            return {
-              ...node,
-              position: { x, y },
-              data: { ...node.data, onExpand: handleExpandNode }
-            };
-          }).filter((node): node is NonNullable<typeof node> => node !== null);
-          
-          console.log('➕ Adding', nodesWithHandlers.length, 'nodes to', direction === 'inputs' ? 'LEFT' : 'RIGHT');
-          
-          // Save to history before expanding
-          setHistory(prev => [...prev, { nodes: nodesToKeep, edges }]);
-          
-          // Store for viewport check later
-          addedNodesRef.current = nodesWithHandlers;
-          
-          return [...nodesToKeep, ...nodesWithHandlers];
-        });
-        
-        // Get current node IDs before adding edges
-        const currentNodeIds = new Set<string>();
-        setNodes((nds) => {
-          nds.forEach(n => currentNodeIds.add(n.id));
-          return nds;
-        });
-        
-        setEdges((eds) => {
-          // Only add edges where BOTH source AND target exist in current graph
-          const connectedEdges = newEdges.filter(edge => {
-            const bothExist = currentNodeIds.has(edge.source) && currentNodeIds.has(edge.target);
-            const notDuplicate = !eds.some(e => e.id === edge.id);
-            return bothExist && notDuplicate;
-          });
-          
-          console.log('➕ Adding', connectedEdges.length, 'CONNECTED edges (both endpoints exist)');
-          return [...eds, ...connectedEdges];
-        });
-        
-        // Mark this expansion as complete
-        setExpandedNodes(prev => new Set(prev).add(expandKey));
-        
-        // Only adjust viewport if new nodes are outside current view
-        requestAnimationFrame(() => {
-          if (addedNodesRef.current && !areNodesVisible(addedNodesRef.current)) {
-            console.log('🎯 New nodes outside viewport - adjusting view');
-            // Fit view without animation first to recalculate bounds
-            fitView({ padding: 0.2, duration: 0, maxZoom: 1.5 });
-            // Then animate to the new position
-            setTimeout(() => {
-              fitView({ padding: 0.2, duration: 300, maxZoom: 1.5 });
-            }, 10);
-          } else {
-            console.log('✅ New nodes already visible - no viewport change needed');
-          }
-        });
+      let result: { nodes: Node[]; edges: Edge[] };
+      
+      if (node.type === 'transaction') {
+        // Expand from cached metadata (NO network call!)
+        result = expandTransactionNode(node, direction as 'inputs' | 'outputs', edgeScaleMax);
+      } else if (node.type === 'address') {
+        // Expand from existing edges (NO network call!)
+        result = expandAddressNode(node, direction as 'receiving' | 'spending', nodes, edges);
+      } else {
+        console.warn('Unknown node type:', node.type);
+        return;
       }
       
-      // For transactions, show the connected addresses (inputs or outputs)
-      if (node.type === 'transaction') {
-        const txid = node.data.txid || node.data.metadata?.txid;
-        if (!txid) return;
-        
-        console.log(`📡 Expanding transaction ${txid.substring(0, 20)} - direction: ${direction}`);
-        
-        // Fetch the transaction details from mempool.space (fast and reliable)
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-        const response = await fetch(`https://mempool.space/api/tx/${txid}`);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch transaction: ${response.status}`);
-        }
-        const txData = await response.json();
-        
-        // Build nodes and edges manually
-        const newNodes: any[] = [];
-        const newEdges: any[] = [];
-        
-        // Helper function to calculate edge width
-        const calculateEdgeWidth = (amount: number): number => {
-          const minAmountSats = 100000;
-          const scaleMaxSats = edgeScaleMax * 100000000;
-          const sqrtBase = Math.sqrt(scaleMaxSats / minAmountSats);
-          
-          if (amount <= minAmountSats) return 2;
-          const sqrtValue = Math.sqrt(amount / minAmountSats) / sqrtBase;
-          return 2 + (sqrtValue * 68);
-        };
-        
-        if (direction === 'inputs') {
-          // Show input addresses (LEFT of TX)
-          txData.vin.forEach((input: any, idx: number) => {
-            const inputAddr = input.prevout?.scriptpubkey_address;
-            const amount = input.prevout?.value || 0;
-            if (inputAddr) {
-              const addrId = `addr_${inputAddr}`;
-              newNodes.push({
-                id: addrId,
-                type: 'address',
-                position: { x: 0, y: 0 }, // Will be positioned later
-                data: {
-                  address: inputAddr,
-                  label: inputAddr,
-                  metadata: { address: inputAddr, is_change: false },
-                },
-                sourcePosition: Position.Right,
-                targetPosition: Position.Left,
-              });
-              newEdges.push({
-                id: `e-${addrId}-tx_${txid}`,
-                source: addrId,
-                target: `tx_${txid}`,
-                type: 'default',
-                animated: false,
-                data: { amount },
-                style: {
-                  stroke: '#4caf50',
-                  strokeWidth: calculateEdgeWidth(amount),
-                },
-                label: amount > 0 ? `${(amount / 100000000).toFixed(8)} BTC` : undefined,
-                labelStyle: {
-                  fill: '#fff',
-                  fontSize: 12,
-                  fontWeight: 700,
-                },
-                labelBgStyle: {
-                  fill: '#1a1a1a',
-                  fillOpacity: 0.9,
-                },
-              });
-            }
-          });
-        } else if (direction === 'outputs') {
-          // Show output addresses (RIGHT of TX)
-          txData.vout.forEach((output: any, idx: number) => {
-            const outputAddr = output.scriptpubkey_address;
-            const amount = output.value || 0;
-            if (outputAddr) {
-              const addrId = `addr_${outputAddr}`;
-              newNodes.push({
-                id: addrId,
-                type: 'address',
-                position: { x: 0, y: 0 }, // Will be positioned later
-                data: {
-                  address: outputAddr,
-                  label: outputAddr,
-                  metadata: { address: outputAddr, is_change: false },
-                },
-                sourcePosition: Position.Right,
-                targetPosition: Position.Left,
-              });
-              newEdges.push({
-                id: `e-tx_${txid}-${addrId}`,
-                source: `tx_${txid}`,
-                target: addrId,
-                type: 'default',
-                animated: false,
-                data: { amount },
-                style: {
-                  stroke: '#4caf50',
-                  strokeWidth: calculateEdgeWidth(amount),
-                },
-                label: amount > 0 ? `${(amount / 100000000).toFixed(8)} BTC` : undefined,
-                labelStyle: {
-                  fill: '#fff',
-                  fontSize: 12,
-                  fontWeight: 700,
-                },
-                labelBgStyle: {
-                  fill: '#1a1a1a',
-                  fillOpacity: 0.9,
-                },
-              });
-            }
-          });
-        }
-        
-        console.log(`📦 Got ${newNodes.length} new addresses for ${direction}`);
-        
-        setNodes((nds) => {
-          const existingIds = new Set(nds.map(n => n.id));
-          
-          // Get ALL new addresses AND transactions
-          const newAddresses = newNodes.filter(n => 
-            n.type === 'address' && 
-            !existingIds.has(n.id)
-          );
-          
-          const newTransactions = newNodes.filter(n =>
-            n.type === 'transaction' &&
-            !existingIds.has(n.id)
-          );
-          
-          if (newAddresses.length === 0 && newTransactions.length === 0) {
-            console.log('⚠️ No new nodes found - all addresses already in graph');
-            console.log('   Requested addresses:', newNodes.map(n => n.id));
-            console.log('   Already have:', Array.from(existingIds));
-            return nds;
-          }
-          
-          console.log('🆕 Adding addresses:', newAddresses.length, 'and TXs:', newTransactions.length);
-          if (newAddresses.length > 0) {
-            console.log('   New addresses:', newAddresses.map(n => n.data.address?.substring(0, 20)));
-          }
-          
-          // Position based on direction: LEFT = input TXs (parents), RIGHT = output TXs (children)
-          const sourceNode = nds.find(n => n.id === nodeId);
-          
-          // Determine which addresses and TXs go where based on edges
-          const inputAddresses = newAddresses.filter(addr =>
-            newEdges.some(e => e.source === addr.id && e.target === nodeId)
-          );
-          const outputAddresses = newAddresses.filter(addr =>
-            newEdges.some(e => e.source === nodeId && e.target === addr.id)
-          );
-          
-          // For LEFT expansion: show input addresses and their source TXs
-          // For RIGHT expansion: show output addresses and their destination TXs
-          const relevantAddresses = direction === 'inputs' ? inputAddresses : outputAddresses;
-          const changeAddresses = relevantAddresses.filter(addr => addr.data.metadata?.is_change === true);
-          const regularAddresses = relevantAddresses.filter(addr => addr.data.metadata?.is_change !== true);
-          
-          console.log(`Expanding ${direction}: ${regularAddresses.length} regular, ${changeAddresses.length} change, ${newTransactions.length} TXs`);
-          
-          // Combine addresses and transactions for positioning
-          const allNodesToAdd = [...relevantAddresses, ...newTransactions];
-          
-          const nodesWithHandlers = allNodesToAdd.map((node) => {
-            let x, y;
-            
-            if (node.type === 'transaction') {
-              // TXs go further out: LEFT (-1200) or RIGHT (+1200) from source TX
-              const offset = direction === 'inputs' ? -400 : 400;
-              const txIdx = newTransactions.indexOf(node);
-              x = (sourceNode?.position.x ?? 0) + offset;
-              y = (sourceNode?.position.y ?? 0) + (txIdx * 150) - (newTransactions.length * 75);
-              console.log(`  TX ${txIdx} at (${x}, ${y})`);
-            } else if (node.data.metadata?.is_change === true) {
-              // Change outputs go to the RIGHT and slightly ABOVE regular outputs
-              const offset = direction === 'inputs' ? -400 : 400;
-              const changeIdx = changeAddresses.indexOf(node);
-              x = (sourceNode?.position.x ?? 0) + offset;
-              y = (sourceNode?.position.y ?? 0) - 20 - (changeIdx * 120); // 20px above, stacked if multiple
-              console.log(`  Change address ${changeIdx} at (${x}, ${y})`);
-            } else {
-              // Regular addresses: LEFT (-400px) for inputs, RIGHT (+400px) for outputs
-              const offset = direction === 'inputs' ? -400 : 400;
-              const regularIdx = regularAddresses.indexOf(node);
-              x = (sourceNode?.position.x ?? 0) + offset;
-              y = (sourceNode?.position.y ?? 0) + (regularIdx * 120) - (regularAddresses.length * 60);
-              console.log(`  Regular address ${regularIdx} at (${x}, ${y})`);
-            }
-            
-            return {
-              ...node,
-              position: { x, y },
-              data: { ...node.data, onExpand: handleExpandNode }
-            };
-          });
-          
-          console.log('➕ Adding', nodesWithHandlers.length, 'addresses to', direction === 'inputs' ? 'LEFT (parents)' : 'RIGHT (children)');
-          
-          // Store for viewport check later
-          addedNodesRef.current = nodesWithHandlers;
-          
-          return [...nds, ...nodesWithHandlers];
-        });
-        
-        // Get current node IDs before adding edges
-        const currentNodeIds = new Set<string>();
-        setNodes((nds) => {
-          nds.forEach(n => currentNodeIds.add(n.id));
-          return nds;
-        });
-        
-        setEdges((eds) => {
-          // Only add edges where BOTH source AND target exist in current graph
-          const connectedEdges = newEdges.filter(edge => {
-            const bothExist = currentNodeIds.has(edge.source) && currentNodeIds.has(edge.target);
-            const notDuplicate = !eds.some(e => e.id === edge.id);
-            return bothExist && notDuplicate;
-          });
-          
-          console.log('➕ Adding', connectedEdges.length, 'CONNECTED edges (both endpoints exist)');
-          return [...eds, ...connectedEdges];
-        });
-        
-        // Mark this expansion as complete
-        setExpandedNodes(prev => new Set(prev).add(expandKey));
-        
-        // Only adjust viewport if new nodes are outside current view
-        requestAnimationFrame(() => {
-          if (addedNodesRef.current && !areNodesVisible(addedNodesRef.current)) {
-            console.log('🎯 New nodes outside viewport - adjusting view');
-            // Fit view without animation first to recalculate bounds
-            fitView({ padding: 0.2, duration: 0, maxZoom: 1.5 });
-            // Then animate to the new position
-            setTimeout(() => {
-              fitView({ padding: 0.2, duration: 300, maxZoom: 1.5 });
-            }, 10);
-          } else {
-            console.log('✅ New nodes already visible - no viewport change needed');
-          }
-        });
+      // Filter to only NEW nodes
+      const existingIds = new Set(nodes.map(n => n.id));
+      const newNodes = result.nodes.filter(n => !existingIds.has(n.id));
+      const newEdges = result.edges.filter(e => !edges.some(existing => existing.id === e.id));
+      
+      if (newNodes.length === 0) {
+        console.log('No new nodes to add (all already in graph)');
+        setError('No new connections to show');
+        setTimeout(() => setError(null), 2000);
+        return;
       }
-    } catch (err) {
-      console.error('❌ Expand error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to expand node');
+      
+      console.log(`✅ Adding ${newNodes.length} nodes, ${newEdges.length} edges from cached data`);
+      
+      // Add nodes with expand handler
+      setNodes(nds => [...nds, ...newNodes.map(n => ({
+        ...n,
+        data: { ...n.data, onExpand: handleExpandNode, balanceFetchingEnabled }
+      }))]);
+      
+      // Add edges
+      setEdges(eds => [...eds, ...newEdges]);
+      
+      // Mark as expanded
+      setExpandedNodes(prev => new Set(prev).add(expandKey));
+      
+    } catch (error) {
+      console.error('Error expanding node:', error);
+      setError('Failed to expand node');
     } finally {
       setIsLoading(false);
-      
-      // Check if no nodes were added
-      setTimeout(() => {
-        let addedAny = false;
-        setNodes((nds) => {
-          if (nds.length === nodes.length) {
-            setError('No further nodes to expand');
-            setTimeout(() => setError(null), 3000);
-          } else {
-            addedAny = true;
-          }
-          return nds;
-        });
-        if (!addedAny) {
-          console.log('ℹ️ No nodes were added during expand');
-        }
-        
-        // Re-enable repulsion after expansion completes
-        if (wasRepulsionEnabled) {
-          console.log('▶️  Re-enabling repulsion after expansion');
-          setForceRepulsionEnabled(true);
-          // Reheat simulation to apply repulsion to new nodes
-          if (forceLayoutRef.current) {
-            forceLayoutRef.current.reheatSimulation();
-          }
-        }
-      }, 200);
     }
-  }, [setNodes, setEdges, fitView, expandedNodes, setExpandedNodes, areNodesVisible, forceRepulsionEnabled]); // Don't include nodes to avoid stale closure!
+  }, [nodes, edges, expandedNodes, edgeScaleMax, balanceFetchingEnabled]);
 
   // Re-attach onExpand handler to all nodes (for restored graphs or when handler changes)
   useEffect(() => {
