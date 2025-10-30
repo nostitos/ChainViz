@@ -88,8 +88,8 @@ function AppContent() {
   const [treeLayoutEnabled, setTreeLayoutEnabled] = useState(getCookieBool('treeLayoutEnabled', false)); // Load from cookie
   const [edgeTensionEnabled, setEdgeTensionEnabled] = useState(getCookieBool('edgeTensionEnabled', false)); // Load from cookie
 
-  const [maxOutputs, setMaxOutputs] = useState(getCookie('maxOutputs', 5));
-  const [maxTransactions, setMaxTransactions] = useState(getCookie('maxTransactions', 5));
+  const [maxOutputs, setMaxOutputs] = useState(getCookie('maxOutputs', 30));
+  const [maxTransactions, setMaxTransactions] = useState(getCookie('maxTransactions', 30));
 
   // Save to cookies when values change
   const handleMaxOutputsChange = (value: number) => {
