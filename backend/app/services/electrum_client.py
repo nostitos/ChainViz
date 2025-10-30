@@ -269,6 +269,27 @@ class ElectrumClient:
                         self.reader.readline(), timeout=self.timeout
                     )
                     responses = json.loads(response_str.decode())
+                    
+                    # Handle case where responses are strings (double-encoded JSON)
+                    if len(responses) > 0 and isinstance(responses[0], str):
+                        logger.warning(f"  ⚠️ Responses are double-encoded strings, decoding...")
+                        try:
+                            # Try to decode each string response
+                            decoded_responses = []
+                            for resp in responses:
+                                if isinstance(resp, str):
+                                    decoded_responses.extend(json.loads(resp))
+                                else:
+                                    decoded_responses.append(resp)
+                            responses = decoded_responses
+                            logger.info(f"  ✅ Decoded {len(responses)} responses from {len(decoded_responses)} string chunks")
+                        except Exception as e:
+                            logger.error(f"  ❌ Failed to decode string responses: {e}")
+
+                    # DEBUG: Log response count vs request count
+                    logger.info(f"  📦 Received {len(responses)} responses for {len(retry_requests)} requests")
+                    if len(responses) != len(retry_requests):
+                        logger.warning(f"  ⚠️ Response count mismatch! Expected {len(retry_requests)}, got {len(responses)}")
 
                     # Process responses and track which succeeded/failed
                     succeeded_count = 0
