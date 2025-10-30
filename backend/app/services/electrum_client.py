@@ -360,12 +360,15 @@ class ElectrumClient:
         try:
             # Handle bech32 addresses (bc1...)
             if address.startswith('bc1'):
-                # Decode bech32 address
+                # Decode bech32/bech32m address
                 witver, witprog = ElectrumClient._decode_bech32(address)
                 
-                if witver == 0:  # Native SegWit
+                if witver == 0:  # Native SegWit (P2WPKH or P2WSH)
                     # P2WPKH or P2WSH
                     script_pubkey = bytes([witver, len(witprog)]) + witprog
+                elif witver == 1:  # Taproot (P2TR)
+                    # P2TR uses OP_1 (0x51) + 32-byte x-only pubkey
+                    script_pubkey = bytes([0x51, 0x20]) + witprog
                 else:
                     raise ValueError(f"Unsupported witness version: {witver}")
             
@@ -398,40 +401,47 @@ class ElectrumClient:
     @staticmethod
     def _decode_bech32(address: str) -> tuple:
         """
-        Decode bech32 address to witness version and program
+        Decode bech32/bech32m address to witness version and program
         
         Returns: (witness_version, witness_program)
         """
-        # Bech32 character set
-        CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
-        
-        # Split HRP and data
-        if '1' not in address:
-            raise ValueError("Invalid bech32 address")
-        
-        hrp, data = address.rsplit('1', 1)
-        
-        # Decode data part
-        decoded = []
-        for c in data[:-6]:  # Exclude checksum
-            if c not in CHARSET:
-                raise ValueError(f"Invalid character in bech32: {c}")
-            decoded.append(CHARSET.index(c))
-        
-        # Convert from 5-bit to 8-bit
-        witness_version = decoded[0]
-        
-        # Convert rest to bytes
-        bits = 0
-        value = 0
-        witness_program = []
-        
-        for d in decoded[1:]:
-            value = (value << 5) | d
-            bits += 5
-            
-            if bits >= 8:
-                bits -= 8
+        try:
+            # Try to use bech32m library first (for Taproot addresses)
+            import bech32m
+            decoded = bech32m.decode('bc', address)
+            witness_version = decoded.witver
+            witness_program = bytes(decoded.witprog)
+            return witness_version, witness_program
+        except (ImportError, Exception):
+            # Fallback: use bech32 library
+            try:
+                import bech32
+                hrp, data = bech32.bech32_decode(address)
+                if hrp is None or data is None:
+                    raise ValueError("Failed to decode bech32 address")
+                witness_version = data[0]
+                witness_program = bytes(bech32.convertbits(data[1:], 5, 8, False))
+                return witness_version, witness_program
+            except (ImportError, Exception):
+                # Fallback to manual decoding (only supports bech32, not bech32m)
+                CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+                if '1' not in address:
+                    raise ValueError("Invalid bech32 address")
+                hrp, data = address.rsplit('1', 1)
+                decoded = []
+                for c in data[:-6]:  # Exclude checksum
+                    if c not in CHARSET:
+                        raise ValueError(f"Invalid character in bech32: {c}")
+                    decoded.append(CHARSET.index(c))
+                witness_version = decoded[0]
+                bits = 0
+                value = 0
+                witness_program = []
+                for d in decoded[1:]:
+                    value = (value << 5) | d
+                    bits += 5
+                    if bits >= 8:
+                        bits -= 8
                 witness_program.append((value >> bits) & 0xff)
                 value &= (1 << bits) - 1
         
