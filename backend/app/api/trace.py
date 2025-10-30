@@ -88,6 +88,9 @@ async def trace_utxo(
                 logger.info(f"  ⚡ Fetching {len(input_txids)} of {len(start_tx.inputs)} input transactions")
                 input_txs = await blockchain_service.fetch_transactions_batch(input_txids)
                 input_tx_map = {tx.txid: tx for tx in input_txs if tx}
+                logger.info(f"  ✅ Successfully fetched {len(input_tx_map)}/{len(input_txids)} input transactions")
+                if len(input_tx_map) < len(input_txids):
+                    logger.warning(f"  ⚠️ Failed to fetch {len(input_txids) - len(input_tx_map)} input transactions")
                 
                 for inp in inputs_to_fetch:
                     if inp.txid and inp.txid in input_tx_map:
