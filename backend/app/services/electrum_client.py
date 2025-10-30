@@ -282,17 +282,22 @@ class ElectrumClient:
                             failed_indices.append(original_idx)
                         elif isinstance(response, dict):
                             result = response.get("result")
-                            # Log transaction batch items for debugging
-                            if isinstance(result, dict) and "vin" in result:
-                                method = batch_request[i].get("method", "")
-                                if method == "blockchain.transaction.get":
-                                    txid = batch_request[i].get("params", [None])[0]
-                                    if txid:
-                                        txid_short = txid[:20] if txid else "unknown"
-                                        num_inputs = len(result.get("vin", []))
-                                        logger.debug(f"Batch RPC response for TX {txid_short}: {num_inputs} inputs")
-                            results[original_idx] = result
-                            succeeded_count += 1
+                            # Check if result is None - treat as failure and retry
+                            if result is None:
+                                logger.debug(f"Batch item {original_idx} returned null result - will retry")
+                                failed_indices.append(original_idx)
+                            else:
+                                # Log transaction batch items for debugging
+                                if isinstance(result, dict) and "vin" in result:
+                                    method = batch_request[i].get("method", "")
+                                    if method == "blockchain.transaction.get":
+                                        txid = batch_request[i].get("params", [None])[0]
+                                        if txid:
+                                            txid_short = txid[:20] if txid else "unknown"
+                                            num_inputs = len(result.get("vin", []))
+                                            logger.debug(f"Batch RPC response for TX {txid_short}: {num_inputs} inputs")
+                                results[original_idx] = result
+                                succeeded_count += 1
                         else:
                             logger.debug(f"Unexpected response type for item {original_idx}: {type(response)}")
                             failed_indices.append(original_idx)
