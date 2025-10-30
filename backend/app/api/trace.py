@@ -646,6 +646,7 @@ async def trace_from_address(
             # TX → Address (receiving): Include if hops_before > 0
             if hops_before > 0:
                 for vout, output in outputs_to_addr:
+                    logger.info(f"  ✅ Creating RECEIVING edge: {tx_node_id[:25]} → {addr_node_id[:25]} ({output.value / 100000000:.8f} BTC)")
                     edges.append(EdgeData(
                         source=tx_node_id,
                         target=addr_node_id,
@@ -656,10 +657,12 @@ async def trace_from_address(
             
             # Address → TX (sending): Include if hops_after > 0
             if hops_after > 0 and inputs_from_addr:
+                total_amount = sum(inp.value for inp in inputs_from_addr if inp.value is not None)
+                logger.info(f"  ✅ Creating SENDING edge: {addr_node_id[:25]} → {tx_node_id[:25]} ({total_amount / 100000000:.8f} BTC)")
                 edges.append(EdgeData(
                     source=addr_node_id,
                     target=tx_node_id,
-                    amount=sum(inp.value for inp in inputs_from_addr if inp.value is not None),
+                    amount=total_amount,
                     confidence=1.0,
                     metadata={}
                 ))
