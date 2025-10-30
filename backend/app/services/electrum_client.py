@@ -181,8 +181,8 @@ class ElectrumClient:
         if not requests:
             return []
         
-        # For large batches, chunk them to avoid timeout/memory issues
-        CHUNK_SIZE = 100
+        # For large batches, chunk them to avoid timeout/memory issues and rate limiting
+        CHUNK_SIZE = 50  # Reduced from 100 to lower Electrum server cost per batch
         if len(requests) > CHUNK_SIZE:
             logger.info(f"📦 Chunking {len(requests)} requests into batches of {CHUNK_SIZE}")
             all_results = []
