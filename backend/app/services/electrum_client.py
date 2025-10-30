@@ -108,20 +108,6 @@ class ElectrumClient:
 
             self.request_id += 1
             
-            # Log request details
-            if method == "blockchain.transaction.get":
-                txid = params[0] if params else "unknown"
-                verbose = params[1] if len(params) > 1 else False
-                logger.info(f"📡 Single RPC #{self.request_id}: {method}(txid={txid[:16]}..., verbose={verbose})")
-            elif method == "blockchain.scripthash.get_history":
-                scripthash = params[0] if params else "unknown"
-                logger.info(f"📡 Single RPC #{self.request_id}: {method}(scripthash={scripthash[:16]}...)")
-            elif method == "blockchain.scripthash.get_balance":
-                scripthash = params[0] if params else "unknown"
-                logger.info(f"📡 Single RPC #{self.request_id}: {method}(scripthash={scripthash[:16]}...)")
-            else:
-                logger.info(f"📡 Single RPC #{self.request_id}: {method}({len(params)} params)")
-            
             request = {
                 "jsonrpc": "2.0",
                 "id": self.request_id,
@@ -133,14 +119,12 @@ class ElectrumClient:
             request_str = json.dumps(request) + "\n"
             self.writer.write(request_str.encode())
             await self.writer.drain()
-            logger.info("Request sent, waiting for response...")
 
             # Read response - try reading until we get a newline
             try:
                 response_bytes = await asyncio.wait_for(
                     self.reader.readuntil(b'\n'), timeout=self.timeout
                 )
-                logger.info(f"Got response: {len(response_bytes)} bytes")
             except asyncio.IncompleteReadError as e:
                 # If we got partial data, use it
                 logger.warning(f"Incomplete read, using partial: {len(e.partial)} bytes")
@@ -236,21 +220,6 @@ class ElectrumClient:
                 batch_request = []
                 for method, params in retry_requests:
                     self.request_id += 1
-                    # Log individual request details (only on first attempt to reduce noise)
-                    if attempt == 0:
-                        if method == "blockchain.transaction.get":
-                            txid = params[0] if params else "unknown"
-                            verbose = params[1] if len(params) > 1 else False
-                            logger.debug(f"  → #{self.request_id}: {method}(txid={txid[:16]}..., verbose={verbose})")
-                        elif method == "blockchain.scripthash.get_history":
-                            scripthash = params[0] if params else "unknown"
-                            logger.debug(f"  → #{self.request_id}: {method}(scripthash={scripthash[:16]}...)")
-                        elif method == "blockchain.scripthash.get_balance":
-                            scripthash = params[0] if params else "unknown"
-                            logger.debug(f"  → #{self.request_id}: {method}(scripthash={scripthash[:16]}...)")
-                        else:
-                            logger.debug(f"  → #{self.request_id}: {method}({len(params)} params)")
-                    
                     batch_request.append({
                         "jsonrpc": "2.0",
                         "id": self.request_id,
@@ -270,15 +239,9 @@ class ElectrumClient:
                     )
                     responses = json.loads(response_str.decode())
                     
-                    # DEBUG: Log response structure
-                    if len(responses) > 0:
-                        logger.info(f"  🔍 First response type: {type(responses[0])}, value preview: {str(responses[0])[:100]}")
-                    
                     # Handle case where responses are strings (double-encoded JSON)
                     if len(responses) > 0 and isinstance(responses[0], str):
-                        logger.warning(f"  ⚠️ Responses are double-encoded strings, decoding...")
                         try:
-                            # Try to decode each string response
                             decoded_responses = []
                             for resp in responses:
                                 if isinstance(resp, str):
@@ -286,14 +249,8 @@ class ElectrumClient:
                                 else:
                                     decoded_responses.append(resp)
                             responses = decoded_responses
-                            logger.info(f"  ✅ Decoded {len(responses)} responses from {len(decoded_responses)} string chunks")
                         except Exception as e:
-                            logger.error(f"  ❌ Failed to decode string responses: {e}")
-
-                    # DEBUG: Log response count vs request count
-                    logger.info(f"  📦 Received {len(responses)} responses for {len(retry_requests)} requests")
-                    if len(responses) != len(retry_requests):
-                        logger.warning(f"  ⚠️ Response count mismatch! Expected {len(retry_requests)}, got {len(responses)}")
+                            logger.error(f"Failed to decode double-encoded responses: {e}")
 
                     # Process responses and track which succeeded/failed
                     succeeded_count = 0
@@ -302,7 +259,6 @@ class ElectrumClient:
                     for i, response in enumerate(responses):
                         # Safety check: if we have fewer responses than requests, mark missing ones as failed
                         if i >= len(requests_to_retry):
-                            logger.warning(f"  ⚠️ Response index {i} exceeds requests_to_retry length {len(requests_to_retry)}")
                             break
                         
                         original_idx = requests_to_retry[i]
@@ -326,15 +282,6 @@ class ElectrumClient:
                                 logger.debug(f"Batch item {original_idx} returned null result - will retry")
                                 failed_indices.append(original_idx)
                             else:
-                                # Log transaction batch items for debugging
-                                if isinstance(result, dict) and "vin" in result:
-                                    method = batch_request[i].get("method", "")
-                                    if method == "blockchain.transaction.get":
-                                        txid = batch_request[i].get("params", [None])[0]
-                                        if txid:
-                                            txid_short = txid[:20] if txid else "unknown"
-                                            num_inputs = len(result.get("vin", []))
-                                            logger.debug(f"Batch RPC response for TX {txid_short}: {num_inputs} inputs")
                                 results[original_idx] = result
                                 succeeded_count += 1
                         else:
@@ -345,7 +292,6 @@ class ElectrumClient:
                     if len(responses) < len(requests_to_retry):
                         unprocessed = requests_to_retry[len(responses):]
                         failed_indices.extend(unprocessed)
-                        logger.warning(f"  ⚠️ Marking {len(unprocessed)} unprocessed requests as failed")
                     
                     # Log attempt results
                     logger.info(f"  ✅ Attempt {attempt + 1}: {succeeded_count} succeeded, {len(failed_indices)} failed")
