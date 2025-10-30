@@ -459,7 +459,7 @@ function AppContent() {
       const txLimit = (hopsBefore === 0 && hopsAfter === 0) ? 1000 : maxTransactions;
       
       // Start from immediate neighborhood
-      const data = await traceFromAddress(address, hopsBefore, txLimit);
+      const data = await traceFromAddress(address, hopsBefore, hopsAfter, txLimit);
       console.log('📦 Raw data from backend:', data);
       const { nodes: newNodes, edges: newEdges} = buildGraphFromTraceDataBipartite(data, edgeScaleMax, txLimit, maxOutputs);
       console.log('🎨 Built graph:', newNodes.length, 'nodes,', newEdges.length, 'edges');

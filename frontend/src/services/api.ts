@@ -21,13 +21,13 @@ export interface TraceResponse {
   depth_reached: number;
 }
 
-export async function traceFromAddress(address: string, maxHops: number = 1, maxTransactions: number = 100): Promise<TraceResponse> {
+export async function traceFromAddress(address: string, hopsBefore: number = 1, hopsAfter: number = 1, maxTransactions: number = 100): Promise<TraceResponse> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 300000); // 300s (5 min) timeout for complex transactions with many large inputs
 
   try {
     const response = await fetch(
-      `${API_BASE_URL}/trace/address?address=${encodeURIComponent(address)}&max_hops=${maxHops}&max_transactions=${maxTransactions}`,
+      `${API_BASE_URL}/trace/address?address=${encodeURIComponent(address)}&hops_before=${hopsBefore}&hops_after=${hopsAfter}&max_transactions=${maxTransactions}`,
       {
         method: 'POST',
         headers: {
@@ -54,13 +54,13 @@ export async function traceFromAddress(address: string, maxHops: number = 1, max
   }
 }
 
-export async function traceFromAddressWithStats(address: string, maxHops: number = 1): Promise<{ data: TraceResponse; bytes: number }> {
+export async function traceFromAddressWithStats(address: string, hopsBefore: number = 1, hopsAfter: number = 1): Promise<{ data: TraceResponse; bytes: number }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 300000); // 300s (5 min) timeout for complex transactions with many large inputs
 
   try {
     const response = await fetch(
-      `${API_BASE_URL}/trace/address?address=${encodeURIComponent(address)}&max_hops=${maxHops}`,
+      `${API_BASE_URL}/trace/address?address=${encodeURIComponent(address)}&hops_before=${hopsBefore}&hops_after=${hopsAfter}`,
       {
         method: 'POST',
         headers: {

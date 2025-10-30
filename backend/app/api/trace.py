@@ -456,25 +456,27 @@ async def get_address_transactions(
 @router.post("/address", response_model=TraceGraphResponse)
 async def trace_from_address(
     address: str,
-    max_hops: int = 1,
+    hops_before: int = 1,  # Backward hops (show TXs that send TO address - appear LEFT)
+    hops_after: int = 1,   # Forward hops (show TXs where address sends FROM - appear RIGHT)
     max_transactions: int = 100,
     include_coinjoin: bool = False,
     confidence_threshold: float = 0.5,
     blockchain_service: BlockchainDataService = Depends(get_blockchain_service),
 ):
     """
-    Trace from a Bitcoin address
+    Trace from a Bitcoin address with directional hop support
     
     This endpoint:
     1. Gets all transactions for the address
-    2. Returns the address and its connected transactions
-    3. With max_hops=0, returns only the origin address
-    4. With max_hops=1+, includes connected addresses
+    2. Filters based on direction:
+       - hops_before > 0: Include TXs that send TO address (appear LEFT of address)
+       - hops_after > 0: Include TXs where address spends FROM (appear RIGHT of address)
+    3. With hops_before=0 and hops_after=0: Returns only the origin address node
     
-    Example: POST /api/trace/address?address=1A1z...&max_hops=1
+    Example: POST /api/trace/address?address=1A1z...&hops_before=1&hops_after=1
     """
     try:
-        logger.info(f"Tracing from address: {address} with max_hops={max_hops}")
+        logger.info(f"Tracing from address: {address} with hops_before={hops_before}, hops_after={hops_after}")
 
         # Build graph based on hop level
         nodes = []
@@ -490,9 +492,9 @@ async def trace_from_address(
             metadata={"address": address, "is_change": False, "cluster_id": None, "is_starting_point": True}
         ))
         
-        # HOP 0: Only the address node, no transactions
-        if max_hops == 0:
-            logger.info(f"✅ Hop 0: Returning only the address node")
+        # HOP 0,0: Only the address node, no transactions
+        if hops_before == 0 and hops_after == 0:
+            logger.info(f"✅ Hops 0,0: Returning only the address node")
             return TraceGraphResponse(
                 nodes=nodes,
                 edges=[],
@@ -535,16 +537,34 @@ async def trace_from_address(
         # Add ALL transaction nodes (both receiving and spending)
         logger.info(f"Processing {len(transactions)} transactions...")
         
-        # First pass: Add all transaction nodes
+        # First pass: Determine which TXs to include based on direction
+        # We'll add TX nodes only if they match the hop direction criteria
+        txs_to_include = set()
+        
         for tx in transactions:
-            tx_node_id = f"tx_{tx.txid}"
-            nodes.append(NodeData(
-                id=tx_node_id,
-                label=f"{tx.txid[:16]}...",
-                type="transaction",
-                value=None,
-                metadata={"txid": tx.txid, "timestamp": tx.timestamp}
-            ))
+            has_output_to_addr = any(out.address == address for out in tx.outputs)
+            
+            # Check if address is in inputs (need to verify with input resolution)
+            # For now, assume if NO output to address, then address must be in inputs
+            has_input_from_addr = not has_output_to_addr
+            
+            # Include based on hop direction
+            include_tx = False
+            if has_output_to_addr and hops_before > 0:
+                include_tx = True  # TX sends to address (appears LEFT)
+            if has_input_from_addr and hops_after > 0:
+                include_tx = True  # Address sends to TX (appears RIGHT)
+            
+            if include_tx:
+                txs_to_include.add(tx.txid)
+                tx_node_id = f"tx_{tx.txid}"
+                nodes.append(NodeData(
+                    id=tx_node_id,
+                    label=f"{tx.txid[:16]}...",
+                    type="transaction",
+                    value=None,
+                    metadata={"txid": tx.txid, "timestamp": tx.timestamp}
+                ))
         
         # Collect input TXIDs ONLY for transactions that might spend from our address
         # (Optimization: Skip transactions where we know the address received funds, not spent)
@@ -568,8 +588,14 @@ async def trace_from_address(
         input_txs = await blockchain_service.fetch_transactions_batch(list(all_input_txids))
         input_tx_map = {tx.txid: tx for tx in input_txs if tx}
         
+        logger.info(f"✅ Including {len(txs_to_include)} of {len(transactions)} TXs based on hop direction")
+        
         # Second pass: Add edges and addresses (using pre-fetched data)
         for tx in transactions:
+            # Skip TXs that don't match hop direction criteria
+            if tx.txid not in txs_to_include:
+                continue
+            
             tx_node_id = f"tx_{tx.txid}"  # MUST be inside loop to capture correctly
             
             # Check if any output goes to our address (TX sending TO address)
@@ -610,19 +636,21 @@ async def trace_from_address(
                 logger.debug(f"  Skipping input check for TX {tx.txid[:20]} (has outputs to address)")
             
             logger.info(f"TX {tx.txid[:20]}: {len(outputs_to_addr)} outputs to addr, {len(inputs_from_addr)} inputs from addr")
-                
-            # Add edges for outputs TO our address (TX → Address)
-            for vout, output in outputs_to_addr:
-                edges.append(EdgeData(
-                    source=tx_node_id,
-                    target=addr_node_id,
-                    amount=output.value,
-                    confidence=1.0,
-                    metadata={"vout": vout}
-                ))
             
-            # Add edges for inputs FROM our address (Address → TX)
-            if inputs_from_addr:
+            # Directional filtering: Only add edges based on hop settings
+            # TX → Address (receiving): Include if hops_before > 0
+            if hops_before > 0:
+                for vout, output in outputs_to_addr:
+                    edges.append(EdgeData(
+                        source=tx_node_id,
+                        target=addr_node_id,
+                        amount=output.value,
+                        confidence=1.0,
+                        metadata={"vout": vout}
+                    ))
+            
+            # Address → TX (sending): Include if hops_after > 0
+            if hops_after > 0 and inputs_from_addr:
                 edges.append(EdgeData(
                     source=addr_node_id,
                     target=tx_node_id,
@@ -663,8 +691,8 @@ async def trace_from_address(
                 ))
             
             # HOP 2+: Add input/output addresses (not at hop 1)
-            if max_hops > 1:
-                logger.info(f"Processing inputs for TX: {tx.txid[:20]}... (max_hops={max_hops})")
+            if hops_before > 1 or hops_after > 1:
+                logger.info(f"Processing inputs for TX: {tx.txid[:20]}... (hops_before={hops_before}, hops_after={hops_after})")
                 logger.info(f"  tx_node_id = {tx_node_id[:30]}...")
                 
                 for inp in tx.inputs:
@@ -777,9 +805,9 @@ async def trace_from_address(
                         ))
         
         # HOP 2+: ALSO add inputs for ALL TXs in this trace - using BATCH FETCHING for speed
-        if max_hops > 1:
+        if hops_before > 1 or hops_after > 1:
             tx_nodes_in_result = [n for n in nodes if n.type == 'transaction']
-            logger.info(f"📥 Adding input addresses for {len(tx_nodes_in_result)} TXs from address trace (max_hops={max_hops}, using batch fetching)")
+            logger.info(f"📥 Adding input addresses for {len(tx_nodes_in_result)} TXs from address trace (hops_before={hops_before}, hops_after={hops_after}, using batch fetching)")
             
             # Collect all txids to fetch
             txids_to_fetch = [n.metadata.get('txid') for n in tx_nodes_in_result if n.metadata and n.metadata.get('txid')]
