@@ -1143,26 +1143,57 @@ function AppContent() {
         const newNodes: any[] = [];
         const newEdges: any[] = [];
         
+        // Helper function to calculate edge width
+        const calculateEdgeWidth = (amount: number): number => {
+          const minAmountSats = 100000;
+          const scaleMaxSats = edgeScaleMax * 100000000;
+          const sqrtBase = Math.sqrt(scaleMaxSats / minAmountSats);
+          
+          if (amount <= minAmountSats) return 2;
+          const sqrtValue = Math.sqrt(amount / minAmountSats) / sqrtBase;
+          return 2 + (sqrtValue * 68);
+        };
+        
         if (direction === 'inputs') {
           // Show input addresses (LEFT of TX)
           txData.vin.forEach((input: any, idx: number) => {
             const inputAddr = input.prevout?.scriptpubkey_address;
+            const amount = input.prevout?.value || 0;
             if (inputAddr) {
               const addrId = `addr_${inputAddr}`;
               newNodes.push({
                 id: addrId,
                 type: 'address',
+                position: { x: 0, y: 0 }, // Will be positioned later
                 data: {
                   address: inputAddr,
                   label: inputAddr,
                   metadata: { address: inputAddr, is_change: false },
                 },
+                sourcePosition: Position.Right,
+                targetPosition: Position.Left,
               });
               newEdges.push({
                 id: `e-${addrId}-tx_${txid}`,
                 source: addrId,
                 target: `tx_${txid}`,
-                data: { amount: input.prevout?.value || 0 },
+                type: 'default',
+                animated: false,
+                data: { amount },
+                style: {
+                  stroke: '#4caf50',
+                  strokeWidth: calculateEdgeWidth(amount),
+                },
+                label: amount > 0 ? `${(amount / 100000000).toFixed(8)} BTC` : undefined,
+                labelStyle: {
+                  fill: '#fff',
+                  fontSize: 12,
+                  fontWeight: 700,
+                },
+                labelBgStyle: {
+                  fill: '#1a1a1a',
+                  fillOpacity: 0.9,
+                },
               });
             }
           });
@@ -1170,22 +1201,42 @@ function AppContent() {
           // Show output addresses (RIGHT of TX)
           txData.vout.forEach((output: any, idx: number) => {
             const outputAddr = output.scriptpubkey_address;
+            const amount = output.value || 0;
             if (outputAddr) {
               const addrId = `addr_${outputAddr}`;
               newNodes.push({
                 id: addrId,
                 type: 'address',
+                position: { x: 0, y: 0 }, // Will be positioned later
                 data: {
                   address: outputAddr,
                   label: outputAddr,
                   metadata: { address: outputAddr, is_change: false },
                 },
+                sourcePosition: Position.Right,
+                targetPosition: Position.Left,
               });
               newEdges.push({
                 id: `e-tx_${txid}-${addrId}`,
                 source: `tx_${txid}`,
                 target: addrId,
-                data: { amount: output.value || 0 },
+                type: 'default',
+                animated: false,
+                data: { amount },
+                style: {
+                  stroke: '#4caf50',
+                  strokeWidth: calculateEdgeWidth(amount),
+                },
+                label: amount > 0 ? `${(amount / 100000000).toFixed(8)} BTC` : undefined,
+                labelStyle: {
+                  fill: '#fff',
+                  fontSize: 12,
+                  fontWeight: 700,
+                },
+                labelBgStyle: {
+                  fill: '#1a1a1a',
+                  fillOpacity: 0.9,
+                },
               });
             }
           });
