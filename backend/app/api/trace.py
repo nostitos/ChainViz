@@ -44,34 +44,123 @@ async def trace_utxo(
         # FAST PATH: For hops_before <= 1, use simple non-recursive fetching
         # The orchestrator is TOO SLOW for large transactions (348 inputs = 348 recursive calls!)
         if request.hops_before <= 1 and request.hops_after <= 1:
-            logger.info(f"🚀 Using FAST PATH for simple trace (hops <= 1)")
-            result = TraceGraphResponse(nodes=[], edges=[], clusters=[], coinjoins=[], peel_chains=[], start_txid=request.txid, start_vout=request.vout, total_nodes=0, total_edges=0)
-        else:
-            # SLOW PATH: Use full recursive orchestrator for multi-hop traces
-            logger.info(f"🐌 Using RECURSIVE orchestrator for multi-hop trace (hops > 1)")
-            orchestrator = TraceOrchestrator(blockchain_service)
-            result = await orchestrator.trace_utxo_backward(
-                txid=request.txid,
-                vout=request.vout,
-                max_depth=request.hops_before,
-                include_coinjoin=request.include_coinjoin,
-                confidence_threshold=request.confidence_threshold,
+            logger.info(f"🚀 Using FAST PATH for simple trace (hops <= 1, max_addresses_per_tx={request.max_addresses_per_tx})")
+            
+            # Fetch the starting transaction
+            start_tx = await blockchain_service.fetch_transaction(request.txid)
+            
+            # Create TX node with counts
+            tx_node = NodeData(
+                id=f"tx_{request.txid}",
+                label=f"{request.txid[:16]}...",
+                type="transaction",
+                value=None,
+                metadata={
+                    "txid": request.txid,
+                    "timestamp": start_tx.timestamp,
+                    "is_starting_point": True,
+                    "inputCount": len(start_tx.inputs),
+                    "outputCount": len(start_tx.outputs),
+                }
             )
+            
+            nodes = [tx_node]
+            edges = []
+            
+            # If hops=0, return just the TX node
+            if request.hops_before == 0 and request.hops_after == 0:
+                logger.info(f"  ⏭️ Hops=0: returning TX node only (no addresses)")
+                return TraceGraphResponse(
+                    nodes=nodes, edges=edges, clusters=[], coinjoins=[], peel_chains=[],
+                    start_txid=request.txid, start_vout=request.vout,
+                    total_nodes=len(nodes), total_edges=len(edges),
+                )
+            
+            # If hops=1, fetch LIMITED addresses
+            logger.info(f"  📥 Hops=1: fetching limited addresses (max_addresses_per_tx={request.max_addresses_per_tx})")
+            
+            # Fetch input addresses (if hops_before > 0)
+            if request.hops_before > 0:
+                inputs_to_fetch = start_tx.inputs[:request.max_addresses_per_tx]
+                input_txids = [inp.txid for inp in inputs_to_fetch if inp.txid]
+                logger.info(f"  ⚡ Fetching {len(input_txids)} of {len(start_tx.inputs)} input transactions")
+                input_txs = await blockchain_service.fetch_transactions_batch(input_txids)
+                input_tx_map = {tx.txid: tx for tx in input_txs if tx}
+                
+                for inp in inputs_to_fetch:
+                    if inp.txid and inp.txid in input_tx_map:
+                        prev_tx = input_tx_map[inp.txid]
+                        if prev_tx and inp.vout < len(prev_tx.outputs):
+                            prev_output = prev_tx.outputs[inp.vout]
+                            if prev_output.address:
+                                addr_id = f"addr_{prev_output.address}"
+                                if not any(n.id == addr_id for n in nodes):
+                                    nodes.append(NodeData(
+                                        id=addr_id,
+                                        label=prev_output.address,
+                                        type="address",
+                                        value=None,
+                                        metadata={"address": prev_output.address, "is_change": False}
+                                    ))
+                                edges.append(EdgeData(
+                                    source=addr_id,
+                                    target=f"tx_{request.txid}",
+                                    amount=prev_output.value,
+                                    confidence=1.0,
+                                    metadata={"vout": inp.vout}
+                                ))
+            
+            # Add output addresses (if hops_after > 0)
+            if request.hops_after > 0:
+                outputs_to_fetch = start_tx.outputs[:request.max_addresses_per_tx]
+                logger.info(f"  ⚡ Adding {len(outputs_to_fetch)} of {len(start_tx.outputs)} output addresses")
+                for idx, out in enumerate(outputs_to_fetch):
+                    if out.address:
+                        addr_id = f"addr_{out.address}"
+                        if not any(n.id == addr_id for n in nodes):
+                            nodes.append(NodeData(
+                                id=addr_id,
+                                label=out.address,
+                                type="address",
+                                value=None,
+                                metadata={"address": out.address, "is_change": False}
+                            ))
+                        edges.append(EdgeData(
+                            source=f"tx_{request.txid}",
+                            target=addr_id,
+                            amount=out.value,
+                            confidence=1.0,
+                            metadata={"vout": idx}
+                        ))
+            
+            logger.info(f"✅ FAST PATH complete: {len(nodes)} nodes, {len(edges)} edges (in < 5 seconds)")
+            
+            return TraceGraphResponse(
+                nodes=nodes, edges=edges, clusters=[], coinjoins=[], peel_chains=[],
+                start_txid=request.txid, start_vout=request.vout,
+                total_nodes=len(nodes), total_edges=len(edges),
+            )
+        
+        # SLOW PATH: Use full recursive orchestrator for multi-hop traces (hops > 1)
+        logger.info(f"🐌 Using RECURSIVE orchestrator for multi-hop trace (hops > 1)")
+        orchestrator = TraceOrchestrator(blockchain_service)
+        result = await orchestrator.trace_utxo_backward(
+            txid=request.txid,
+            vout=request.vout,
+            max_depth=request.hops_before,
+            include_coinjoin=request.include_coinjoin,
+            confidence_threshold=request.confidence_threshold,
+        )
 
-        # ALWAYS add INPUT and OUTPUT addresses for ALL transactions in the result
-        # Use BATCHING for major performance improvement!
+        # Process orchestrator result (add metadata, etc.)
         tx_nodes = [n for n in result.nodes if n.type == 'transaction']
         logger.info(f"📥 Adding input/output addresses for {len(tx_nodes)} TXs in result")
         
-        # ALWAYS include the starting transaction, even if it's not in the result yet
-        # This is especially important for hops_before=0 where we want to show inputs/outputs
         start_tx = None
         if not any(n.metadata.get('txid') == request.txid for n in tx_nodes if n.metadata):
-            logger.info(f"➕ Starting TX not in result, adding it...")
-            # Fetch the starting transaction
+            logger.info(f"➕ Starting TX not in orchestrator result, adding it...")
             start_tx = await blockchain_service.fetch_transaction(request.txid)
             if start_tx:
-                # Add the transaction node with INPUT/OUTPUT COUNTS (mark as starting point)
                 result.nodes.append(NodeData(
                     id=f"tx_{request.txid}",
                     label=f"{request.txid[:16]}...",
@@ -87,11 +176,6 @@ async def trace_utxo(
                 ))
                 tx_nodes.append(result.nodes[-1])
                 logger.info(f"✅ Added starting TX node with {len(start_tx.inputs)} inputs, {len(start_tx.outputs)} outputs")
-        
-        # For hops_before=0 and hops_after=0, we're done! Just return the TX node with counts
-        if request.hops_before == 0 and request.hops_after == 0:
-            logger.info(f"✅ Single transaction view (hops=0): returning TX node with counts only")
-            return result
         
         # Step 1: Batch fetch all main transactions (skip starting TX if already fetched)
         main_txids = [n.metadata.get('txid') for n in tx_nodes if n.metadata and n.metadata.get('txid')]
