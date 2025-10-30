@@ -47,6 +47,12 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     startingPoint: data.nodes.find(n => n.metadata?.is_starting_point)?.id || 'none',
   });
   
+  // Log all TX nodes with their metadata
+  console.log('🔍 ALL TX NODES FROM BACKEND:');
+  data.nodes.filter(n => n.type === 'transaction').forEach((tx, idx) => {
+    console.log(`  ${idx}: ${tx.id.substring(3, 23)} - inputs=${tx.metadata?.inputCount}, outputs=${tx.metadata?.outputCount}`);
+  });
+  
   let nodes: Node[] = [];
   let edges: Edge[] = [];
 
@@ -207,6 +213,7 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     receivingTxs.forEach((txId, txIdx) => {
       const txNodeData = limitedTxData.find(t => t.id === txId);
       if (txNodeData) {
+        console.log(`  📍 LEFT TX ${txIdx}: ${txId.substring(3, 23)} - inputs=${txNodeData.metadata?.inputCount}, outputs=${txNodeData.metadata?.outputCount}`);
         nodes.push({
           id: txNodeData.id,
           type: 'transaction',
@@ -226,6 +233,8 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
           sourcePosition: Position.Right,
           targetPosition: Position.Left,
         });
+      } else {
+        console.error(`  ❌ TX ${txId} NOT FOUND in limitedTxData!`);
       }
     });
     
@@ -234,6 +243,7 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     sendingTxs.forEach((txId, txIdx) => {
       const txNodeData = limitedTxData.find(t => t.id === txId);
       if (txNodeData) {
+        console.log(`  📍 RIGHT TX ${txIdx}: ${txId.substring(3, 23)} - inputs=${txNodeData.metadata?.inputCount}, outputs=${txNodeData.metadata?.outputCount}`);
         nodes.push({
           id: txNodeData.id,
           type: 'transaction',
@@ -253,6 +263,8 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
           sourcePosition: Position.Right,
           targetPosition: Position.Left,
         });
+      } else {
+        console.error(`  ❌ TX ${txId} NOT FOUND in limitedTxData!`);
       }
     });
     
