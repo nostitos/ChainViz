@@ -883,6 +883,21 @@ async def trace_from_address(
         
         logger.info(f"✅ Address trace complete: {len(nodes)} nodes, {len(edges)} edges")
         
+        # DEBUG: Log all edges to identify duplicates
+        logger.info(f"🔍 ALL EDGES CREATED:")
+        edge_counts = {}
+        for idx, edge in enumerate(edges):
+            edge_key = f"{edge.source} → {edge.target}"
+            edge_counts[edge_key] = edge_counts.get(edge_key, 0) + 1
+            logger.info(f"  {idx}: {edge.source.substring(0, 25) if hasattr(edge.source, 'substring') else edge.source[:25]} → {edge.target.substring(0, 25) if hasattr(edge.target, 'substring') else edge.target[:25]} ({edge.amount / 100000000:.8f} BTC)")
+        
+        # Check for duplicates
+        duplicates = {k: v for k, v in edge_counts.items() if v > 1}
+        if duplicates:
+            logger.warning(f"⚠️ DUPLICATE EDGES DETECTED:")
+            for edge_key, count in duplicates.items():
+                logger.warning(f"  {edge_key}: appears {count} times")
+        
         return TraceGraphResponse(
             nodes=nodes,
             edges=edges,
