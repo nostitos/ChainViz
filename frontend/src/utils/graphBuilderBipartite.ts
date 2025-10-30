@@ -258,16 +258,37 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
         console.log(`⚠️ Start TX: Limiting inputs from ${inputAddrs.length} to ${maxOutputs}`);
       }
       
+      // HYBRID MULTI-COLUMN LAYOUT for inputs (same as outputs):
+      // - Small graphs (≤60 nodes): Single column with graduated spacing
+      // - Large graphs (>60 nodes): Multi-column at 60 nodes per column
+      const NODES_PER_COLUMN = 60;
+      const COLUMN_SPACING = 800; // Horizontal spacing between columns
+      
       addrsToShow.forEach((addrNode, idx) => {
         if (positioned.has(addrNode.id)) return;
+        
+        let xPos, yPos;
+        
+        if (addrsToShow.length <= NODES_PER_COLUMN) {
+          // SINGLE COLUMN: Graduated spacing based on total count
+          const graduatedOffset = ADDR_OFFSET + Math.floor(addrsToShow.length / 10) * 120;
+          xPos = txNodeInGraph.position.x - graduatedOffset; // Negative for left side
+          yPos = (idx - addrsToShow.length / 2) * ROW_SPACING;
+        } else {
+          // MULTI-COLUMN: Split into columns of 60 nodes each
+          const column = Math.floor(idx / NODES_PER_COLUMN);
+          const row = idx % NODES_PER_COLUMN;
+          
+          // First column uses graduated spacing, additional columns at fixed intervals
+          const firstColumnOffset = ADDR_OFFSET + Math.floor(NODES_PER_COLUMN / 10) * 120; // ~1080px for 60 nodes
+          xPos = txNodeInGraph.position.x - firstColumnOffset - (column * COLUMN_SPACING); // Negative for left side
+          yPos = (row - NODES_PER_COLUMN / 2) * ROW_SPACING; // Center each column vertically
+        }
         
         nodes.push({
           id: addrNode.id,
           type: 'address',
-          position: {
-            x: txNodeInGraph.position.x - ADDR_OFFSET,
-            y: (idx - addrsToShow.length / 2) * ROW_SPACING,
-          },
+          position: { x: xPos, y: yPos },
           data: {
             ...addrNode,
             label: addrNode.label,
@@ -357,16 +378,38 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
         console.log(`⚠️ Start TX: Limiting regular outputs from ${regularAddrs.length} to ${maxOutputs}`);
       }
       
+      // HYBRID MULTI-COLUMN LAYOUT for outputs:
+      // - Small graphs (≤60 nodes): Single column with graduated spacing
+      // - Large graphs (>60 nodes): Multi-column at 60 nodes per column
+      const NODES_PER_COLUMN = 60;
+      const COLUMN_SPACING = 800; // Horizontal spacing between columns
+      
       regularAddrsToShow.forEach((addrNode, idx) => {
         if (positioned.has(addrNode.id)) return;
+        
+        let xPos, yPos;
+        
+        if (regularAddrsToShow.length <= NODES_PER_COLUMN) {
+          // SINGLE COLUMN: Graduated spacing based on total count
+          // More outputs = further from TX
+          const graduatedOffset = ADDR_OFFSET + Math.floor(regularAddrsToShow.length / 10) * 120;
+          xPos = txNodeInGraph.position.x + graduatedOffset;
+          yPos = (idx - regularAddrsToShow.length / 2) * ROW_SPACING;
+        } else {
+          // MULTI-COLUMN: Split into columns of 60 nodes each
+          const column = Math.floor(idx / NODES_PER_COLUMN);
+          const row = idx % NODES_PER_COLUMN;
+          
+          // First column uses graduated spacing, additional columns at fixed intervals
+          const firstColumnOffset = ADDR_OFFSET + Math.floor(NODES_PER_COLUMN / 10) * 120; // ~1080px for 60 nodes
+          xPos = txNodeInGraph.position.x + firstColumnOffset + (column * COLUMN_SPACING);
+          yPos = (row - NODES_PER_COLUMN / 2) * ROW_SPACING; // Center each column vertically
+        }
         
         nodes.push({
           id: addrNode.id,
           type: 'address',
-          position: {
-            x: txNodeInGraph.position.x + ADDR_OFFSET,
-            y: (idx - regularAddrsToShow.length / 2) * ROW_SPACING,
-          },
+          position: { x: xPos, y: yPos },
           data: {
             ...addrNode,
             label: addrNode.label,
