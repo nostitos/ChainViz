@@ -10,6 +10,8 @@ interface SettingsPanelProps {
   onMaxOutputsChange: (value: number) => void;
   maxTransactions: number;
   onMaxTransactionsChange: (value: number) => void;
+  clusterThreshold: number;
+  onClusterThresholdChange: (value: number) => void;
   balanceFetchingEnabled: boolean;
   onBalanceFetchingChange: (enabled: boolean) => void;
 }
@@ -22,6 +24,8 @@ export function SettingsPanel({
   onMaxOutputsChange,
   maxTransactions,
   onMaxTransactionsChange,
+  clusterThreshold,
+  onClusterThresholdChange,
   balanceFetchingEnabled,
   onBalanceFetchingChange
 }: SettingsPanelProps) {
@@ -110,13 +114,27 @@ export function SettingsPanel({
   ];
 
   return (
-    <div className="settings-panel">
-      <div className="panel-header">
-        <h2><Settings size={20} /> Settings</h2>
-        <button onClick={onClose} className="close-button">
-          <X size={20} />
-        </button>
-      </div>
+    <>
+      {/* Backdrop overlay */}
+      <div 
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          zIndex: 59,
+        }}
+        onClick={onClose}
+      />
+      <div className="settings-panel">
+        <div className="panel-header">
+          <h2><Settings size={20} /> Settings</h2>
+          <button onClick={onClose} className="close-button">
+            <X size={20} />
+          </button>
+        </div>
 
       <div className="panel-content">
         <div className="settings-section">
@@ -178,6 +196,23 @@ export function SettingsPanel({
             />
             <div className="setting-info" style={{ fontSize: '12px', marginTop: '4px' }}>
               Limits how many transactions are expanded when tracing addresses
+            </div>
+          </div>
+
+          <div className="setting-field">
+            <label>
+              Cluster Threshold: <strong>{clusterThreshold}</strong>
+            </label>
+            <input
+              type="range"
+              min="10"
+              max="500"
+              value={clusterThreshold}
+              onChange={(e) => onClusterThresholdChange(parseInt(e.target.value))}
+              style={{ width: '50%' }}
+            />
+            <div className="setting-info" style={{ fontSize: '12px', marginTop: '4px' }}>
+              When expansion would add more than this many nodes, prompt user or create cluster
             </div>
           </div>
         </div>
@@ -286,7 +321,7 @@ export function SettingsPanel({
               onClick={handleSave} 
               disabled={isLoading}
               className="save-button"
-              style={{ flex: 1 }}
+              style={{ flex: 1, background: '#4caf50' }}
             >
               <Save size={16} /> {isLoading ? 'Saving...' : 'Save & Apply'}
             </button>
@@ -298,6 +333,7 @@ export function SettingsPanel({
         </div>
       </div>
     </div>
+    </>
   );
 }
 

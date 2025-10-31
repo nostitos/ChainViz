@@ -56,13 +56,17 @@ function AppContent() {
   const [selectedEntity, setSelectedEntity] = useState<Node | null>(null);
   const [isPanMode, setIsPanMode] = useState(true);
   const [isSelectMode, setIsSelectMode] = useState(false);
+  const [mouseMode, setMouseMode] = useState<'pan' | 'select'>('pan');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [edgeAnimation, setEdgeAnimation] = useState(true);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
-  const [edgeScaleMax, setEdgeScaleMax] = useState(10); // BTC amount for 70% max width
+  const [edgeScaleMax, setEdgeScaleMax] = useState(() => {
+    const saved = localStorage.getItem('edgeScaleMax');
+    return saved ? parseFloat(saved) : 10;
+  }); // BTC amount for 70% max width
   const [isOptimizing, setIsOptimizing] = useState(false);
   
   // Load settings from cookies with defaults
@@ -97,6 +101,7 @@ function AppContent() {
 
   const [maxOutputs, setMaxOutputs] = useState(getCookie('maxOutputs', 400));
   const [maxTransactions, setMaxTransactions] = useState(getCookie('maxTransactions', 400));
+  const [clusterThreshold, setClusterThreshold] = useState(getCookie('clusterThreshold', 100));
 
   // Save to cookies when values change
   const handleMaxOutputsChange = (value: number) => {
@@ -107,6 +112,11 @@ function AppContent() {
   const handleMaxTransactionsChange = (value: number) => {
     setMaxTransactions(value);
     setCookie('maxTransactions', value);
+  };
+
+  const handleClusterThresholdChange = (value: number) => {
+    setClusterThreshold(value);
+    setCookie('clusterThreshold', value);
   };
 
   const handleBalanceFetchingChange = (enabled: boolean) => {
@@ -497,10 +507,44 @@ function AppContent() {
       setTimeout(() => {
         fitView({ padding: 0.2, duration: 400 });
       }, 100);
-
-      // REMOVED: Old broken auto-expansion code
-      // The backend already returns the correct graph for the requested hops!
-      // No need to recursively expand in the frontend
+      
+      // Wait for initial render to complete
+      await new Promise(r => setTimeout(r, 300));
+      
+      // Progressive multi-hop expansion using working expansion system
+      if (hopsBefore > 1 || hopsAfter > 1) {
+        addLog('info', `🔄 Multi-hop expansion: ${hopsBefore} backward, ${hopsAfter} forward`);
+        
+        const totalHops = Math.max(hopsBefore, hopsAfter) - 1; // -1 because we already loaded hop 1
+        
+        // Expand progressively using arrow buttons
+        for (let hop = 2; hop <= hopsBefore; hop++) {
+          setCurrentProgress({ 
+            current: hop - 1, 
+            total: totalHops, 
+            step: `⬅️ Expanding backward to hop ${hop}/${hopsBefore}...` 
+          });
+          addLog('info', `⬅️ Expanding to hop ${hop} backward...`);
+          await handleExpandBackward();
+          await new Promise(r => setTimeout(r, 500)); // Wait for state updates
+        }
+        
+        for (let hop = 2; hop <= hopsAfter; hop++) {
+          setCurrentProgress({ 
+            current: hopsBefore - 1 + hop - 1, 
+            total: totalHops, 
+            step: `➡️ Expanding forward to hop ${hop}/${hopsAfter}...` 
+          });
+          addLog('info', `➡️ Expanding to hop ${hop} forward...`);
+          await handleExpandForward();
+          await new Promise(r => setTimeout(r, 500)); // Wait for state updates
+        }
+        
+        setCurrentProgress(undefined);
+        addLog('success', `✅ Multi-hop expansion complete`);
+      }
+      
+      // OLD broken auto-expansion code (keep disabled for reference)
       if (false && hopsBefore > 0) {
         const centerNode = nodesWithHandlers.find(n => n.type === 'address' && (n.data.address === address || n.data.metadata?.address === address));
         if (centerNode) {
@@ -607,9 +651,44 @@ function AppContent() {
       setTimeout(() => {
         fitView({ padding: 0.2, duration: 400 });
       }, 100);
+      
+      // Wait for initial render to complete
+      await new Promise(r => setTimeout(r, 300));
 
-      // REMOVED: Old broken auto-expansion code
-      // The backend already returns the correct graph for the requested hops!
+      // Progressive multi-hop expansion using working expansion system
+      if (hopsBefore > 1 || hopsAfter > 1) {
+        addLog('info', `🔄 Multi-hop expansion: ${hopsBefore} backward, ${hopsAfter} forward`);
+        
+        const totalHops = Math.max(hopsBefore, hopsAfter) - 1; // -1 because we already loaded hop 1
+        
+        // Expand progressively using arrow buttons
+        for (let hop = 2; hop <= hopsBefore; hop++) {
+          setCurrentProgress({ 
+            current: hop - 1, 
+            total: totalHops, 
+            step: `⬅️ Expanding backward to hop ${hop}/${hopsBefore}...` 
+          });
+          addLog('info', `⬅️ Expanding to hop ${hop} backward...`);
+          await handleExpandBackward();
+          await new Promise(r => setTimeout(r, 500)); // Wait for state updates
+        }
+        
+        for (let hop = 2; hop <= hopsAfter; hop++) {
+          setCurrentProgress({ 
+            current: hopsBefore - 1 + hop - 1, 
+            total: totalHops, 
+            step: `➡️ Expanding forward to hop ${hop}/${hopsAfter}...` 
+          });
+          addLog('info', `➡️ Expanding to hop ${hop} forward...`);
+          await handleExpandForward();
+          await new Promise(r => setTimeout(r, 500)); // Wait for state updates
+        }
+        
+        setCurrentProgress(undefined);
+        addLog('success', `✅ Multi-hop expansion complete`);
+      }
+      
+      // OLD broken auto-expansion code (keep disabled for reference)
       const centerTx = nodesWithHandlers.find(n => n.type === 'transaction' && (n.data.txid === txid || n.data.metadata?.txid === txid));
       if (false && centerTx && (hopsBefore > 1 || hopsAfter > 1)) {
         const totalHops = (hopsBefore > 1 ? hopsBefore - 1 : 0) + (hopsAfter > 1 ? hopsAfter - 1 : 0);
@@ -788,6 +867,31 @@ function AppContent() {
     }
   }, [setNodes, setEdges, fitView, addLog]);
 
+  // Estimate how many nodes would be added by expansion
+  const estimateExpansionSize = useCallback((node: Node, direction: 'inputs' | 'outputs' | 'spending' | 'receiving'): number => {
+    if (node.type === 'transaction') {
+      // For TX: Check metadata for input/output counts
+      const count = direction === 'inputs' 
+        ? (node.data.metadata?.inputCount || 0)
+        : (node.data.metadata?.outputCount || 0);
+      
+      // Actual unique addresses might be less (due to address reuse)
+      // But this gives us a reasonable upper bound
+      return count;
+    } else if (node.type === 'address') {
+      // For address: Can't know without fetching (unless we count existing edges)
+      const existingEdges = direction === 'receiving'
+        ? edges.filter(e => e.source.startsWith('tx_') && e.target === node.id)
+        : edges.filter(e => e.source === node.id && e.target.startsWith('tx_'));
+      
+      // If has existing edges, those are the connections
+      // If no existing edges, unknown (will fetch from backend)
+      return existingEdges.length > 0 ? existingEdges.length : 0; // 0 = unknown
+    }
+    
+    return 0;
+  }, [edges]);
+
   // Expand a node (show hidden connections from cached data - NO network calls!)
   const handleExpandNode = useCallback(async (nodeId: string, direction?: 'inputs' | 'outputs' | 'spending' | 'receiving') => {
     console.log('🚀 Expanding:', nodeId, direction);
@@ -806,6 +910,20 @@ function AppContent() {
     if (!node) {
       console.error('Node not found:', nodeId);
       return;
+    }
+    
+    // Estimate expansion size and warn if too large
+    const estimated = estimateExpansionSize(node, direction as any);
+    if (estimated > clusterThreshold) {
+      const proceed = window.confirm(
+        `This expansion will add approximately ${estimated} nodes.\n\n` +
+        `This may impact graph performance.\n` +
+        `Current threshold: ${clusterThreshold} (change in Settings)\n\n` +
+        `Continue anyway?`
+      );
+      if (!proceed) {
+        return;
+      }
     }
     
     setIsLoading(true);
@@ -1007,13 +1125,10 @@ function AppContent() {
     
     // Find the LEFTMOST X position among visible nodes
     const minX = Math.min(...visibleNodes.map(n => n.position.x));
-    console.log(`Leftmost X position: ${minX}`);
     
     // Find nodes at or near the leftmost position (within 50px tolerance)
     const TOLERANCE = 50;
     const leftmostNodes = visibleNodes.filter(n => Math.abs(n.position.x - minX) < TOLERANCE);
-    
-    console.log(`Found ${leftmostNodes.length} leftmost nodes out of ${visibleNodes.length} visible nodes`);
     
     // Filter to only unexpanded nodes
     const nodesToExpand = leftmostNodes.filter(n => {
@@ -1065,7 +1180,6 @@ function AppContent() {
         
         for (const node of batch) {
           try {
-            console.log(`Expanding backward: ${node.id.substring(0, 25)} (${node.type})`);
             if (node.type === 'address') {
               await handleExpandNode(node.id, 'receiving');
             } else if (node.type === 'transaction') {
@@ -1107,13 +1221,10 @@ function AppContent() {
     
     // Find the RIGHTMOST X position among visible nodes
     const maxX = Math.max(...visibleNodes.map(n => n.position.x));
-    console.log(`Rightmost X position: ${maxX}`);
     
     // Find nodes at or near the rightmost position (within 50px tolerance)
     const TOLERANCE = 50;
     const rightmostNodes = visibleNodes.filter(n => Math.abs(n.position.x - maxX) < TOLERANCE);
-    
-    console.log(`Found ${rightmostNodes.length} rightmost nodes out of ${visibleNodes.length} visible nodes`);
     
     // Filter to only unexpanded nodes
     const nodesToExpand = rightmostNodes.filter(n => {
@@ -1203,6 +1314,43 @@ function AppContent() {
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Keyboard shortcuts for expand buttons
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input field
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      
+      if (e.key === '<' || e.key === ',') {
+        e.preventDefault();
+        handleExpandBackward();
+      } else if (e.key === '>' || e.key === '.') {
+        e.preventDefault();
+        handleExpandForward();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [handleExpandBackward, handleExpandForward]);
+
+  // Right-click to toggle selection mode
+  useEffect(() => {
+    const handleContextMenu = (e: MouseEvent) => {
+      // Check if right-click is on the graph canvas (not on UI elements)
+      const target = e.target as HTMLElement;
+      if (target.closest('.react-flow') && !target.closest('.react-flow__node')) {
+        e.preventDefault();
+        setMouseMode(prev => prev === 'pan' ? 'select' : 'pan');
+        setIsSelectMode(prev => !prev);
+      }
+    };
+    
+    window.addEventListener('contextmenu', handleContextMenu);
+    return () => window.removeEventListener('contextmenu', handleContextMenu);
   }, []);
 
   return (
@@ -1344,6 +1492,8 @@ function AppContent() {
           onMaxOutputsChange={handleMaxOutputsChange}
           maxTransactions={maxTransactions}
           onMaxTransactionsChange={handleMaxTransactionsChange}
+          clusterThreshold={clusterThreshold}
+          onClusterThresholdChange={handleClusterThresholdChange}
           balanceFetchingEnabled={balanceFetchingEnabled}
           onBalanceFetchingChange={handleBalanceFetchingChange}
         />
@@ -1366,31 +1516,51 @@ function AppContent() {
         gap: '10px',
         zIndex: 1000,
       }}>
-        {/* Select Mode Toggle */}
+        {/* Mouse Mode Toggle */}
         <button
           onClick={() => {
-            setIsSelectMode(!isSelectMode);
-            setIsPanMode(false);
+            const newMode = mouseMode === 'pan' ? 'select' : 'pan';
+            setMouseMode(newMode);
+            setIsSelectMode(newMode === 'select');
           }}
           style={{
-            padding: '8px',
-            width: '36px',
+            padding: '8px 12px',
             height: '36px',
-            background: isSelectMode ? '#2196f3' : '#666',
+            background: mouseMode === 'select' ? '#2196f3' : '#666',
             border: 'none',
             borderRadius: '8px',
             color: '#fff',
-            fontSize: '18px',
+            fontSize: '14px',
+            fontWeight: 600,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            gap: '6px',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
             transition: 'all 0.2s ease',
           }}
-          title={isSelectMode ? 'Exit select mode' : 'Enter select mode (select multiple nodes)'}
+          title={mouseMode === 'select' ? 'Switch to PAN mode (right-click also toggles)' : 'Switch to SELECT mode (right-click also toggles)'}
         >
-          {isSelectMode ? '✓' : '⊟'}
+          {mouseMode === 'select' ? (
+            <>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M3 3v10h10V3H3zm1 1h8v8H4V4z"/>
+                <rect x="1" y="1" width="4" height="4" opacity="0.5"/>
+                <rect x="11" y="1" width="4" height="4" opacity="0.5"/>
+                <rect x="1" y="11" width="4" height="4" opacity="0.5"/>
+                <rect x="11" y="11" width="4" height="4" opacity="0.5"/>
+              </svg>
+              SELECT
+            </>
+          ) : (
+            <>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 3L6 5h1.5v3H5V6.5L3 8l2 1.5V8h2.5v3H6l2 2 2-2H8.5V8H11v1.5l2-1.5-2-1.5V8H8.5V5H10l-2-2z"/>
+              </svg>
+              PAN
+            </>
+          )}
         </button>
 
         {/* Optimize Layout Button */}

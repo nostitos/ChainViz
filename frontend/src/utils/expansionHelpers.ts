@@ -97,8 +97,6 @@ export function expandTransactionNode(
     return { nodes: [], edges: [] };
   }
   
-  console.log(`Expanding TX ${txid.substring(0, 20)} - ${direction}: ${addresses.length} UTXOs from cached data`);
-  
   // Group by address to track multiple UTXOs from same address
   const addressGroups = new Map<string, Array<{address: string; value: number; index: number}>>();
   addresses.forEach((addr: any, idx: number) => {
@@ -107,8 +105,6 @@ export function expandTransactionNode(
     }
     addressGroups.get(addr.address)!.push({ address: addr.address, value: addr.value || 0, index: idx });
   });
-  
-  console.log(`  ${addressGroups.size} unique addresses, ${addresses.length} total UTXOs`);
   
   // Calculate positioning
   const spacing = 90;
@@ -167,7 +163,6 @@ export function expandTransactionNode(
     });
   });
   
-  console.log(`  Created ${nodes.length} unique address nodes, ${edges.length} edges (showing all UTXOs)`);
   
   return { nodes, edges };
 }
@@ -194,19 +189,14 @@ export function expandAddressNode(
   
   // If no edges in this direction, need to fetch from backend
   if (connectedTxIds.length === 0) {
-    console.log(`Address ${addrId.substring(0, 25)} has no ${direction} edges - needs backend fetch`);
-    // Return marker to indicate we need to fetch from backend
     return { needsFetch: true, address: address || '' };
   }
-  
-  console.log(`Expanding address ${addrId.substring(0, 25)} - ${direction}: ${connectedTxIds.length} TXs from existing edges`);
   
   // Get TX nodes from existing graph (they're already there, just not visible!)
   const txNodes = allNodes.filter(n => connectedTxIds.includes(n.id));
   
   // Some TXs might not be in the graph yet (if they were filtered out)
   if (txNodes.length === 0) {
-    console.log(`Connected TXs not in graph - they were filtered out or not fetched`);
     return { nodes: [], edges: [] };
   }
   
@@ -253,8 +243,6 @@ export async function expandAddressNodeWithFetch(
   const hopsBefore = direction === 'receiving' ? 1 : 0;
   const hopsAfter = direction === 'spending' ? 1 : 0;
   
-  console.log(`  Requesting hops_before=${hopsBefore}, hops_after=${hopsAfter}`);
-  
   const response = await fetch(
     `${apiBaseUrl}/trace/address?address=${encodeURIComponent(address)}&hops_before=${hopsBefore}&hops_after=${hopsAfter}&max_transactions=20`,
     {
@@ -268,7 +256,6 @@ export async function expandAddressNodeWithFetch(
   }
   
   const data = await response.json();
-  console.log(`  Got ${data.nodes.length} nodes, ${data.edges.length} edges from backend`);
   
   // Extract TX nodes (filter out the address node itself)
   const txNodes = data.nodes
@@ -289,7 +276,6 @@ export async function expandAddressNodeWithFetch(
       };
     });
   
-  console.log(`  ${txNodes.length} new TXs (filtered out existing)`);
   
   if (txNodes.length === 0) {
     return { nodes: [], edges: [] };
@@ -326,7 +312,6 @@ export async function expandAddressNodeWithFetch(
       return createStyledEdge(edge.source, edge.target, amount, edgeScaleMax);
     });
   
-  console.log(`  Created ${nodes.length} positioned TX nodes, ${edges.length} edges`);
   
   return { nodes, edges };
 }

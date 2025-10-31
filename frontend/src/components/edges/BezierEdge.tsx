@@ -62,7 +62,11 @@ export const BezierEdge = memo(({
               borderRadius: '3px',
             }}
           >
-            <div style={labelStyle}>{label}</div>
+            <div style={{
+              ...labelStyle,
+              textShadow: '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 0 4px rgba(0,0,0,0.8)',
+              fontWeight: 700,
+            }}>{label}</div>
           </div>
         </EdgeLabelRenderer>
       )}

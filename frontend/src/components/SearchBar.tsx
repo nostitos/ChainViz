@@ -20,6 +20,12 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
   const [hopsBefore, setHopsBefore] = useState(1); // Hops backward (default: 1 to match URL auto-load)
   const [hopsAfter, setHopsAfter] = useState(1); // Hops forward (default: 1 to match URL auto-load)
   const [history, setHistory] = useState<string[]>([]);
+  
+  // Save edgeScaleMax to localStorage when it changes
+  const handleEdgeScaleMaxChange = (value: number) => {
+    onEdgeScaleMaxChange(value);
+    localStorage.setItem('edgeScaleMax', value.toString());
+  };
   const [showDropdown, setShowDropdown] = useState(false);
 
   // Load history from localStorage on mount
@@ -77,7 +83,7 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
   return (
     <div className="search-bar">
       <div className="search-container">
-        <div className="logo">
+        <div className="logo" style={{ cursor: 'pointer' }} onClick={() => window.location.href = '/'}>
           <h1>⛓️ UTXO.link</h1>
           <p>Bitcoin Blockchain Analysis</p>
         </div>
@@ -214,7 +220,7 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
                         max="500"
                         step="any"
                         value={edgeScaleMax}
-                        onChange={(e) => onEdgeScaleMaxChange(parseFloat(e.target.value) || 1)}
+                        onChange={(e) => handleEdgeScaleMaxChange(parseFloat(e.target.value) || 1)}
                         className="hop-input"
                         disabled={isLoading}
                         style={{ width: '80px' }}
@@ -227,7 +233,7 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
                       max="500"
                       step="0.1"
                       value={edgeScaleMax}
-                      onChange={(e) => onEdgeScaleMaxChange(parseFloat(e.target.value))}
+                      onChange={(e) => handleEdgeScaleMaxChange(parseFloat(e.target.value))}
                       className="depth-slider"
                       disabled={isLoading}
                     />

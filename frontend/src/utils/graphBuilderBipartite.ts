@@ -37,16 +37,12 @@ interface TraceData {
 }
 
 export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: number = 10, maxTransactions: number = 20, maxOutputs: number = 20, startTxid?: string): { nodes: Node[]; edges: Edge[] } {
-  console.log('📊 Building graph:', data.nodes.length, 'nodes,', data.edges.length, 'edges');
-  
   let nodes: Node[] = [];
   let edges: Edge[] = [];
 
   // Separate by type
   const txData = data.nodes.filter(n => n.type === 'transaction');
   const addrData = data.nodes.filter(n => n.type === 'address');
-  
-  console.log(`📊 Found ${txData.length} transactions, ${addrData.length} addresses`);
   
   // Limit transactions if there are too many
   let limitedTxData = txData;
@@ -716,7 +712,6 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
   // Remove duplicate standalone address nodes that are now part of clusters
   const clusteredAddressIds = new Set<string>();
   const clusterNodes = nodes.filter(n => n.type === 'addressCluster');
-  console.log(`🔍 Found ${clusterNodes.length} cluster nodes in graph`);
   
   nodes.forEach(n => {
     if (n.type === 'addressCluster' && n.data.addresses) {
@@ -727,18 +722,13 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     }
   });
   
-  console.log(`🔍 ${clusteredAddressIds.size} addresses are in clusters`);
-
   // Filter out standalone nodes for clustered addresses
   nodes = nodes.filter(n => {
     if (n.type === 'address' && clusteredAddressIds.has(n.id)) {
-      console.log(`🗑️ Removing duplicate standalone node: ${n.id} (exists in cluster)`);
       return false;  // Remove duplicate
     }
     return true;
   });
-
-  console.log(`✅ After cleanup: ${nodes.length} nodes (removed ${clusteredAddressIds.size} duplicates)`);
 
   // Build edges (remap to cluster nodes if addresses are in clusters)
   const addrToCluster = new Map<string, { clusterId: string; index: number; direction: 'inputs' | 'outputs' }>();
@@ -752,8 +742,6 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     }
   });
   
-  console.log(`🔗 addrToCluster map has ${addrToCluster.size} entries`);
-  console.log(`🔗 Cluster nodes: ${nodes.filter(n => n.type === 'addressCluster').map(n => n.id).join(', ')}`);
   
   // Find max amount for proportional edge widths
   const maxAmount = Math.max(...data.edges.map(e => e.amount || 0), 1);
