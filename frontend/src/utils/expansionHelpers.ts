@@ -247,135 +247,86 @@ export async function expandAddressNodeWithFetch(
   apiBaseUrl: string,
   existingNodeIds: Set<string>
 ): Promise<ExpandResult> {
-  console.log(`📡 Fetching TX history for ${address.substring(0, 20)}...`);
+  console.log(`📡 Fetching ${direction} TXs for ${address.substring(0, 20)}...`);
   
-  // Step 1: Fetch transaction list
-  const txListResponse = await fetch(`${apiBaseUrl}/trace/address/${address}/transactions`);
-  if (!txListResponse.ok) {
-    throw new Error(`Failed to fetch TX list: ${txListResponse.status}`);
-  }
-  const txListData = await txListResponse.json();
-  const transactions = txListData.transactions || [];
+  // Use /api/trace/address with DIRECTIONAL hops (only fetch what we need!)
+  const hopsBefore = direction === 'receiving' ? 1 : 0;
+  const hopsAfter = direction === 'spending' ? 1 : 0;
   
-  console.log(`  Got ${transactions.length} transactions`);
+  console.log(`  Requesting hops_before=${hopsBefore}, hops_after=${hopsAfter}`);
   
-  if (transactions.length === 0) {
-    return { nodes: [], edges: [] };
-  }
-  
-  // Filter by direction
-  const relevantTxs = direction === 'receiving'
-    ? transactions.filter((tx: any) => tx.outputs_to_address && tx.outputs_to_address.length > 0)
-    : transactions; // For 'spending', need to check inputs (will verify when fetching full data)
-  
-  console.log(`  ${relevantTxs.length} TXs match direction: ${direction}`);
-  
-  // Limit to prevent overwhelming the graph
-  const MAX_TXS = 20;
-  const txsToFetch = relevantTxs.slice(0, MAX_TXS);
-  
-  // Filter out TXs already in graph
-  const txidsToFetch = txsToFetch
-    .map((tx: any) => tx.txid)
-    .filter((txid: string) => !existingNodeIds.has(`tx_${txid}`));
-  
-  console.log(`  Fetching ${txidsToFetch.length} new TXs (${txsToFetch.length - txidsToFetch.length} already in graph)`);
-  
-  if (txidsToFetch.length === 0) {
-    return { nodes: [], edges: [] };
-  }
-  
-  // Step 2: Fetch complete TX data with metadata (inputs/outputs resolved)
-  const txNodesData = await Promise.all(
-    txidsToFetch.map(async (txid: string) => {
-      const response = await fetch(`${apiBaseUrl}/transaction/${txid}`);
-      if (!response.ok) {
-        console.warn(`Failed to fetch TX ${txid}: ${response.status}`);
-        return null;
-      }
-      const data = await response.json();
-      const tx = data.transaction;
-      
-      return {
-        txid: tx.txid,
-        timestamp: tx.timestamp,
-        inputCount: tx.inputs?.length || 0,
-        outputCount: tx.outputs?.length || 0,
-        inputs: (tx.inputs || [])
-          .map((inp: any) => ({ address: inp.address, value: inp.value }))
-          .filter((i: any) => i.address),
-        outputs: (tx.outputs || [])
-          .map((out: any) => ({ address: out.address, value: out.value }))
-          .filter((o: any) => o.address),
-      };
-    })
+  const response = await fetch(
+    `${apiBaseUrl}/trace/address?address=${encodeURIComponent(address)}&hops_before=${hopsBefore}&hops_after=${hopsAfter}&max_transactions=20`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    }
   );
   
-  const validTxs = txNodesData.filter(Boolean);
-  console.log(`  Fetched ${validTxs.length} TXs with complete metadata`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch address trace: ${response.status}`);
+  }
   
-  // Step 3: Create TX nodes
+  const data = await response.json();
+  console.log(`  Got ${data.nodes.length} nodes, ${data.edges.length} edges from backend`);
+  
+  // Extract TX nodes (filter out the address node itself)
+  const txNodes = data.nodes
+    .filter((n: any) => n.type === 'transaction' && !existingNodeIds.has(n.id))
+    .map((txNode: any) => {
+      // Backend already provides complete metadata!
+      return {
+        id: txNode.id,
+        type: 'transaction',
+        position: { x: 0, y: 0 }, // Will be positioned
+        data: {
+          txid: txNode.metadata?.txid,
+          label: txNode.label,
+          metadata: txNode.metadata, // Already has inputs, outputs, counts!
+        },
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
+      };
+    });
+  
+  console.log(`  ${txNodes.length} new TXs (filtered out existing)`);
+  
+  if (txNodes.length === 0) {
+    return { nodes: [], edges: [] };
+  }
+  
+  // Position TX nodes
   const spacing = 90;
   const xOffset = direction === 'receiving' ? -480 : 480;
-  const startY = -(validTxs.length - 1) * spacing / 2;
+  const startY = -(txNodes.length - 1) * spacing / 2;
   
-  const nodes: Node[] = validTxs.map((txData: any, idx: number) => ({
-    id: `tx_${txData.txid}`,
-    type: 'transaction',
+  const nodes: Node[] = txNodes.map((tx: any, idx: number) => ({
+    ...tx,
     position: {
       x: addrNode.position.x + xOffset,
       y: addrNode.position.y + startY + (idx * spacing),
     },
-    data: {
-      txid: txData.txid,
-      label: `${txData.txid.substring(0, 16)}...`,
-      metadata: {
-        txid: txData.txid,
-        timestamp: txData.timestamp,
-        inputCount: txData.inputCount,
-        outputCount: txData.outputCount,
-        inputs: txData.inputs,
-        outputs: txData.outputs,
-      },
-    },
-    sourcePosition: Position.Right,
-    targetPosition: Position.Left,
   }));
   
-  // Step 4: Create edges (handle multi-UTXO!)
-  const edges: Edge[] = [];
+  // Extract edges from backend response (already styled!)
+  // Filter to only edges connecting to our address and new TXs
+  const addrId = `addr_${address}`;
+  const newTxIds = new Set(txNodes.map((tx: any) => tx.id));
   
-  validTxs.forEach((txData: any) => {
-    const txid = txData.txid;
-    
-    if (direction === 'receiving') {
-      // TX → Address edges (TX pays TO address)
-      const outputsToAddr = txData.outputs.filter((out: any) => out.address === address);
-      outputsToAddr.forEach((out: any, utxoIdx: number) => {
-        edges.push(createStyledEdge(
-          `tx_${txid}`,
-          `addr_${address}`,
-          out.value || 0,
-          edgeScaleMax,
-          utxoIdx
-        ));
-      });
-    } else {
-      // Address → TX edges (address spends TO tx)
-      const inputsFromAddr = txData.inputs.filter((inp: any) => inp.address === address);
-      inputsFromAddr.forEach((inp: any, utxoIdx: number) => {
-        edges.push(createStyledEdge(
-          `addr_${address}`,
-          `tx_${txid}`,
-          inp.value || 0,
-          edgeScaleMax,
-          utxoIdx
-        ));
-      });
-    }
-  });
+  const edges: Edge[] = data.edges
+    .filter((edge: any) => {
+      // Only include edges that connect our address to the new TXs
+      const connectsToAddr = edge.source === addrId || edge.target === addrId;
+      const connectsToNewTx = newTxIds.has(edge.source) || newTxIds.has(edge.target);
+      return connectsToAddr && connectsToNewTx;
+    })
+    .map((edge: any) => {
+      // Backend edges need to be converted to React Flow Edge format with styling
+      const amount = edge.amount || 0;
+      return createStyledEdge(edge.source, edge.target, amount, edgeScaleMax);
+    });
   
-  console.log(`  Created ${nodes.length} TX nodes, ${edges.length} edges`);
+  console.log(`  Created ${nodes.length} positioned TX nodes, ${edges.length} edges`);
   
   return { nodes, edges };
 }
