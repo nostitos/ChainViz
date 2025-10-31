@@ -22,6 +22,7 @@ import { TransactionNode } from './components/nodes/TransactionNode';
 import { AddressNode } from './components/nodes/AddressNode';
 import { AddressClusterNode } from './components/nodes/AddressClusterNode';
 import { TransactionClusterNode } from './components/nodes/TransactionClusterNode';
+import { LoadMoreNode } from './components/nodes/LoadMoreNode';
 import { BezierEdge } from './components/edges/BezierEdge';
 import { SearchBar } from './components/SearchBar';
 import { EntityPanel } from './components/EntityPanel';
@@ -44,6 +45,7 @@ const nodeTypes = {
   address: AddressNode,
   addressCluster: AddressClusterNode,
   transactionCluster: TransactionClusterNode,
+  loadMore: LoadMoreNode,
 };
 
 const edgeTypes = {

@@ -256,7 +256,52 @@ export async function expandAddressNodeWithFetch(
   }
   
   const data = await response.json();
+  const totalTxCount = data.total_nodes - 1; // Subtract the address node itself
   
+  // If many TXs (>10), create cluster node instead
+  const CLUSTER_THRESHOLD = 10;
+  if (totalTxCount > CLUSTER_THRESHOLD) {
+    console.log(`⚠️ ${totalTxCount} TXs found - creating cluster node`);
+    
+    const xOffset = direction === 'receiving' ? -480 : 480;
+    const clusterId = `tx-cluster-${address}-${direction}`;
+    
+    return {
+      nodes: [{
+        id: clusterId,
+        type: 'transactionCluster',
+        position: {
+          x: addrNode.position.x + xOffset,
+          y: addrNode.position.y,
+        },
+        data: {
+          address,
+          direction,
+          totalCount: totalTxCount,
+          currentOffset: 0,
+          transactions: [], // Will be populated when cluster is expanded
+          label: `${totalTxCount} ${direction === 'receiving' ? 'Receiving' : 'Spending'} TXs`,
+        },
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
+      }],
+      edges: [{
+        id: `e-cluster-${address}-${direction}`,
+        source: direction === 'receiving' ? clusterId : `addr_${address}`,
+        target: direction === 'receiving' ? `addr_${address}` : clusterId,
+        type: 'default',
+        animated: false,
+        style: {
+          stroke: '#666',
+          strokeWidth: 3,
+          strokeDasharray: '5,5',
+        },
+        label: `${totalTxCount} TXs`,
+      }],
+    };
+  }
+  
+  // Otherwise show TXs directly (<= 10)
   // Extract TX nodes (filter out the address node itself)
   const txNodes = data.nodes
     .filter((n: any) => n.type === 'transaction' && !existingNodeIds.has(n.id))
@@ -275,7 +320,6 @@ export async function expandAddressNodeWithFetch(
         targetPosition: Position.Left,
       };
     });
-  
   
   if (txNodes.length === 0) {
     return { nodes: [], edges: [] };
