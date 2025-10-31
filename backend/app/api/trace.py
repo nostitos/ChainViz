@@ -560,12 +560,26 @@ async def trace_from_address(
                                 "address": prev_output.address,
                                 "value": prev_output.value
                             })
+                        else:
+                            # No address (P2PK or other non-standard script)
+                            # Use script type or placeholder so input is still visible
+                            script_type = prev_output.script_type
+                            placeholder = f"P2PK Script" if script_type == "p2pk" else f"No Address ({script_type or 'unknown'})"
+                            resolved_inputs.append({
+                                "address": placeholder,
+                                "value": prev_output.value
+                            })
             
-            # Outputs (already have addresses)
-            outputs_data = [
-                {"address": out.address, "value": out.value} 
-                for out in tx.outputs if out.address
-            ]
+            # Outputs (include even without addresses - P2PK, OP_RETURN, etc.)
+            outputs_data = []
+            for out in tx.outputs:
+                if out.address:
+                    outputs_data.append({"address": out.address, "value": out.value})
+                else:
+                    # No address (P2PK, OP_RETURN, etc.)
+                    script_type = out.script_type
+                    placeholder = f"P2PK Script" if script_type == "p2pk" else f"No Address ({script_type or 'unknown'})"
+                    outputs_data.append({"address": placeholder, "value": out.value})
             
             tx_complete_data[tx.txid] = {
                 "inputs": resolved_inputs,
