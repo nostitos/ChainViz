@@ -250,7 +250,7 @@ export async function expandAddressNodeWithFetch(
   console.log(`📡 Fetching TX history for ${address.substring(0, 20)}...`);
   
   // Step 1: Fetch transaction list
-  const txListResponse = await fetch(`${apiBaseUrl}/address/${address}/transactions`);
+  const txListResponse = await fetch(`${apiBaseUrl}/trace/address/${address}/transactions`);
   if (!txListResponse.ok) {
     throw new Error(`Failed to fetch TX list: ${txListResponse.status}`);
   }
