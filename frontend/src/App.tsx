@@ -860,11 +860,30 @@ function AppContent() {
       
       console.log(`✅ Adding ${newNodes.length} nodes, ${newEdges.length} edges from cached data`);
       
+      // Verify no duplicate IDs before adding
+      const newNodeIds = new Set(newNodes.map(n => n.id));
+      if (newNodeIds.size !== newNodes.length) {
+        console.error('⚠️ DUPLICATE NODE IDS in newNodes!', newNodes.map(n => n.id));
+      }
+      
       // Add nodes with expand handler
-      setNodes(nds => [...nds, ...newNodes.map(n => ({
-        ...n,
-        data: { ...n.data, onExpand: handleExpandNode, balanceFetchingEnabled }
-      }))]);
+      setNodes(nds => {
+        const combined = [...nds, ...newNodes.map(n => ({
+          ...n,
+          data: { ...n.data, onExpand: handleExpandNode, balanceFetchingEnabled }
+        }))];
+        
+        // Verify no duplicates in combined
+        const allIds = combined.map(n => n.id);
+        const uniqueIds = new Set(allIds);
+        if (allIds.length !== uniqueIds.size) {
+          console.error('⚠️ DUPLICATE NODE IDS after merge!');
+          const duplicates = allIds.filter((id, idx) => allIds.indexOf(id) !== idx);
+          console.error('Duplicates:', [...new Set(duplicates)]);
+        }
+        
+        return combined;
+      });
       
       // Add edges
       setEdges(eds => [...eds, ...newEdges]);
