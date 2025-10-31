@@ -88,39 +88,84 @@ export function expandTransactionNode(
     return { nodes: [], edges: [] };
   }
   
-  console.log(`Expanding TX ${txid.substring(0, 20)} - ${direction}: ${addresses.length} addresses from cached data`);
+  console.log(`Expanding TX ${txid.substring(0, 20)} - ${direction}: ${addresses.length} UTXOs from cached data`);
+  
+  // Group by address to track multiple UTXOs from same address
+  const addressGroups = new Map<string, Array<{address: string; value: number; index: number}>>();
+  addresses.forEach((addr: any, idx: number) => {
+    if (!addressGroups.has(addr.address)) {
+      addressGroups.set(addr.address, []);
+    }
+    addressGroups.get(addr.address)!.push({ address: addr.address, value: addr.value || 0, index: idx });
+  });
+  
+  console.log(`  ${addressGroups.size} unique addresses, ${addresses.length} total UTXOs`);
   
   // Calculate positioning
   const spacing = 90;
   const xOffset = direction === 'inputs' ? -480 : 480;
-  const startY = -(addresses.length - 1) * spacing / 2;
   
-  // Create address nodes in vertical stack
-  const nodes: Node[] = addresses.map((addr: any, idx: number) => ({
-    id: `addr_${addr.address}`,
+  // Create ONE node per unique address
+  const uniqueAddresses = Array.from(addressGroups.keys());
+  const startY = -(uniqueAddresses.length - 1) * spacing / 2;
+  
+  const nodes: Node[] = uniqueAddresses.map((address: string, idx: number) => ({
+    id: `addr_${address}`,
     type: 'address',
     position: {
       x: txNode.position.x + xOffset,
       y: txNode.position.y + startY + (idx * spacing),
     },
     data: {
-      address: addr.address,
-      label: addr.address,
-      metadata: { address: addr.address, is_change: false },
+      address: address,
+      label: address,
+      metadata: { address: address, is_change: false },
     },
     sourcePosition: Position.Right,
     targetPosition: Position.Left,
   }));
   
-  // Create styled edges
-  const edges: Edge[] = addresses.map((addr: any) => 
-    createStyledEdge(
-      direction === 'inputs' ? `addr_${addr.address}` : `tx_${txid}`,
-      direction === 'inputs' ? `tx_${txid}` : `addr_${addr.address}`,
-      addr.value || 0,
-      edgeScaleMax
-    )
-  );
+  // Create edges - ONE per UTXO (multiple edges to same address if multiple UTXOs!)
+  const edges: Edge[] = [];
+  addressGroups.forEach((utxos, address) => {
+    utxos.forEach((utxo, utxoIdx) => {
+      // Create unique edge ID using UTXO index to allow multiple edges
+      const edgeId = direction === 'inputs'
+        ? `e-addr_${address}-tx_${txid}-utxo${utxo.index}`
+        : `e-tx_${txid}-addr_${address}-utxo${utxo.index}`;
+      
+      const source = direction === 'inputs' ? `addr_${address}` : `tx_${txid}`;
+      const target = direction === 'inputs' ? `tx_${txid}` : `addr_${address}`;
+      
+      // Calculate edge offset/curvature for multiple edges to same address
+      // If 3 edges: offsets will be -1, 0, +1 (spread them out)
+      const totalEdges = utxos.length;
+      const offsetIndex = utxoIdx - (totalEdges - 1) / 2;
+      const pathOffset = totalEdges > 1 ? offsetIndex * 20 : 0; // 20px spacing between parallel edges
+      
+      const edge = createStyledEdge(source, target, utxo.value, edgeScaleMax);
+      
+      // Add curvature and offset for multiple edges
+      if (totalEdges > 1) {
+        edge.id = edgeId; // Use unique ID
+        edge.style = {
+          ...edge.style,
+          strokeDasharray: utxoIdx > 0 ? undefined : undefined, // All solid (no dashing)
+        };
+        // Use React Flow's built-in path offsetting for multiple edges
+        edge.data = {
+          ...edge.data,
+          offset: pathOffset, // Custom data for potential custom edge rendering
+        };
+      } else {
+        edge.id = edgeId;
+      }
+      
+      edges.push(edge);
+    });
+  });
+  
+  console.log(`  Created ${nodes.length} unique address nodes, ${edges.length} edges (showing all UTXOs)`);
   
   return { nodes, edges };
 }

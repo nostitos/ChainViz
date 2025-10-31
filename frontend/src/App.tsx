@@ -22,6 +22,7 @@ import { TransactionNode } from './components/nodes/TransactionNode';
 import { AddressNode } from './components/nodes/AddressNode';
 import { AddressClusterNode } from './components/nodes/AddressClusterNode';
 import { TransactionClusterNode } from './components/nodes/TransactionClusterNode';
+import { BezierEdge } from './components/edges/BezierEdge';
 import { SearchBar } from './components/SearchBar';
 import { EntityPanel } from './components/EntityPanel';
 import { StatsPanel } from './components/StatsPanel';
@@ -43,6 +44,10 @@ const nodeTypes = {
   address: AddressNode,
   addressCluster: AddressClusterNode,
   transactionCluster: TransactionClusterNode,
+};
+
+const edgeTypes = {
+  default: BezierEdge,
 };
 
 function AppContent() {
@@ -1231,6 +1236,7 @@ function AppContent() {
           onPaneClick={onPaneClick}
           onNodeDragStop={onNodeDragStop}
           nodeTypes={memoizedNodeTypes}
+          edgeTypes={edgeTypes}
           nodesDraggable={true}
           fitView
           minZoom={0.1}
