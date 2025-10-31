@@ -1043,6 +1043,7 @@ function AppContent() {
         
         for (const node of batch) {
           try {
+            console.log(`Expanding backward: ${node.id.substring(0, 25)} (${node.type})`);
             if (node.type === 'address') {
               await handleExpandNode(node.id, 'receiving');
             } else if (node.type === 'transaction') {
@@ -1050,7 +1051,7 @@ function AppContent() {
             }
             expandedCount++;
           } catch (err) {
-            console.warn(`Failed to expand ${node.id}:`, err);
+            console.error(`Failed to expand ${node.id.substring(0, 25)}:`, err);
             skippedCount++;
           }
         }
