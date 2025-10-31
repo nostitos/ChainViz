@@ -976,23 +976,35 @@ function AppContent() {
     
     // Get visible nodes in viewport
     const visibleNodeIds = getVisibleNodeIds(nodes);
+    const visibleNodes = nodes.filter(n => visibleNodeIds.has(n.id));
     
-    // Find all visible nodes (addresses AND transactions) that haven't been expanded backward yet
-    const nodesToExpand = nodes.filter(n => {
-      if (!visibleNodeIds.has(n.id)) return false; // Not visible
-      
-      // Check if already expanded in this direction
+    if (visibleNodes.length === 0) {
+      console.log('No visible nodes to expand');
+      return;
+    }
+    
+    // Find the LEFTMOST X position among visible nodes
+    const minX = Math.min(...visibleNodes.map(n => n.position.x));
+    console.log(`Leftmost X position: ${minX}`);
+    
+    // Find nodes at or near the leftmost position (within 50px tolerance)
+    const TOLERANCE = 50;
+    const leftmostNodes = visibleNodes.filter(n => Math.abs(n.position.x - minX) < TOLERANCE);
+    
+    console.log(`Found ${leftmostNodes.length} leftmost nodes out of ${visibleNodes.length} visible nodes`);
+    
+    // Filter to only unexpanded nodes
+    const nodesToExpand = leftmostNodes.filter(n => {
       const direction = n.type === 'address' ? 'receiving' : 'inputs';
       const expandKey = `${n.id}-${direction}`;
       if (expandedNodes.has(expandKey)) {
         console.log(`⏭️ Skipping ${n.id} - already expanded backward`);
         return false;
       }
-      
-      return true; // Include this node for expansion
+      return true;
     });
     
-    console.log(`Found ${nodesToExpand.length} visible unexpanded nodes to expand backward`);
+    console.log(`Expanding ${nodesToExpand.length} leftmost unexpanded nodes`);
     
     if (nodesToExpand.length === 0) {
       setError('All visible nodes already expanded backward');
@@ -1063,23 +1075,35 @@ function AppContent() {
     
     // Get visible nodes in viewport
     const visibleNodeIds = getVisibleNodeIds(nodes);
+    const visibleNodes = nodes.filter(n => visibleNodeIds.has(n.id));
     
-    // Find all visible nodes (addresses AND transactions) that haven't been expanded forward yet
-    const nodesToExpand = nodes.filter(n => {
-      if (!visibleNodeIds.has(n.id)) return false; // Not visible
-      
-      // Check if already expanded in this direction
+    if (visibleNodes.length === 0) {
+      console.log('No visible nodes to expand');
+      return;
+    }
+    
+    // Find the RIGHTMOST X position among visible nodes
+    const maxX = Math.max(...visibleNodes.map(n => n.position.x));
+    console.log(`Rightmost X position: ${maxX}`);
+    
+    // Find nodes at or near the rightmost position (within 50px tolerance)
+    const TOLERANCE = 50;
+    const rightmostNodes = visibleNodes.filter(n => Math.abs(n.position.x - maxX) < TOLERANCE);
+    
+    console.log(`Found ${rightmostNodes.length} rightmost nodes out of ${visibleNodes.length} visible nodes`);
+    
+    // Filter to only unexpanded nodes
+    const nodesToExpand = rightmostNodes.filter(n => {
       const direction = n.type === 'address' ? 'spending' : 'outputs';
       const expandKey = `${n.id}-${direction}`;
       if (expandedNodes.has(expandKey)) {
         console.log(`⏭️ Skipping ${n.id} - already expanded forward`);
         return false;
       }
-      
-      return true; // Include this node for expansion
+      return true;
     });
     
-    console.log(`Found ${nodesToExpand.length} visible unexpanded nodes to expand forward`);
+    console.log(`Expanding ${nodesToExpand.length} rightmost unexpanded nodes`);
     
     if (nodesToExpand.length === 0) {
       setError('All visible nodes already expanded forward');
