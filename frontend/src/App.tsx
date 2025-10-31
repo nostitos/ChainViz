@@ -493,8 +493,10 @@ function AppContent() {
         fitView({ padding: 0.2, duration: 400 });
       }, 100);
 
-      // Auto-expand hops using BFS over addresses (skip if hopsBefore = 0)
-      if (hopsBefore > 0) {
+      // REMOVED: Old broken auto-expansion code
+      // The backend already returns the correct graph for the requested hops!
+      // No need to recursively expand in the frontend
+      if (false && hopsBefore > 0) {
         const centerNode = nodesWithHandlers.find(n => n.type === 'address' && (n.data.address === address || n.data.metadata?.address === address));
         if (centerNode) {
           // BEFORE (left)
@@ -601,9 +603,10 @@ function AppContent() {
         fitView({ padding: 0.2, duration: 400 });
       }, 100);
 
-      // Auto-expand hops recursively
+      // REMOVED: Old broken auto-expansion code
+      // The backend already returns the correct graph for the requested hops!
       const centerTx = nodesWithHandlers.find(n => n.type === 'transaction' && (n.data.txid === txid || n.data.metadata?.txid === txid));
-      if (centerTx && (hopsBefore > 1 || hopsAfter > 1)) {
+      if (false && centerTx && (hopsBefore > 1 || hopsAfter > 1)) {
         const totalHops = (hopsBefore > 1 ? hopsBefore - 1 : 0) + (hopsAfter > 1 ? hopsAfter - 1 : 0);
         let completedHops = 0;
         
@@ -784,12 +787,6 @@ function AppContent() {
   const handleExpandNode = useCallback(async (nodeId: string, direction?: 'inputs' | 'outputs' | 'spending' | 'receiving') => {
     console.log('🚀 Expanding:', nodeId, direction);
     
-    // Prevent expansion during initial load
-    if (isLoading) {
-      console.log('⏸️ Skipping expansion - graph is still loading');
-      return;
-    }
-    
     const expandKey = `${nodeId}-${direction}`;
     
     // Check if already expanded
@@ -800,16 +797,9 @@ function AppContent() {
       return;
     }
     
-    // Get fresh nodes and edges from state (avoid stale closure!)
-    let currentNodes: Node[] = [];
-    let currentEdges: Edge[] = [];
-    setNodes(nds => { currentNodes = nds; return nds; });
-    setEdges(eds => { currentEdges = eds; return eds; });
-    
-    const node = currentNodes.find(n => n.id === nodeId);
+    const node = nodes.find(n => n.id === nodeId);
     if (!node) {
       console.error('Node not found:', nodeId);
-      console.error('Available nodes:', currentNodes.map(n => n.id));
       return;
     }
     
@@ -823,16 +813,16 @@ function AppContent() {
         result = expandTransactionNode(node, direction as 'inputs' | 'outputs', edgeScaleMax);
       } else if (node.type === 'address') {
         // Expand from existing edges (NO network call!)
-        result = expandAddressNode(node, direction as 'receiving' | 'spending', currentNodes, currentEdges);
+        result = expandAddressNode(node, direction as 'receiving' | 'spending', nodes, edges);
       } else {
         console.warn('Unknown node type:', node.type);
         return;
       }
       
-      // Filter to only NEW nodes (use fresh state!)
-      const existingIds = new Set(currentNodes.map(n => n.id));
+      // Filter to only NEW nodes
+      const existingIds = new Set(nodes.map(n => n.id));
       const newNodes = result.nodes.filter(n => !existingIds.has(n.id));
-      const newEdges = result.edges.filter(e => !currentEdges.some(existing => existing.id === e.id));
+      const newEdges = result.edges.filter(e => !edges.some(existing => existing.id === e.id));
       
       if (newNodes.length === 0) {
         console.log('No new nodes to add (all already in graph)');
@@ -867,7 +857,7 @@ function AppContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [expandedNodes, edgeScaleMax, balanceFetchingEnabled]); // Removed nodes/edges to avoid stale closure
+  }, [nodes, edges, expandedNodes, edgeScaleMax, balanceFetchingEnabled]);
 
   // Re-attach onExpand handler to all nodes (for restored graphs or when handler changes)
   useEffect(() => {
