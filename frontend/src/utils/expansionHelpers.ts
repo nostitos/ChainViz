@@ -28,22 +28,31 @@ function calculateEdgeWidth(amount: number, edgeScaleMax: number): number {
 
 /**
  * Create a properly styled edge with all visual properties
+ * Supports multiple edges between same nodes via utxoIndex
  */
 export function createStyledEdge(
   source: string,
   target: string,
   amount: number,
-  edgeScaleMax: number
+  edgeScaleMax: number,
+  utxoIndex?: number
 ): Edge {
   const strokeWidth = calculateEdgeWidth(amount, edgeScaleMax);
   
+  // Create unique ID for multiple edges between same nodes
+  const baseId = `e-${source}-${target}`;
+  const id = utxoIndex !== undefined ? `${baseId}-utxo${utxoIndex}` : baseId;
+  
   return {
-    id: `e-${source}-${target}`,
+    id,
     source,
     target,
     type: 'default',
     animated: false,
-    data: { amount },
+    data: { 
+      amount,
+      utxoIndex, // Store for potential custom rendering
+    },
     style: {
       stroke: '#4caf50',
       strokeWidth,
@@ -143,22 +152,15 @@ export function expandTransactionNode(
       const offsetIndex = utxoIdx - (totalEdges - 1) / 2;
       const pathOffset = totalEdges > 1 ? offsetIndex * 20 : 0; // 20px spacing between parallel edges
       
-      const edge = createStyledEdge(source, target, utxo.value, edgeScaleMax);
+      // Create edge with utxoIndex for unique ID
+      const edge = createStyledEdge(source, target, utxo.value, edgeScaleMax, utxo.index);
       
-      // Add curvature and offset for multiple edges
+      // Add offset for multiple parallel edges
       if (totalEdges > 1) {
-        edge.id = edgeId; // Use unique ID
-        edge.style = {
-          ...edge.style,
-          strokeDasharray: utxoIdx > 0 ? undefined : undefined, // All solid (no dashing)
-        };
-        // Use React Flow's built-in path offsetting for multiple edges
         edge.data = {
           ...edge.data,
-          offset: pathOffset, // Custom data for potential custom edge rendering
+          offset: pathOffset, // Custom data for BezierEdge component
         };
-      } else {
-        edge.id = edgeId;
       }
       
       edges.push(edge);
@@ -234,6 +236,153 @@ export function expandAddressNode(
     (direction === 'receiving' && connectedTxIds.includes(e.source) && e.target === addrId) ||
     (direction === 'spending' && e.source === addrId && connectedTxIds.includes(e.target))
   );
+  
+  return { nodes, edges };
+}
+
+/**
+ * Expand a newly-added address node by fetching its TX history from backend
+ * 
+ * This is used when an address was added from TX expansion and has no edges yet.
+ * Fetches transaction list, then full TX data with metadata, creates nodes/edges.
+ */
+export async function expandAddressNodeWithFetch(
+  address: string,
+  addrNode: Node,
+  direction: 'receiving' | 'spending',
+  edgeScaleMax: number,
+  apiBaseUrl: string,
+  existingNodeIds: Set<string>
+): Promise<ExpandResult> {
+  console.log(`📡 Fetching TX history for ${address.substring(0, 20)}...`);
+  
+  // Step 1: Fetch transaction list
+  const txListResponse = await fetch(`${apiBaseUrl}/address/${address}/transactions`);
+  if (!txListResponse.ok) {
+    throw new Error(`Failed to fetch TX list: ${txListResponse.status}`);
+  }
+  const txListData = await txListResponse.json();
+  const transactions = txListData.transactions || [];
+  
+  console.log(`  Got ${transactions.length} transactions`);
+  
+  if (transactions.length === 0) {
+    return { nodes: [], edges: [] };
+  }
+  
+  // Filter by direction
+  const relevantTxs = direction === 'receiving'
+    ? transactions.filter((tx: any) => tx.outputs_to_address && tx.outputs_to_address.length > 0)
+    : transactions; // For 'spending', need to check inputs (will verify when fetching full data)
+  
+  console.log(`  ${relevantTxs.length} TXs match direction: ${direction}`);
+  
+  // Limit to prevent overwhelming the graph
+  const MAX_TXS = 20;
+  const txsToFetch = relevantTxs.slice(0, MAX_TXS);
+  
+  // Filter out TXs already in graph
+  const txidsToFetch = txsToFetch
+    .map((tx: any) => tx.txid)
+    .filter((txid: string) => !existingNodeIds.has(`tx_${txid}`));
+  
+  console.log(`  Fetching ${txidsToFetch.length} new TXs (${txsToFetch.length - txidsToFetch.length} already in graph)`);
+  
+  if (txidsToFetch.length === 0) {
+    return { nodes: [], edges: [] };
+  }
+  
+  // Step 2: Fetch complete TX data with metadata (inputs/outputs resolved)
+  const txNodesData = await Promise.all(
+    txidsToFetch.map(async (txid: string) => {
+      const response = await fetch(`${apiBaseUrl}/transaction/${txid}`);
+      if (!response.ok) {
+        console.warn(`Failed to fetch TX ${txid}: ${response.status}`);
+        return null;
+      }
+      const data = await response.json();
+      const tx = data.transaction;
+      
+      return {
+        txid: tx.txid,
+        timestamp: tx.timestamp,
+        inputCount: tx.inputs?.length || 0,
+        outputCount: tx.outputs?.length || 0,
+        inputs: (tx.inputs || [])
+          .map((inp: any) => ({ address: inp.address, value: inp.value }))
+          .filter((i: any) => i.address),
+        outputs: (tx.outputs || [])
+          .map((out: any) => ({ address: out.address, value: out.value }))
+          .filter((o: any) => o.address),
+      };
+    })
+  );
+  
+  const validTxs = txNodesData.filter(Boolean);
+  console.log(`  Fetched ${validTxs.length} TXs with complete metadata`);
+  
+  // Step 3: Create TX nodes
+  const spacing = 90;
+  const xOffset = direction === 'receiving' ? -480 : 480;
+  const startY = -(validTxs.length - 1) * spacing / 2;
+  
+  const nodes: Node[] = validTxs.map((txData: any, idx: number) => ({
+    id: `tx_${txData.txid}`,
+    type: 'transaction',
+    position: {
+      x: addrNode.position.x + xOffset,
+      y: addrNode.position.y + startY + (idx * spacing),
+    },
+    data: {
+      txid: txData.txid,
+      label: `${txData.txid.substring(0, 16)}...`,
+      metadata: {
+        txid: txData.txid,
+        timestamp: txData.timestamp,
+        inputCount: txData.inputCount,
+        outputCount: txData.outputCount,
+        inputs: txData.inputs,
+        outputs: txData.outputs,
+      },
+    },
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
+  }));
+  
+  // Step 4: Create edges (handle multi-UTXO!)
+  const edges: Edge[] = [];
+  
+  validTxs.forEach((txData: any) => {
+    const txid = txData.txid;
+    
+    if (direction === 'receiving') {
+      // TX → Address edges (TX pays TO address)
+      const outputsToAddr = txData.outputs.filter((out: any) => out.address === address);
+      outputsToAddr.forEach((out: any, utxoIdx: number) => {
+        edges.push(createStyledEdge(
+          `tx_${txid}`,
+          `addr_${address}`,
+          out.value || 0,
+          edgeScaleMax,
+          utxoIdx
+        ));
+      });
+    } else {
+      // Address → TX edges (address spends TO tx)
+      const inputsFromAddr = txData.inputs.filter((inp: any) => inp.address === address);
+      inputsFromAddr.forEach((inp: any, utxoIdx: number) => {
+        edges.push(createStyledEdge(
+          `addr_${address}`,
+          `tx_${txid}`,
+          inp.value || 0,
+          edgeScaleMax,
+          utxoIdx
+        ));
+      });
+    }
+  });
+  
+  console.log(`  Created ${nodes.length} TX nodes, ${edges.length} edges`);
   
   return { nodes, edges };
 }

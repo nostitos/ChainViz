@@ -34,7 +34,7 @@ import { ProgressLogger } from './components/ProgressLogger';
 import { traceFromAddress, traceFromUTXO, traceFromAddressWithStats, traceFromUTXOWithStats } from './services/api';
 import { buildGraphFromTraceDataBipartite, optimizeNodePositions } from './utils/graphBuilderBipartite';
 import { buildTreeLayout, findRootNode } from './utils/treeLayout';
-import { expandTransactionNode, expandAddressNode } from './utils/expansionHelpers';
+import { expandTransactionNode, expandAddressNode, expandAddressNodeWithFetch } from './utils/expansionHelpers';
 import { useForceLayout } from './hooks/useForceLayout';
 import { useEdgeTension } from './hooks/useEdgeTension';
 import './App.css';
@@ -822,21 +822,19 @@ function AppContent() {
         
         // Check if we need to fetch from backend (newly-added address)
         if ('needsFetch' in expandResult && expandResult.needsFetch) {
-          console.log(`📡 Fetching TX history for newly-added address ${expandResult.address.substring(0, 20)}...`);
+          console.log(`📡 Newly-added address - fetching TX history from backend...`);
           
-          // Fetch from backend
           const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-          const response = await fetch(`${API_BASE_URL}/address/${expandResult.address}/transactions`);
-          if (!response.ok) {
-            throw new Error(`Failed to fetch address transactions: ${response.status}`);
-          }
-          const txData = await response.json();
+          const existingIds = new Set(nodes.map(n => n.id));
           
-          console.log(`Got ${txData.transactions?.length || 0} transactions for address`);
-          
-          // For now, just return empty - proper implementation would create TX nodes
-          // This requires more work to properly integrate with the graph
-          result = { nodes: [], edges: [] };
+          result = await expandAddressNodeWithFetch(
+            expandResult.address,
+            node,
+            direction as 'receiving' | 'spending',
+            edgeScaleMax,
+            API_BASE_URL,
+            existingIds
+          );
         } else {
           result = expandResult;
         }
