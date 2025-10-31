@@ -850,13 +850,7 @@ function AppContent() {
       
       if (newNodes.length === 0) {
         console.log('No new nodes to add (all already in graph)');
-        
-        // More helpful error message based on node type
-        if (node.type === 'address') {
-          setError('No more connections (address expansion for newly-added addresses not yet implemented)');
-        } else {
-          setError('No new connections to show');
-        }
+        setError('No new connections to show (all already in graph)');
         setTimeout(() => setError(null), 3000);
         return;
       }

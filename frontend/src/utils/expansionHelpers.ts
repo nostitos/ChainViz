@@ -187,23 +187,16 @@ export function expandAddressNode(
   const addrId = addrNode.id;
   const address = addrNode.data.address || addrNode.data.metadata?.address;
   
-  // Check if this address has any edges (was it in the initial load?)
-  const hasAnyEdges = allEdges.some(e => e.source === addrId || e.target === addrId);
-  
-  if (!hasAnyEdges) {
-    console.log(`Address ${addrId.substring(0, 25)} is new - needs backend fetch`);
-    // Return marker to indicate we need to fetch from backend
-    return { needsFetch: true, address: address || '' };
-  }
-  
-  // Find connected TX IDs from existing edges
+  // Find connected TX IDs from existing edges in the requested direction
   const connectedTxIds = direction === 'receiving'
     ? allEdges.filter(e => e.source.startsWith('tx_') && e.target === addrId).map(e => e.source)
     : allEdges.filter(e => e.source === addrId && e.target.startsWith('tx_')).map(e => e.target);
   
+  // If no edges in this direction, need to fetch from backend
   if (connectedTxIds.length === 0) {
-    console.log(`Address ${addrId.substring(0, 25)} has no ${direction} TXs in current graph`);
-    return { nodes: [], edges: [] };
+    console.log(`Address ${addrId.substring(0, 25)} has no ${direction} edges - needs backend fetch`);
+    // Return marker to indicate we need to fetch from backend
+    return { needsFetch: true, address: address || '' };
   }
   
   console.log(`Expanding address ${addrId.substring(0, 25)} - ${direction}: ${connectedTxIds.length} TXs from existing edges`);
