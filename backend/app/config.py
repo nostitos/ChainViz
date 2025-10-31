@@ -23,9 +23,9 @@ class Settings(BaseSettings):
     redis_password: str = ""
 
     # Cache TTL (seconds)
-    cache_ttl_address_history: int = 300
-    cache_ttl_transaction: int = 3600
-    cache_ttl_cluster: int = 600
+    cache_ttl_address_history: int = 86400  # 1 day (address can get new TXs)
+    cache_ttl_transaction: int = 2592000  # 30 days (transactions are immutable)
+    cache_ttl_cluster: int = 86400  # 1 day
 
     # API
     api_title: str = "ChainViz API"
