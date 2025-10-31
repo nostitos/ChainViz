@@ -128,8 +128,11 @@ export function expandTransactionNode(
 /**
  * Expand an address node to show its receiving or spending transactions
  * 
- * Uses existing edges to find connected TXs (already in graph, just hidden!)
- * NO network calls needed!
+ * For addresses from initial load: Uses existing edges (TXs already fetched)
+ * For addresses from TX expansion: Returns empty (need backend fetch - not implemented yet)
+ * 
+ * Note: Expanding newly-added addresses requires fetching their TX history from backend.
+ * This is intentionally left as a TODO to keep the refactor simple.
  */
 export function expandAddressNode(
   addrNode: Node,
@@ -139,23 +142,33 @@ export function expandAddressNode(
 ): ExpandResult {
   const addrId = addrNode.id;
   
+  // Check if this address has any edges (was it in the initial load?)
+  const hasAnyEdges = allEdges.some(e => e.source === addrId || e.target === addrId);
+  
+  if (!hasAnyEdges) {
+    console.log(`Address ${addrId.substring(0, 25)} is new - would need to fetch TX history from backend`);
+    console.log(`TODO: Implement address expansion for newly-added addresses`);
+    return { nodes: [], edges: [] };
+  }
+  
   // Find connected TX IDs from existing edges
   const connectedTxIds = direction === 'receiving'
     ? allEdges.filter(e => e.source.startsWith('tx_') && e.target === addrId).map(e => e.source)
     : allEdges.filter(e => e.source === addrId && e.target.startsWith('tx_')).map(e => e.target);
   
   if (connectedTxIds.length === 0) {
-    console.log(`Address ${addrId.substring(0, 25)} has no ${direction} TXs`);
+    console.log(`Address ${addrId.substring(0, 25)} has no ${direction} TXs in current graph`);
     return { nodes: [], edges: [] };
   }
   
   console.log(`Expanding address ${addrId.substring(0, 25)} - ${direction}: ${connectedTxIds.length} TXs from existing edges`);
   
-  // Get TX nodes from existing graph (they're already there, just not positioned!)
+  // Get TX nodes from existing graph (they're already there, just not visible!)
   const txNodes = allNodes.filter(n => connectedTxIds.includes(n.id));
   
+  // Some TXs might not be in the graph yet (if they were filtered out)
   if (txNodes.length === 0) {
-    console.warn(`Connected TXs not found in graph nodes - this shouldn't happen!`);
+    console.log(`Connected TXs not in graph - they were filtered out or not fetched`);
     return { nodes: [], edges: [] };
   }
   
