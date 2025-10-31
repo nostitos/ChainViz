@@ -256,6 +256,8 @@ export async function expandAddressNodeWithFetch(
   }
   
   const data = await response.json();
+  console.log(`📊 Backend returned: ${data.nodes.length} nodes, ${data.edges.length} edges, total_nodes=${data.total_nodes}`);
+  
   const totalTxCount = data.total_nodes - 1; // Subtract the address node itself
   
   // If many TXs (>10), create cluster node instead
@@ -303,9 +305,12 @@ export async function expandAddressNodeWithFetch(
   
   // Otherwise show TXs directly (<= 10)
   // Extract TX nodes (filter out the address node itself)
-  const txNodes = data.nodes
-    .filter((n: any) => n.type === 'transaction' && !existingNodeIds.has(n.id))
-    .map((txNode: any) => {
+  const allTxNodes = data.nodes.filter((n: any) => n.type === 'transaction');
+  const newTxNodes = allTxNodes.filter((n: any) => !existingNodeIds.has(n.id));
+  
+  console.log(`📊 TX filtering: ${allTxNodes.length} total TXs, ${newTxNodes.length} new (${allTxNodes.length - newTxNodes.length} already in graph)`);
+  
+  const txNodes = newTxNodes.map((txNode: any) => {
       // Backend already provides complete metadata!
       return {
         id: txNode.id,
