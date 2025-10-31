@@ -784,6 +784,12 @@ function AppContent() {
   const handleExpandNode = useCallback(async (nodeId: string, direction?: 'inputs' | 'outputs' | 'spending' | 'receiving') => {
     console.log('🚀 Expanding:', nodeId, direction);
     
+    // Prevent expansion during initial load
+    if (isLoading) {
+      console.log('⏸️ Skipping expansion - graph is still loading');
+      return;
+    }
+    
     const expandKey = `${nodeId}-${direction}`;
     
     // Check if already expanded
@@ -794,9 +800,16 @@ function AppContent() {
       return;
     }
     
-    const node = nodes.find(n => n.id === nodeId);
+    // Get fresh nodes and edges from state (avoid stale closure!)
+    let currentNodes: Node[] = [];
+    let currentEdges: Edge[] = [];
+    setNodes(nds => { currentNodes = nds; return nds; });
+    setEdges(eds => { currentEdges = eds; return eds; });
+    
+    const node = currentNodes.find(n => n.id === nodeId);
     if (!node) {
       console.error('Node not found:', nodeId);
+      console.error('Available nodes:', currentNodes.map(n => n.id));
       return;
     }
     
@@ -810,16 +823,16 @@ function AppContent() {
         result = expandTransactionNode(node, direction as 'inputs' | 'outputs', edgeScaleMax);
       } else if (node.type === 'address') {
         // Expand from existing edges (NO network call!)
-        result = expandAddressNode(node, direction as 'receiving' | 'spending', nodes, edges);
+        result = expandAddressNode(node, direction as 'receiving' | 'spending', currentNodes, currentEdges);
       } else {
         console.warn('Unknown node type:', node.type);
         return;
       }
       
-      // Filter to only NEW nodes
-      const existingIds = new Set(nodes.map(n => n.id));
+      // Filter to only NEW nodes (use fresh state!)
+      const existingIds = new Set(currentNodes.map(n => n.id));
       const newNodes = result.nodes.filter(n => !existingIds.has(n.id));
-      const newEdges = result.edges.filter(e => !edges.some(existing => existing.id === e.id));
+      const newEdges = result.edges.filter(e => !currentEdges.some(existing => existing.id === e.id));
       
       if (newNodes.length === 0) {
         console.log('No new nodes to add (all already in graph)');
@@ -854,7 +867,7 @@ function AppContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [nodes, edges, expandedNodes, edgeScaleMax, balanceFetchingEnabled]);
+  }, [expandedNodes, edgeScaleMax, balanceFetchingEnabled]); // Removed nodes/edges to avoid stale closure
 
   // Re-attach onExpand handler to all nodes (for restored graphs or when handler changes)
   useEffect(() => {
