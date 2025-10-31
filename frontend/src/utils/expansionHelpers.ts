@@ -244,7 +244,7 @@ export async function expandAddressNodeWithFetch(
   const hopsAfter = direction === 'spending' ? 1 : 0;
   
   const response = await fetch(
-    `${apiBaseUrl}/trace/address?address=${encodeURIComponent(address)}&hops_before=${hopsBefore}&hops_after=${hopsAfter}&max_transactions=20`,
+    `${apiBaseUrl}/trace/address?address=${encodeURIComponent(address)}&hops_before=${hopsBefore}&hops_after=${hopsAfter}&max_transactions=100`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
