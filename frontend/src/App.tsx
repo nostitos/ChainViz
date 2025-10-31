@@ -850,7 +850,13 @@ function AppContent() {
       
       if (newNodes.length === 0) {
         console.log('No new nodes to add (all already in graph)');
-        setError('No new connections to show (all already in graph)');
+        
+        // Check if we fetched data but it was already in graph
+        if (node.type === 'address' && result.edges && result.edges.length > 0) {
+          setError('All connected transactions already visible in graph');
+        } else {
+          setError('No new connections to show');
+        }
         setTimeout(() => setError(null), 3000);
         return;
       }
