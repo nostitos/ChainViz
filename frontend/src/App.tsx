@@ -812,8 +812,29 @@ function AppContent() {
         // Expand from cached metadata (NO network call!)
         result = expandTransactionNode(node, direction as 'inputs' | 'outputs', edgeScaleMax);
       } else if (node.type === 'address') {
-        // Expand from existing edges (NO network call!)
-        result = expandAddressNode(node, direction as 'receiving' | 'spending', nodes, edges);
+        // Try to expand from existing edges first
+        const expandResult = expandAddressNode(node, direction as 'receiving' | 'spending', nodes, edges);
+        
+        // Check if we need to fetch from backend (newly-added address)
+        if ('needsFetch' in expandResult && expandResult.needsFetch) {
+          console.log(`📡 Fetching TX history for newly-added address ${expandResult.address.substring(0, 20)}...`);
+          
+          // Fetch from backend
+          const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+          const response = await fetch(`${API_BASE_URL}/address/${expandResult.address}/transactions`);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch address transactions: ${response.status}`);
+          }
+          const txData = await response.json();
+          
+          console.log(`Got ${txData.transactions?.length || 0} transactions for address`);
+          
+          // For now, just return empty - proper implementation would create TX nodes
+          // This requires more work to properly integrate with the graph
+          result = { nodes: [], edges: [] };
+        } else {
+          result = expandResult;
+        }
       } else {
         console.warn('Unknown node type:', node.type);
         return;

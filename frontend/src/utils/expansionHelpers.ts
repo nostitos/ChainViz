@@ -129,26 +129,24 @@ export function expandTransactionNode(
  * Expand an address node to show its receiving or spending transactions
  * 
  * For addresses from initial load: Uses existing edges (TXs already fetched)
- * For addresses from TX expansion: Returns empty (need backend fetch - not implemented yet)
- * 
- * Note: Expanding newly-added addresses requires fetching their TX history from backend.
- * This is intentionally left as a TODO to keep the refactor simple.
+ * For addresses from TX expansion: Returns special marker to trigger backend fetch
  */
 export function expandAddressNode(
   addrNode: Node,
   direction: 'receiving' | 'spending',
   allNodes: Node[],
   allEdges: Edge[]
-): ExpandResult {
+): ExpandResult | { needsFetch: true; address: string } {
   const addrId = addrNode.id;
+  const address = addrNode.data.address || addrNode.data.metadata?.address;
   
   // Check if this address has any edges (was it in the initial load?)
   const hasAnyEdges = allEdges.some(e => e.source === addrId || e.target === addrId);
   
   if (!hasAnyEdges) {
-    console.log(`Address ${addrId.substring(0, 25)} is new - would need to fetch TX history from backend`);
-    console.log(`TODO: Implement address expansion for newly-added addresses`);
-    return { nodes: [], edges: [] };
+    console.log(`Address ${addrId.substring(0, 25)} is new - needs backend fetch`);
+    // Return marker to indicate we need to fetch from backend
+    return { needsFetch: true, address: address || '' };
   }
   
   // Find connected TX IDs from existing edges
