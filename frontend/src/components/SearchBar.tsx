@@ -17,8 +17,8 @@ interface SearchBarProps {
 
 export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpenSettings, onOpenAbout, edgeScaleMax, onEdgeScaleMaxChange, onExpandBackward, onExpandForward, hasGraph, initialQuery }: SearchBarProps) {
   const [input, setInput] = useState('');
-  const [hopsBefore, setHopsBefore] = useState(0); // Hops backward (default: 0)
-  const [hopsAfter, setHopsAfter] = useState(1); // Hops forward (default: 1)
+  const [hopsBefore, setHopsBefore] = useState(1); // Hops backward (default: 1 to match URL auto-load)
+  const [hopsAfter, setHopsAfter] = useState(1); // Hops forward (default: 1 to match URL auto-load)
   const [history, setHistory] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -34,10 +34,13 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
     }
   }, []);
   
-  // Set input from initial query (from URL)
+  // Set input from initial query (from URL) and sync hops
   useEffect(() => {
     if (initialQuery) {
       setInput(initialQuery);
+      // URL auto-load uses 1,1 hops - sync the display
+      setHopsBefore(1);
+      setHopsAfter(1);
     }
   }, [initialQuery]);
 
