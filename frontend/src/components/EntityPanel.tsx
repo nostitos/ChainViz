@@ -211,8 +211,11 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
       if (!address) return;
       
       // Don't fetch for placeholder addresses (P2PK, OP_RETURN, etc.)
-      if (address.includes('P2PK') || address.includes('No Address') || address.includes('OP_RETURN')) {
-        console.log('⏭️ Skipping address fetch for placeholder:', address);
+      // Check if it's not a valid Bitcoin address format
+      const isValidAddress = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$|^bc1[a-z0-9]{39,87}$/.test(address);
+      
+      if (!isValidAddress) {
+        console.log('⏭️ Skipping address fetch for non-address:', address);
         setAddressInfo({
           balance: 0,
           total_received: 0,
