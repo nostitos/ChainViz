@@ -171,30 +171,44 @@ function AppContent() {
     })));
   }, [edgeAnimation, setEdges]);
 
-  // Recalculate edge widths when edgeScaleMax changes
+  // Recalculate edge widths when edgeScaleMax changes (with debounce to prevent memory spikes)
+  const edgeScaleMaxRef = useRef(edgeScaleMax);
   useEffect(() => {
-    setEdges((eds) => {
-      const minAmountSats = 100000; // 0.001 BTC
-      const scaleMaxSats = edgeScaleMax * 100000000; // Convert BTC to satoshis
-      const sqrtBase = Math.sqrt(scaleMaxSats / minAmountSats);
-      
-      return eds.map(edge => {
-        const amount = edge.data?.amount || 0;
-        let strokeWidth = 2;
-        if (amount > minAmountSats) {
-          const sqrtValue = Math.sqrt(amount / minAmountSats) / sqrtBase;
-          strokeWidth = 2 + (sqrtValue * 68); // 2px base + up to 68px (70% of 100px)
-        }
+    edgeScaleMaxRef.current = edgeScaleMax;
+    
+    // Debounce edge recalculation to prevent rapid updates
+    const timer = setTimeout(() => {
+      setEdges((eds) => {
+        const minAmountSats = 100000; // 0.001 BTC
+        const scaleMaxSats = edgeScaleMaxRef.current * 100000000; // Convert BTC to satoshis
+        const sqrtBase = Math.sqrt(scaleMaxSats / minAmountSats);
         
-        return {
-          ...edge,
-          style: {
-            ...edge.style,
-            strokeWidth: strokeWidth,
-          },
-        };
+        return eds.map(edge => {
+          const amount = edge.data?.amount || 0;
+          let strokeWidth = 2;
+          if (amount > minAmountSats) {
+            const sqrtValue = Math.sqrt(amount / minAmountSats) / sqrtBase;
+            strokeWidth = 2 + (sqrtValue * 68); // 2px base + up to 68px (70% of 100px)
+          }
+          
+          // Only update if strokeWidth actually changed
+          const currentWidth = edge.style?.strokeWidth || 2;
+          if (Math.abs(currentWidth - strokeWidth) < 0.5) {
+            return edge; // Return same object to prevent re-render
+          }
+          
+          return {
+            ...edge,
+            style: {
+              ...edge.style,
+              strokeWidth: strokeWidth,
+            },
+          };
+        });
       });
-    });
+    }, 100); // 100ms debounce
+    
+    return () => clearTimeout(timer);
   }, [edgeScaleMax, setEdges]);
   const [history, setHistory] = useState<Array<{nodes: Node[], edges: Edge[]}>>([]);
   const MAX_HISTORY_SIZE = 10; // Limit history to prevent memory leaks
@@ -1051,19 +1065,22 @@ function AppContent() {
   // This is a performance escape hatch for extreme cases
   const [viewportVersion, setViewportVersion] = useState(0);
   
-  // Throttled viewport change detection (update max once per 500ms)
+  // Throttled viewport change detection (update max once per 1000ms to reduce memory pressure)
   const lastViewportUpdateRef = useRef(0);
   const onMove = useCallback(() => {
+    // Only track viewport for very large graphs (200+ nodes)
+    if (nodes.length < 200) return;
+    
     const now = Date.now();
-    if (now - lastViewportUpdateRef.current > 500) {
+    if (now - lastViewportUpdateRef.current > 1000) {
       lastViewportUpdateRef.current = now;
       setViewportVersion(v => v + 1);
     }
-  }, []);
+  }, [nodes.length]);
   
   const visibleNodes = useMemo(() => {
-    // Only apply hiding for VERY large graphs (200+ nodes)
-    if (nodes.length < 200) return nodes;
+    // Only apply hiding for VERY large graphs (300+ nodes) - increased threshold
+    if (nodes.length < 300) return nodes;
     
     try {
       const viewport = getViewport();

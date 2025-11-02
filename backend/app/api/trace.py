@@ -52,6 +52,26 @@ async def trace_utxo(
             start_tx = await blockchain_service.fetch_transaction(request.txid)
             
             # Create TX node with counts
+            # Build complete metadata for expansion
+            inputs_data = []
+            for inp in start_tx.inputs:
+                if inp.address:
+                    inputs_data.append({"address": inp.address, "value": inp.value})
+                else:
+                    # P2PK or non-standard - use placeholder
+                    script_type = inp.script_type
+                    placeholder = f"P2PK Script" if script_type == "p2pk" else f"No Address ({script_type or 'unknown'})"
+                    inputs_data.append({"address": placeholder, "value": inp.value})
+            
+            outputs_data = []
+            for out in start_tx.outputs:
+                if out.address:
+                    outputs_data.append({"address": out.address, "value": out.value})
+                else:
+                    script_type = out.script_type
+                    placeholder = f"P2PK Script" if script_type == "p2pk" else f"No Address ({script_type or 'unknown'})"
+                    outputs_data.append({"address": placeholder, "value": out.value})
+            
             tx_node = NodeData(
                 id=f"tx_{request.txid}",
                 label=f"{request.txid[:16]}...",
@@ -63,6 +83,8 @@ async def trace_utxo(
                     "is_starting_point": True,
                     "inputCount": len(start_tx.inputs),
                     "outputCount": len(start_tx.outputs),
+                    "inputs": inputs_data,
+                    "outputs": outputs_data,
                 }
             )
             

@@ -20,11 +20,14 @@ export function useEdgeTension(
   const { setNodes } = useReactFlow();
   const intervalRef = useRef<NodeJS.Timeout>();
   const optionsRef = useRef(options);
+  const edgesRef = useRef(edges);
+  const isRunningRef = useRef(false);
 
-  // Update options ref when they change
+  // Update refs when they change
   useEffect(() => {
     optionsRef.current = options;
-  }, [options]);
+    edgesRef.current = edges;
+  }, [options, edges]);
 
   // Apply tension forces periodically
   useEffect(() => {
@@ -37,12 +40,18 @@ export function useEdgeTension(
     }
 
     const applyTension = () => {
+      // Prevent concurrent runs
+      if (isRunningRef.current) return;
+      isRunningRef.current = true;
+
       const { strength, maxLength } = optionsRef.current;
+      const currentEdges = edgesRef.current;
 
       setNodes((currentNodes) => {
         const forces = new Map<string, { x: number; y: number }>();
+        let hasForces = false;
         
-        edges.forEach((edge) => {
+        currentEdges.forEach((edge) => {
           const sourceNode = currentNodes.find(n => n.id === edge.source);
           const targetNode = currentNodes.find(n => n.id === edge.target);
           
@@ -53,8 +62,9 @@ export function useEdgeTension(
           const length = Math.sqrt(dx * dx + dy * dy);
 
           if (length > maxLength) {
+            hasForces = true;
             const excessLength = length - maxLength;
-            const tensionForce = excessLength * strength * 0.1; // Increased for stronger effect
+            const tensionForce = excessLength * strength * 0.1;
             
             const nx = dx / length;
             const ny = dy / length;
@@ -71,6 +81,11 @@ export function useEdgeTension(
           }
         });
 
+        isRunningRef.current = false;
+
+        // Only update if there are forces to apply
+        if (!hasForces) return currentNodes;
+
         return currentNodes.map((node) => {
           const force = forces.get(node.id);
           if (!force) return node;
@@ -86,8 +101,8 @@ export function useEdgeTension(
       });
     };
 
-    // Apply tension every 200ms
-    intervalRef.current = setInterval(applyTension, 200);
+    // Apply tension every 500ms (reduced frequency to save memory)
+    intervalRef.current = setInterval(applyTension, 500);
 
     return () => {
       if (intervalRef.current) {
@@ -95,6 +110,6 @@ export function useEdgeTension(
         intervalRef.current = undefined;
       }
     };
-  }, [options.enabled, nodes.length, edges.length, setNodes, edges]);
+  }, [options.enabled, nodes.length, edges.length, setNodes]); // Removed edges from dependencies to prevent constant restarts
 }
 
