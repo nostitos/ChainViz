@@ -131,19 +131,26 @@ function AppContent() {
   const [currentProgress, setCurrentProgress] = useState<{ current: number; total: number; step: string } | undefined>();
   const [hopStats, setHopStats] = useState<Array<{ hop: number; requestCount: number; totalBytes: number }>>([]);
   
-  // Helper to add progress log
+  // Helper to add progress log with limit to prevent memory leak
   const addLog = useCallback((type: 'info' | 'success' | 'error' | 'electrum', message: string) => {
-    setProgressLogs(prev => [...prev, { timestamp: Date.now(), type, message }]);
+    setProgressLogs(prev => {
+      const newLog = { timestamp: Date.now(), type, message };
+      const updated = [...prev, newLog];
+      // Keep only last 100 logs to prevent unbounded growth
+      return updated.slice(-100);
+    });
   }, []);
   
-  // Helper to track network request
+  // Helper to track network request with limit
   const trackRequest = useCallback((hop: number, bytes: number) => {
     setHopStats(prev => {
       const existing = prev.find(s => s.hop === hop);
       if (existing) {
         return prev.map(s => s.hop === hop ? { ...s, requestCount: s.requestCount + 1, totalBytes: s.totalBytes + bytes } : s);
       }
-      return [...prev, { hop, requestCount: 1, totalBytes: bytes }];
+      // Limit to 50 hops max to prevent unbounded growth
+      const updated = [...prev, { hop, requestCount: 1, totalBytes: bytes }];
+      return updated.slice(-50);
     });
   }, []);
   
@@ -462,8 +469,9 @@ function AppContent() {
   }, []);
 
   // Apply optimized collision detection (fast convergence, no infinite loops)
+  // IMPORTANT: Only enable for small-medium graphs to prevent memory leaks
   const forceLayout = useForceLayout(nodes, edges, {
-    enabled: forceRepulsionEnabled && nodes.length > 0,
+    enabled: forceRepulsionEnabled && nodes.length > 0 && nodes.length < 150,
     collisionRadius: 60,
     maxTicks: 100, // Stop after 100 ticks for fast convergence
   });
@@ -925,6 +933,8 @@ function AppContent() {
     const node = nodes.find(n => n.id === nodeId);
     if (!node) {
       console.error('Node not found:', nodeId);
+      console.error('Available node IDs:', nodes.map(n => n.id));
+      console.error('Looking for:', nodeId);
       return;
     }
     
@@ -1037,14 +1047,27 @@ function AppContent() {
   }, [nodes, edges, expandedNodes, edgeScaleMax, balanceFetchingEnabled]);
 
   // Re-attach onExpand handler to all nodes (for restored graphs or when handler changes)
+  // OPTIMIZED: Only update if handler actually changed to prevent unnecessary re-renders
+  const handleExpandNodeRef = useRef(handleExpandNode);
   useEffect(() => {
+    handleExpandNodeRef.current = handleExpandNode;
+  }, [handleExpandNode]);
+  
+  useEffect(() => {
+    // Only run once when settings change, not on every render
     setNodes((nds) =>
-      nds.map((node) => ({
-        ...node,
-        data: { ...node.data, onExpand: handleExpandNode },
-      }))
+      nds.map((node) => {
+        // Only create new object if onExpand is different
+        if (node.data.onExpand === handleExpandNodeRef.current) {
+          return node;
+        }
+        return {
+          ...node,
+          data: { ...node.data, onExpand: handleExpandNodeRef.current },
+        };
+      })
     );
-  }, [handleExpandNode, setNodes, maxOutputs, maxTransactions]);
+  }, [setNodes, maxOutputs, maxTransactions]); // Removed handleExpandNode dependency
 
   // Memoize expensive computations
   const memoizedNodeTypes = useMemo(() => nodeTypes, []);

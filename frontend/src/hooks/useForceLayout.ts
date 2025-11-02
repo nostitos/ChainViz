@@ -93,26 +93,37 @@ export function useForceLayout(
       if (tickCountRef.current >= maxTicks || simulation.alpha() < 0.01) {
         console.log(`✅ Force simulation stopped after ${tickCountRef.current} ticks (alpha: ${simulation.alpha().toFixed(4)})`);
         simulation.stop();
+        simulation.on('tick', null); // Remove tick handler to prevent memory leak
         isUpdatingRef.current = false;
         return;
       }
 
-      // Update React Flow nodes
-      setNodes((nds) =>
-        nds.map((node) => {
+      // Update React Flow nodes (batched update to reduce renders)
+      setNodes((nds) => {
+        let hasChanges = false;
+        const updated = nds.map((node) => {
           const simNode = simNodes.find((n: any) => n.id === node.id) as any;
           if (simNode) {
-            return {
-              ...node,
-              position: {
-                x: simNode.x,
-                y: simNode.y,
-              },
-            };
+            // Only update if position changed significantly (>1px)
+            const dx = Math.abs(simNode.x - node.position.x);
+            const dy = Math.abs(simNode.y - node.position.y);
+            if (dx > 1 || dy > 1) {
+              hasChanges = true;
+              return {
+                ...node,
+                position: {
+                  x: simNode.x,
+                  y: simNode.y,
+                },
+              };
+            }
           }
           return node;
-        })
-      );
+        });
+        
+        // If no significant changes, return original array to prevent re-render
+        return hasChanges ? updated : nds;
+      });
 
       isUpdatingRef.current = false;
     });
@@ -124,6 +135,7 @@ export function useForceLayout(
       if (simulationRef.current) {
         console.log('🧹 Cleaning up force simulation');
         simulationRef.current.stop();
+        simulationRef.current.on('tick', null); // Remove all event listeners
         simulationRef.current = null;
       }
     };

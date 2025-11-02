@@ -163,6 +163,18 @@ export function expandTransactionNode(
     });
   });
   
+  // MEMORY OPTIMIZATION: Clear heavy metadata after expansion to prevent memory leaks
+  // The inputs/outputs arrays can be HUGE (100+ items with full addresses)
+  // Once we've created the nodes/edges, we don't need this data anymore
+  if (txNode.data?.metadata) {
+    if (direction === 'inputs' && txNode.data.metadata.inputs) {
+      delete txNode.data.metadata.inputs;
+      console.log('🧹 Cleared inputs metadata to free memory');
+    } else if (direction === 'outputs' && txNode.data.metadata.outputs) {
+      delete txNode.data.metadata.outputs;
+      console.log('🧹 Cleared outputs metadata to free memory');
+    }
+  }
   
   return { nodes, edges };
 }
