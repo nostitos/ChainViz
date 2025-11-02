@@ -41,6 +41,13 @@ export const AddressNode = memo(({ id, data, selected }: NodeProps) => {
     if (!balanceFetchingEnabled) return; // Skip if disabled
     if (!address || address === 'Unknown') return;
     
+    // Don't fetch for placeholder addresses - validate it's a real Bitcoin address
+    const isValidAddress = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$|^bc1[a-z0-9]{39,87}$/.test(address);
+    if (!isValidAddress) {
+      console.log('⏭️ AddressNode: Skipping balance fetch for non-address:', address);
+      return;
+    }
+    
     setLoading(true);
     fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/address/${address}`)
       .then(res => res.json())
