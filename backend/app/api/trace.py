@@ -603,11 +603,13 @@ async def trace_from_address(
                             
                             if script_type == "p2pk":
                                 pubkey = _extract_pubkey_from_p2pk_script(prev_output.script_pubkey)
+                                logger.info(f"🔍 P2PK input: extracted pubkey={pubkey[:20] if pubkey else 'None'}... from script_pubkey={prev_output.script_pubkey[:40] if prev_output.script_pubkey else 'None'}...")
                                 if pubkey:
                                     placeholder = f"P2PK: {pubkey[:40]}..." if len(pubkey) > 40 else f"P2PK: {pubkey}"
                                 else:
                                     placeholder = "P2PK Script"
                             else:
+                                logger.info(f"🔍 Non-P2PK input: script_type={script_type}, has scriptPubKey={bool(prev_output.script_pubkey)}")
                                 placeholder = f"No Address ({script_type or 'unknown'})"
                             
                             resolved_inputs.append({
