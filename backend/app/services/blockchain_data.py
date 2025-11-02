@@ -22,6 +22,40 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
+def _extract_pubkey_from_p2pk_script(script_pubkey_hex: str) -> Optional[str]:
+    """
+    Extract public key from P2PK scriptPubKey
+    
+    P2PK format: <pubkey> OP_CHECKSIG
+    The pubkey is 33 bytes (compressed) or 65 bytes (uncompressed)
+    """
+    if not script_pubkey_hex:
+        return None
+    
+    try:
+        script_bytes = bytes.fromhex(script_pubkey_hex)
+        
+        # P2PK script: <length> <pubkey> OP_CHECKSIG (0xac)
+        # Compressed: 21 <33 bytes> ac (total 35 bytes)
+        # Uncompressed: 41 <65 bytes> ac (total 67 bytes)
+        
+        if len(script_bytes) == 35 and script_bytes[0] == 0x21 and script_bytes[-1] == 0xac:
+            # Compressed pubkey
+            pubkey = script_bytes[1:34]
+            if pubkey[0] in (0x02, 0x03):
+                return pubkey.hex()
+        elif len(script_bytes) == 67 and script_bytes[0] == 0x41 and script_bytes[-1] == 0xac:
+            # Uncompressed pubkey
+            pubkey = script_bytes[1:66]
+            if pubkey[0] == 0x04:
+                return pubkey.hex()
+        
+        return None
+    except Exception as e:
+        logger.debug(f"Failed to extract pubkey from P2PK script: {e}")
+        return None
+
+
 def _extract_address_from_script_sig(script_sig: str) -> Optional[str]:
     """
     Extract Bitcoin address from script_sig for P2PKH transactions

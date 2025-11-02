@@ -58,7 +58,9 @@ async def trace_utxo(
                 if inp.address:
                     inputs_data.append({"address": inp.address, "value": inp.value})
                 else:
-                    # P2PK or non-standard - use placeholder
+                    # P2PK or non-standard - extract pubkey if possible
+                    # Note: For inputs, we need the previous output's scriptPubKey
+                    # We don't have it here, so just use placeholder
                     script_type = inp.script_type
                     placeholder = f"P2PK Script" if script_type == "p2pk" else f"No Address ({script_type or 'unknown'})"
                     inputs_data.append({"address": placeholder, "value": inp.value})
@@ -68,8 +70,19 @@ async def trace_utxo(
                 if out.address:
                     outputs_data.append({"address": out.address, "value": out.value})
                 else:
+                    # P2PK or non-standard - extract pubkey if possible
+                    from app.services.blockchain_data import _extract_pubkey_from_p2pk_script
                     script_type = out.script_type
-                    placeholder = f"P2PK Script" if script_type == "p2pk" else f"No Address ({script_type or 'unknown'})"
+                    
+                    if script_type == "p2pk":
+                        pubkey = _extract_pubkey_from_p2pk_script(out.script_pubkey)
+                        if pubkey:
+                            placeholder = f"P2PK: {pubkey[:40]}..." if len(pubkey) > 40 else f"P2PK: {pubkey}"
+                        else:
+                            placeholder = "P2PK Script"
+                    else:
+                        placeholder = f"No Address ({script_type or 'unknown'})"
+                    
                     outputs_data.append({"address": placeholder, "value": out.value})
             
             tx_node = NodeData(
@@ -584,9 +597,19 @@ async def trace_from_address(
                             })
                         else:
                             # No address (P2PK or other non-standard script)
-                            # Use script type or placeholder so input is still visible
+                            # For P2PK, try to extract and show the public key
+                            from app.services.blockchain_data import _extract_pubkey_from_p2pk_script
                             script_type = prev_output.script_type
-                            placeholder = f"P2PK Script" if script_type == "p2pk" else f"No Address ({script_type or 'unknown'})"
+                            
+                            if script_type == "p2pk":
+                                pubkey = _extract_pubkey_from_p2pk_script(prev_output.script_pubkey)
+                                if pubkey:
+                                    placeholder = f"P2PK: {pubkey[:40]}..." if len(pubkey) > 40 else f"P2PK: {pubkey}"
+                                else:
+                                    placeholder = "P2PK Script"
+                            else:
+                                placeholder = f"No Address ({script_type or 'unknown'})"
+                            
                             resolved_inputs.append({
                                 "address": placeholder,
                                 "value": prev_output.value
@@ -599,8 +622,18 @@ async def trace_from_address(
                     outputs_data.append({"address": out.address, "value": out.value})
                 else:
                     # No address (P2PK, OP_RETURN, etc.)
+                    from app.services.blockchain_data import _extract_pubkey_from_p2pk_script
                     script_type = out.script_type
-                    placeholder = f"P2PK Script" if script_type == "p2pk" else f"No Address ({script_type or 'unknown'})"
+                    
+                    if script_type == "p2pk":
+                        pubkey = _extract_pubkey_from_p2pk_script(out.script_pubkey)
+                        if pubkey:
+                            placeholder = f"P2PK: {pubkey[:40]}..." if len(pubkey) > 40 else f"P2PK: {pubkey}"
+                        else:
+                            placeholder = "P2PK Script"
+                    else:
+                        placeholder = f"No Address ({script_type or 'unknown'})"
+                    
                     outputs_data.append({"address": placeholder, "value": out.value})
             
             tx_complete_data[tx.txid] = {
