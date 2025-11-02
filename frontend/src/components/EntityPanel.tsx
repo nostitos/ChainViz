@@ -210,6 +210,23 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
       const address = data.address || metadata.address;
       if (!address) return;
       
+      // Don't fetch for placeholder addresses (P2PK, OP_RETURN, etc.)
+      if (address.includes('P2PK') || address.includes('No Address') || address.includes('OP_RETURN')) {
+        console.log('⏭️ Skipping address fetch for placeholder:', address);
+        setAddressInfo({
+          balance: 0,
+          total_received: 0,
+          total_sent: 0,
+          tx_count: 0,
+          transactions: [],
+          utxos: [],
+          first_seen: null,
+          last_seen: null,
+        });
+        setLoading(false);
+        return;
+      }
+      
       setLoading(true);
       fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/address/${address}`)
         .then(res => res.json())
