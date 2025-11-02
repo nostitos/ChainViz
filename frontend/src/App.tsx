@@ -930,11 +930,24 @@ function AppContent() {
       return;
     }
     
-    const node = nodes.find(n => n.id === nodeId);
+    // Get fresh node and edges state to avoid stale closure
+    let node: Node | undefined;
+    let currentNodes: Node[] = [];
+    let currentEdges: Edge[] = [];
+    
+    setNodes(nds => {
+      currentNodes = nds;
+      node = nds.find(n => n.id === nodeId);
+      return nds; // Don't change nodes, just read
+    });
+    
+    setEdges(eds => {
+      currentEdges = eds;
+      return eds; // Don't change edges, just read
+    });
+    
     if (!node) {
       console.error('Node not found:', nodeId);
-      console.error('Available node IDs:', nodes.map(n => n.id));
-      console.error('Looking for:', nodeId);
       return;
     }
     
@@ -962,14 +975,14 @@ function AppContent() {
         result = expandTransactionNode(node, direction as 'inputs' | 'outputs', edgeScaleMax);
       } else if (node.type === 'address') {
         // Try to expand from existing edges first
-        const expandResult = expandAddressNode(node, direction as 'receiving' | 'spending', nodes, edges);
+        const expandResult = expandAddressNode(node, direction as 'receiving' | 'spending', currentNodes, currentEdges);
         
         // Check if we need to fetch from backend (newly-added address)
         if ('needsFetch' in expandResult && expandResult.needsFetch) {
           console.log(`📡 Newly-added address - fetching TX history from backend...`);
           
           const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-          const existingIds = new Set(nodes.map(n => n.id));
+          const existingIds = new Set(currentNodes.map(n => n.id));
           
           result = await expandAddressNodeWithFetch(
             expandResult.address,
@@ -987,10 +1000,10 @@ function AppContent() {
         return;
       }
       
-      // Filter to only NEW nodes
-      const existingIds = new Set(nodes.map(n => n.id));
+      // Filter to only NEW nodes (use fresh state!)
+      const existingIds = new Set(currentNodes.map(n => n.id));
       const newNodes = result.nodes.filter(n => !existingIds.has(n.id));
-      const newEdges = result.edges.filter(e => !edges.some(existing => existing.id === e.id));
+      const newEdges = result.edges.filter(e => !currentEdges.some(existing => existing.id === e.id));
       
       if (newNodes.length === 0) {
         console.log('No new nodes to add (all already in graph)');
@@ -1044,7 +1057,7 @@ function AppContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [nodes, edges, expandedNodes, edgeScaleMax, balanceFetchingEnabled]);
+  }, [expandedNodes, edgeScaleMax, balanceFetchingEnabled, setNodes, setEdges]);
 
   // Re-attach onExpand handler to all nodes (for restored graphs or when handler changes)
   // OPTIMIZED: Only update if handler actually changed to prevent unnecessary re-renders
