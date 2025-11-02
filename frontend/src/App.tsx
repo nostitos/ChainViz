@@ -979,19 +979,26 @@ function AppContent() {
         
         // Check if we need to fetch from backend (newly-added address)
         if ('needsFetch' in expandResult && expandResult.needsFetch) {
-          console.log(`📡 Newly-added address - fetching TX history from backend...`);
-          
-          const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-          const existingIds = new Set(currentNodes.map(n => n.id));
-          
-          result = await expandAddressNodeWithFetch(
-            expandResult.address,
-            node,
-            direction as 'receiving' | 'spending',
-            edgeScaleMax,
-            API_BASE_URL,
-            existingIds
-          );
+          // Check if it's a placeholder (P2PK, No Address, etc.)
+          const address = expandResult.address;
+          if (address.includes('P2PK') || address.includes('No Address') || address.includes('OP_RETURN')) {
+            console.log(`⏭️ Skipping expansion for placeholder address: ${address}`);
+            result = { nodes: [], edges: [] };
+          } else {
+            console.log(`📡 Newly-added address - fetching TX history from backend...`);
+            
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+            const existingIds = new Set(currentNodes.map(n => n.id));
+            
+            result = await expandAddressNodeWithFetch(
+              address,
+              node,
+              direction as 'receiving' | 'spending',
+              edgeScaleMax,
+              API_BASE_URL,
+              existingIds
+            );
+          }
         } else {
           result = expandResult;
         }
