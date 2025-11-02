@@ -51,19 +51,37 @@ async def trace_utxo(
             logger.info(f"📊 Request #1: Fetching starting transaction {request.txid[:20]}...")
             start_tx = await blockchain_service.fetch_transaction(request.txid)
             
-            # Create TX node with counts
+            # Resolve inputs for starting TX (need to fetch previous TXs)
+            input_txids = [inp.txid for inp in start_tx.inputs if inp.txid]
+            logger.info(f"📊 Request #2: Fetching {len(input_txids)} input transactions to resolve addresses...")
+            input_txs = await blockchain_service.fetch_transactions_batch(input_txids)
+            input_tx_map = {tx.txid: tx for tx in input_txs if tx}
+            
             # Build complete metadata for expansion
             inputs_data = []
             for inp in start_tx.inputs:
-                if inp.address:
-                    inputs_data.append({"address": inp.address, "value": inp.value})
-                else:
-                    # P2PK or non-standard - extract pubkey if possible
-                    # Note: For inputs, we need the previous output's scriptPubKey
-                    # We don't have it here, so just use placeholder
-                    script_type = inp.script_type
-                    placeholder = f"P2PK Script" if script_type == "p2pk" else f"No Address ({script_type or 'unknown'})"
-                    inputs_data.append({"address": placeholder, "value": inp.value})
+                if inp.txid and inp.txid in input_tx_map:
+                    prev_tx = input_tx_map[inp.txid]
+                    if inp.vout < len(prev_tx.outputs):
+                        prev_output = prev_tx.outputs[inp.vout]
+                        if prev_output.address:
+                            inputs_data.append({"address": prev_output.address, "value": prev_output.value})
+                        else:
+                            # P2PK or non-standard - extract pubkey
+                            from app.services.blockchain_data import _extract_pubkey_from_p2pk_script
+                            script_type = prev_output.script_type
+                            
+                            if script_type == "p2pk":
+                                pubkey = _extract_pubkey_from_p2pk_script(prev_output.script_pubkey)
+                                logger.info(f"🔍 P2PK input: extracted pubkey={pubkey[:20] if pubkey else 'None'}...")
+                                if pubkey:
+                                    placeholder = f"P2PK: {pubkey[:40]}..." if len(pubkey) > 40 else f"P2PK: {pubkey}"
+                                else:
+                                    placeholder = "P2PK Script"
+                            else:
+                                placeholder = f"No Address ({script_type or 'unknown'})"
+                            
+                            inputs_data.append({"address": placeholder, "value": prev_output.value})
             
             outputs_data = []
             for out in start_tx.outputs:

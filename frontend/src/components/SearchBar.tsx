@@ -17,8 +17,6 @@ interface SearchBarProps {
 
 export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpenSettings, onOpenAbout, edgeScaleMax, onEdgeScaleMaxChange, onExpandBackward, onExpandForward, hasGraph, initialQuery }: SearchBarProps) {
   const [input, setInput] = useState('');
-  const [hopsBefore, setHopsBefore] = useState(1); // Hops backward (default: 1 to match URL auto-load)
-  const [hopsAfter, setHopsAfter] = useState(1); // Hops forward (default: 1 to match URL auto-load)
   const [history, setHistory] = useState<string[]>([]);
   
   // Save edgeScaleMax to localStorage when it changes
@@ -40,13 +38,10 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
     }
   }, []);
   
-  // Set input from initial query (from URL) and sync hops
+  // Set input from initial query (from URL)
   useEffect(() => {
     if (initialQuery) {
       setInput(initialQuery);
-      // URL auto-load uses 1,1 hops - sync the display
-      setHopsBefore(1);
-      setHopsAfter(1);
     }
   }, [initialQuery]);
 
@@ -66,12 +61,13 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
     setShowDropdown(false);
 
     // Detect if it's a transaction (64 hex chars) or address
+    // Always use 1 hop in each direction for initial load
     if (/^[0-9a-fA-F]{64}$/.test(trimmed)) {
       // It's a transaction ID (always use vout 0)
-      onTraceTransaction(trimmed, 0, hopsBefore, hopsAfter);
+      onTraceTransaction(trimmed, 0, 1, 1);
     } else {
       // It's an address
-      onTraceAddress(trimmed, hopsBefore, hopsAfter);
+      onTraceAddress(trimmed, 1, 1);
     }
   };
 
@@ -136,79 +132,51 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
             )}
           </div>
           
-                  <div className="depth-control">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <label>
-                        Back Hops:
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={hopsBefore}
-                        onChange={(e) => setHopsBefore(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
-                        className="hop-input"
-                        disabled={isLoading}
-                      />
-                      {hasGraph && onExpandBackward && (
-                        <button
-                          type="button"
-                          onClick={onExpandBackward}
-                          disabled={isLoading}
-                          className="hop-arrow-button"
-                          title="Expand graph by 1 hop backward"
-                        >
-                          <ChevronLeft size={18} />
-                        </button>
-                      )}
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="10"
-                      value={Math.min(hopsBefore, 10)}
-                      onChange={(e) => setHopsBefore(parseInt(e.target.value))}
-                      className="depth-slider"
-                      disabled={isLoading}
-                    />
-                  </div>
-                  
-                  <div className="depth-control">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <label>
-                        Forward Hops:
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={hopsAfter}
-                        onChange={(e) => setHopsAfter(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
-                        className="hop-input"
-                        disabled={isLoading}
-                      />
-                      {hasGraph && onExpandForward && (
-                        <button
-                          type="button"
-                          onClick={onExpandForward}
-                          disabled={isLoading}
-                          className="hop-arrow-button"
-                          title="Expand graph by 1 hop forward"
-                        >
-                          <ChevronRight size={18} />
-                        </button>
-                      )}
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="10"
-                      value={Math.min(hopsAfter, 10)}
-                      onChange={(e) => setHopsAfter(parseInt(e.target.value))}
-                      className="depth-slider"
-                      disabled={isLoading}
-                    />
-                  </div>
+          {/* Hop Navigation Buttons - Only show when graph is loaded */}
+          {hasGraph && (onExpandBackward || onExpandForward) && (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              {onExpandBackward && (
+                <button
+                  type="button"
+                  onClick={onExpandBackward}
+                  disabled={isLoading}
+                  className="hop-arrow-button"
+                  title="Expand graph by 1 hop backward (or press < key)"
+                  style={{
+                    padding: '8px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                  }}
+                >
+                  <ChevronLeft size={18} />
+                  Backward
+                </button>
+              )}
+              {onExpandForward && (
+                <button
+                  type="button"
+                  onClick={onExpandForward}
+                  disabled={isLoading}
+                  className="hop-arrow-button"
+                  title="Expand graph by 1 hop forward (or press > key)"
+                  style={{
+                    padding: '8px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                  }}
+                >
+                  Forward
+                  <ChevronRight size={18} />
+                </button>
+              )}
+            </div>
+          )}
                   
                   {/* Edge Width Scale */}
                   <div className="depth-control">
