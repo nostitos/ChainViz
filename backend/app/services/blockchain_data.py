@@ -496,7 +496,9 @@ class BlockchainDataService:
         """Detect script type from scriptPubKey"""
         script_type = script_pubkey.get("type", "")
 
-        if script_type == "pubkeyhash":
+        if script_type == "pubkey":
+            return ScriptType.P2PK
+        elif script_type == "pubkeyhash":
             return ScriptType.P2PKH
         elif script_type == "scripthash":
             return ScriptType.P2SH

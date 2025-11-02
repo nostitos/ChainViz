@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 class ScriptType(str, Enum):
     """Bitcoin script types"""
 
+    P2PK = "p2pk"  # Pay to Public Key (old, deprecated)
     P2PKH = "p2pkh"  # Pay to Public Key Hash
     P2SH = "p2sh"  # Pay to Script Hash
     P2WPKH = "p2wpkh"  # Pay to Witness Public Key Hash
