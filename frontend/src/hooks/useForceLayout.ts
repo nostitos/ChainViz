@@ -30,6 +30,7 @@ export function useForceLayout(
 
   // Main simulation effect - only depends on node COUNT, not node positions
   useEffect(() => {
+    console.log(`🔧 Force layout effect: enabled=${enabled}, nodes=${nodes.length}`);
     if (!enabled || nodes.length === 0) {
       // Clean up simulation when disabled
       if (simulationRef.current) {
@@ -50,6 +51,7 @@ export function useForceLayout(
     }
 
     console.log('🎯 Starting optimized force simulation with', nodes.length, 'nodes');
+    console.trace('Stack trace for simulation start');
     tickCountRef.current = 0;
 
     // Clean up old simulation
@@ -99,9 +101,10 @@ export function useForceLayout(
       }
 
       // Update React Flow nodes (batched update to reduce renders)
-      setNodes((nds) => {
+      // IMPORTANT: Use functional update to avoid capturing stale nodes in closure
+      setNodes((currentNodes) => {
         let hasChanges = false;
-        const updated = nds.map((node) => {
+        const updated = currentNodes.map((node) => {
           const simNode = simNodes.find((n: any) => n.id === node.id) as any;
           if (simNode) {
             // Only update if position changed significantly (>1px)
@@ -122,7 +125,7 @@ export function useForceLayout(
         });
         
         // If no significant changes, return original array to prevent re-render
-        return hasChanges ? updated : nds;
+        return hasChanges ? updated : currentNodes;
       });
 
       isUpdatingRef.current = false;
@@ -139,7 +142,7 @@ export function useForceLayout(
         simulationRef.current = null;
       }
     };
-  }, [nodes.length, enabled, collisionRadius, maxTicks, setNodes]); // Only node LENGTH, not nodes themselves!
+  }, [nodes.length, enabled, collisionRadius, maxTicks]); // setNodes is stable, don't include it
 
   // Manual reheat on drag - separate from main simulation
   const reheatSimulation = useCallback(() => {

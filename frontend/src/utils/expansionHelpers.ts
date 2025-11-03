@@ -182,8 +182,9 @@ export function expandTransactionNode(
 /**
  * Expand an address node to show its receiving or spending transactions
  * 
- * For addresses from initial load: Uses existing edges (TXs already fetched)
- * For addresses from TX expansion: Returns special marker to trigger backend fetch
+ * ALWAYS fetches from backend because an address can have many more transactions
+ * than what's currently visible in the graph. The graph might only show 1-2 TXs
+ * involving this address, but the address could have hundreds of transactions.
  */
 export function expandAddressNode(
   addrNode: Node,
@@ -191,48 +192,13 @@ export function expandAddressNode(
   allNodes: Node[],
   allEdges: Edge[]
 ): ExpandResult | { needsFetch: true; address: string } {
-  const addrId = addrNode.id;
   const address = addrNode.data.address || addrNode.data.metadata?.address;
   
-  // Find connected TX IDs from existing edges in the requested direction
-  const connectedTxIds = direction === 'receiving'
-    ? allEdges.filter(e => e.source.startsWith('tx_') && e.target === addrId).map(e => e.source)
-    : allEdges.filter(e => e.source === addrId && e.target.startsWith('tx_')).map(e => e.target);
-  
-  // If no edges in this direction, need to fetch from backend
-  if (connectedTxIds.length === 0) {
-    return { needsFetch: true, address: address || '' };
-  }
-  
-  // Get TX nodes from existing graph (they're already there, just not visible!)
-  const txNodes = allNodes.filter(n => connectedTxIds.includes(n.id));
-  
-  // Some TXs might not be in the graph yet (if they were filtered out)
-  if (txNodes.length === 0) {
-    return { nodes: [], edges: [] };
-  }
-  
-  // Calculate positioning
-  const spacing = 90;
-  const xOffset = direction === 'receiving' ? -480 : 480;
-  const startY = -(txNodes.length - 1) * spacing / 2;
-  
-  // Position TXs in vertical stack (create new positioned copies)
-  const nodes: Node[] = txNodes.map((tx, idx) => ({
-    ...tx,
-    position: {
-      x: addrNode.position.x + xOffset,
-      y: addrNode.position.y + startY + (idx * spacing),
-    },
-  }));
-  
-  // Get relevant edges (they already exist!)
-  const edges: Edge[] = allEdges.filter(e => 
-    (direction === 'receiving' && connectedTxIds.includes(e.source) && e.target === addrId) ||
-    (direction === 'spending' && e.source === addrId && connectedTxIds.includes(e.target))
-  );
-  
-  return { nodes, edges };
+  // ALWAYS fetch from backend for addresses
+  // Unlike transactions (which have ALL inputs/outputs in metadata),
+  // addresses only show transactions that are currently in the graph.
+  // There could be many more transactions involving this address!
+  return { needsFetch: true, address: address || '' };
 }
 
 /**
@@ -247,7 +213,8 @@ export async function expandAddressNodeWithFetch(
   direction: 'receiving' | 'spending',
   edgeScaleMax: number,
   apiBaseUrl: string,
-  existingNodeIds: Set<string>
+  existingNodeIds: Set<string>,
+  maxTransactions: number = 1000
 ): Promise<ExpandResult> {
   console.log(`📡 Fetching ${direction} TXs for ${address.substring(0, 20)}...`);
   
@@ -256,7 +223,7 @@ export async function expandAddressNodeWithFetch(
   const hopsAfter = direction === 'spending' ? 1 : 0;
   
   const response = await fetch(
-    `${apiBaseUrl}/trace/address?address=${encodeURIComponent(address)}&hops_before=${hopsBefore}&hops_after=${hopsAfter}&max_transactions=100`,
+    `${apiBaseUrl}/trace/address?address=${encodeURIComponent(address)}&hops_before=${hopsBefore}&hops_after=${hopsAfter}&max_transactions=${maxTransactions}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -272,46 +239,94 @@ export async function expandAddressNodeWithFetch(
   
   const totalTxCount = data.total_nodes - 1; // Subtract the address node itself
   
-  // If many TXs (>10), create cluster node instead
-  const CLUSTER_THRESHOLD = 10;
-  if (totalTxCount > CLUSTER_THRESHOLD) {
-    console.log(`⚠️ ${totalTxCount} TXs found - creating cluster node`);
+  // Handle case where address has no transactions in this direction
+  if (totalTxCount === 0) {
+    const directionText = direction === 'receiving' ? 'receiving' : 'spending';
+    console.log(`ℹ️ Address has no ${directionText} transactions`);
+    alert(`This address has no ${directionText} transactions.\n\n${direction === 'spending' ? 'The address has only received funds and never spent them.' : 'The address has only spent funds and never received them.'}`);
+    return { nodes: [], edges: [] };
+  }
+  
+  // HYBRID CLUSTERING THRESHOLDS:
+  // ≤10 TXs: Show all immediately (fast, manageable)
+  // 10-50 TXs: Show all with warning (acceptable performance)
+  // 50+ TXs: Create cluster with progressive loading
+  const SHOW_ALL_THRESHOLD = 10;
+  const CLUSTER_THRESHOLD = 50;
+  const BATCH_SIZE = 20;
+  
+  if (totalTxCount > SHOW_ALL_THRESHOLD && totalTxCount <= CLUSTER_THRESHOLD) {
+    console.log(`⚠️ ${totalTxCount} TXs found - showing all with warning (acceptable performance)`);
+    // Continue to show all TXs (fall through to normal logic below)
+  } else if (totalTxCount > CLUSTER_THRESHOLD) {
+    console.log(`⚠️ ${totalTxCount} TXs found - creating cluster with progressive loading`);
+    
+    // Extract first batch of TX nodes
+    const allTxNodes = data.nodes.filter((n: any) => n.type === 'transaction');
+    const firstBatch = allTxNodes.slice(0, BATCH_SIZE);
+    const remainingCount = totalTxCount - BATCH_SIZE;
     
     const xOffset = direction === 'receiving' ? -480 : 480;
     const clusterId = `tx-cluster-${address}-${direction}`;
     
+    // Create TX nodes for first batch
+    const spacing = 90;
+    const startY = -(firstBatch.length - 1) * spacing / 2;
+    
+    const txNodes: Node[] = firstBatch.map((txNode: any, idx: number) => ({
+      id: txNode.id,
+      type: 'transaction',
+      position: {
+        x: addrNode.position.x + xOffset,
+        y: addrNode.position.y + startY + (idx * spacing),
+      },
+      data: {
+        txid: txNode.metadata?.txid,
+        label: txNode.label,
+        metadata: txNode.metadata,
+      },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+    }));
+    
+    // Create edges for first batch
+    const addrId = `addr_${address}`;
+    const firstBatchIds = new Set(firstBatch.map((tx: any) => tx.id));
+    
+    const txEdges: Edge[] = data.edges
+      .filter((edge: any) => {
+        const connectsToAddr = edge.source === addrId || edge.target === addrId;
+        const connectsToFirstBatch = firstBatchIds.has(edge.source) || firstBatchIds.has(edge.target);
+        return connectsToAddr && connectsToFirstBatch;
+      })
+      .map((edge: any) => {
+        const amount = edge.amount || 0;
+        return createStyledEdge(edge.source, edge.target, amount, edgeScaleMax);
+      });
+    
+    // Create LoadMore node if there are remaining TXs
+    const loadMoreNode: Node | null = remainingCount > 0 ? {
+      id: `loadmore-${clusterId}`,
+      type: 'loadMore',
+      position: {
+        x: addrNode.position.x + xOffset,
+        y: addrNode.position.y + startY + (firstBatch.length * spacing),
+      },
+      data: {
+        remainingCount,
+        address,
+        direction,
+        currentOffset: BATCH_SIZE,
+        totalCount: totalTxCount,
+        onLoadMore: undefined, // Will be set by App.tsx
+      },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+    } : null;
+    
     return {
-      nodes: [{
-        id: clusterId,
-        type: 'transactionCluster',
-        position: {
-          x: addrNode.position.x + xOffset,
-          y: addrNode.position.y,
-        },
-        data: {
-          address,
-          direction,
-          totalCount: totalTxCount,
-          currentOffset: 0,
-          transactions: [], // Will be populated when cluster is expanded
-          label: `${totalTxCount} ${direction === 'receiving' ? 'Receiving' : 'Spending'} TXs`,
-        },
-        sourcePosition: Position.Right,
-        targetPosition: Position.Left,
-      }],
-      edges: [{
-        id: `e-cluster-${address}-${direction}`,
-        source: direction === 'receiving' ? clusterId : `addr_${address}`,
-        target: direction === 'receiving' ? `addr_${address}` : clusterId,
-        type: 'default',
-        animated: false,
-        style: {
-          stroke: '#666',
-          strokeWidth: 3,
-          strokeDasharray: '5,5',
-        },
-        label: `${totalTxCount} TXs`,
-      }],
+      nodes: loadMoreNode ? [...txNodes, loadMoreNode] : txNodes,
+      edges: txEdges,
     };
   }
   
@@ -375,5 +390,96 @@ export async function expandAddressNodeWithFetch(
   
   
   return { nodes, edges };
+}
+
+/**
+ * Load more transactions for a progressive loading scenario
+ * 
+ * Fetches the next batch of transactions from the backend and creates nodes/edges
+ */
+export async function loadMoreTransactions(
+  address: string,
+  direction: 'receiving' | 'spending',
+  currentOffset: number,
+  addrNode: Node,
+  edgeScaleMax: number,
+  apiBaseUrl: string,
+  existingNodeIds: Set<string>,
+  maxTransactions: number = 1000
+): Promise<ExpandResult & { remainingCount: number }> {
+  console.log(`📡 Loading more TXs for ${address.substring(0, 20)}... offset=${currentOffset}`);
+  
+  const BATCH_SIZE = 20;
+  
+  // Fetch from backend with offset
+  const hopsBefore = direction === 'receiving' ? 1 : 0;
+  const hopsAfter = direction === 'spending' ? 1 : 0;
+  
+  const response = await fetch(
+    `${apiBaseUrl}/trace/address?address=${encodeURIComponent(address)}&hops_before=${hopsBefore}&hops_after=${hopsAfter}&max_transactions=${maxTransactions}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch address trace: ${response.status}`);
+  }
+  
+  const data = await response.json();
+  const totalTxCount = data.total_nodes - 1;
+  
+  // Extract TX nodes and slice the next batch
+  const allTxNodes = data.nodes.filter((n: any) => n.type === 'transaction');
+  const nextBatch = allTxNodes.slice(currentOffset, currentOffset + BATCH_SIZE);
+  const remainingCount = Math.max(0, totalTxCount - currentOffset - nextBatch.length);
+  
+  console.log(`📊 Loading batch: offset=${currentOffset}, batch=${nextBatch.length}, remaining=${remainingCount}`);
+  
+  if (nextBatch.length === 0) {
+    return { nodes: [], edges: [], remainingCount: 0 };
+  }
+  
+  // Position new TX nodes (continue from where we left off)
+  const spacing = 90;
+  const xOffset = direction === 'receiving' ? -480 : 480;
+  
+  // Calculate starting Y based on current offset
+  // We need to position these BELOW the existing TXs
+  const startY = -(currentOffset - 1) * spacing / 2 + (currentOffset * spacing);
+  
+  const txNodes: Node[] = nextBatch.map((txNode: any, idx: number) => ({
+    id: txNode.id,
+    type: 'transaction',
+    position: {
+      x: addrNode.position.x + xOffset,
+      y: startY + (idx * spacing),
+    },
+    data: {
+      txid: txNode.metadata?.txid,
+      label: txNode.label,
+      metadata: txNode.metadata,
+    },
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
+  }));
+  
+  // Create edges for this batch
+  const addrId = `addr_${address}`;
+  const batchIds = new Set(nextBatch.map((tx: any) => tx.id));
+  
+  const txEdges: Edge[] = data.edges
+    .filter((edge: any) => {
+      const connectsToAddr = edge.source === addrId || edge.target === addrId;
+      const connectsToBatch = batchIds.has(edge.source) || batchIds.has(edge.target);
+      return connectsToAddr && connectsToBatch;
+    })
+    .map((edge: any) => {
+      const amount = edge.amount || 0;
+      return createStyledEdge(edge.source, edge.target, amount, edgeScaleMax);
+    });
+  
+  return { nodes: txNodes, edges: txEdges, remainingCount };
 }
 

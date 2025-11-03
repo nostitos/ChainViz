@@ -35,7 +35,7 @@ import { ProgressLogger } from './components/ProgressLogger';
 import { traceFromAddress, traceFromUTXO, traceFromAddressWithStats, traceFromUTXOWithStats } from './services/api';
 import { buildGraphFromTraceDataBipartite, optimizeNodePositions } from './utils/graphBuilderBipartite';
 import { buildTreeLayout, findRootNode } from './utils/treeLayout';
-import { expandTransactionNode, expandAddressNode, expandAddressNodeWithFetch } from './utils/expansionHelpers';
+import { expandTransactionNode, expandAddressNode, expandAddressNodeWithFetch, loadMoreTransactions } from './utils/expansionHelpers';
 import { useForceLayout } from './hooks/useForceLayout';
 import { useEdgeTension } from './hooks/useEdgeTension';
 import './App.css';
@@ -930,24 +930,22 @@ function AppContent() {
       return;
     }
     
-    // Get fresh node and edges state to avoid stale closure
-    let node: Node | undefined;
-    let currentNodes: Node[] = [];
-    let currentEdges: Edge[] = [];
+    // Get fresh node and edges state from refs to avoid stale closure
+    const currentNodes = nodesRef.current;
+    const currentEdges = edgesRef.current;
+    const node = currentNodes.find(n => n.id === nodeId);
     
-    setNodes(nds => {
-      currentNodes = nds;
-      node = nds.find(n => n.id === nodeId);
-      return nds; // Don't change nodes, just read
-    });
-    
-    setEdges(eds => {
-      currentEdges = eds;
-      return eds; // Don't change edges, just read
-    });
+    console.log(`📊 handleExpandNode: ${currentNodes.length} nodes in state`);
     
     if (!node) {
-      console.error('Node not found:', nodeId);
+      console.error('❌ Node not found:', nodeId);
+      console.error('Looking for:', JSON.stringify(nodeId));
+      console.error('Available IDs:', currentNodes.map(n => JSON.stringify(n.id)));
+      console.error('ID match check:', currentNodes.map(n => ({
+        id: n.id,
+        matches: n.id === nodeId,
+        lengthDiff: n.id.length - nodeId.length
+      })));
       return;
     }
     
@@ -996,7 +994,8 @@ function AppContent() {
               direction as 'receiving' | 'spending',
               edgeScaleMax,
               API_BASE_URL,
-              existingIds
+              existingIds,
+              maxTransactions
             );
           }
         } else {
@@ -1064,30 +1063,138 @@ function AppContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [expandedNodes, edgeScaleMax, balanceFetchingEnabled, setNodes, setEdges]);
+  }, [expandedNodes, edgeScaleMax, balanceFetchingEnabled, maxTransactions, setNodes, setEdges]);
 
+  // Handle LoadMore button clicks for progressive loading
+  const handleLoadMore = useCallback(async (address: string, direction: string, currentOffset: number) => {
+    console.log(`📥 LoadMore clicked: ${address.substring(0, 20)}, ${direction}, offset=${currentOffset}`);
+    
+    setIsLoading(true);
+    
+    try {
+      // Get current nodes/edges
+      const currentNodes = nodes;
+      const currentEdges = edges;
+      
+      // Find the address node
+      const addrNode = currentNodes.find(n => n.id === `addr_${address}`);
+      if (!addrNode) {
+        console.error('❌ Address node not found:', address);
+        return;
+      }
+      
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+      const existingIds = new Set(currentNodes.map(n => n.id));
+      
+      // Load next batch
+      const result = await loadMoreTransactions(
+        address,
+        direction as 'receiving' | 'spending',
+        currentOffset,
+        addrNode,
+        edgeScaleMax,
+        API_BASE_URL,
+        existingIds,
+        maxTransactions
+      );
+      
+      console.log(`✅ Loaded ${result.nodes.length} more TXs, ${result.remainingCount} remaining`);
+      
+      // Find and remove old LoadMore node
+      const oldLoadMoreId = `loadmore-tx-cluster-${address}-${direction}`;
+      const filteredNodes = currentNodes.filter(n => n.id !== oldLoadMoreId);
+      
+      // Add new TX nodes
+      const newNodes = [...filteredNodes, ...result.nodes];
+      
+      // Create new LoadMore node if there are still remaining TXs
+      if (result.remainingCount > 0) {
+        const spacing = 90;
+        const xOffset = direction === 'receiving' ? -480 : 480;
+        const newOffset = currentOffset + result.nodes.length;
+        
+        // Position LoadMore below the last TX
+        const lastTxY = result.nodes[result.nodes.length - 1]?.position.y || 0;
+        
+        const loadMoreNode: Node = {
+          id: oldLoadMoreId,
+          type: 'loadMore',
+          position: {
+            x: addrNode.position.x + xOffset,
+            y: lastTxY + spacing,
+          },
+          data: {
+            remainingCount: result.remainingCount,
+            address,
+            direction,
+            currentOffset: newOffset,
+            totalCount: currentOffset + result.nodes.length + result.remainingCount,
+            onLoadMore: handleLoadMore,
+          },
+          sourcePosition: Position.Right,
+          targetPosition: Position.Left,
+        };
+        
+        newNodes.push(loadMoreNode);
+      }
+      
+      // Add new edges
+      const newEdges = [...currentEdges, ...result.edges];
+      
+      setNodes(newNodes);
+      setEdges(newEdges);
+      
+    } catch (error) {
+      console.error('Error loading more transactions:', error);
+      setError('Failed to load more transactions');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [nodes, edges, edgeScaleMax, maxTransactions, setNodes, setEdges]);
+
+  // Store latest nodes/edges in refs to avoid stale closures
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+  
+  useEffect(() => {
+    nodesRef.current = nodes;
+    edgesRef.current = edges;
+  }, [nodes, edges]);
+  
   // Re-attach onExpand handler to all nodes (for restored graphs or when handler changes)
   // OPTIMIZED: Only update if handler actually changed to prevent unnecessary re-renders
   const handleExpandNodeRef = useRef(handleExpandNode);
+  const handleLoadMoreRef = useRef(handleLoadMore);
+  
   useEffect(() => {
     handleExpandNodeRef.current = handleExpandNode;
-  }, [handleExpandNode]);
+    handleLoadMoreRef.current = handleLoadMore;
+  }, [handleExpandNode, handleLoadMore]);
   
   useEffect(() => {
     // Only run once when settings change, not on every render
     setNodes((nds) =>
       nds.map((node) => {
-        // Only create new object if onExpand is different
-        if (node.data.onExpand === handleExpandNodeRef.current) {
+        // Only create new object if callbacks are different
+        const needsUpdate = 
+          node.data.onExpand !== handleExpandNodeRef.current ||
+          (node.type === 'loadMore' && node.data.onLoadMore !== handleLoadMoreRef.current);
+        
+        if (!needsUpdate) {
           return node;
         }
+        
         return {
           ...node,
-          data: { ...node.data, onExpand: handleExpandNodeRef.current },
+          data: { 
+            ...node.data, 
+            onExpand: handleExpandNodeRef.current,
+            onLoadMore: node.type === 'loadMore' ? handleLoadMoreRef.current : node.data.onLoadMore,
+          },
         };
       })
     );
-  }, [setNodes, maxOutputs, maxTransactions]); // Removed handleExpandNode dependency
+  }, [setNodes, maxOutputs, maxTransactions, handleExpandNode, handleLoadMore]);
 
   // Memoize expensive computations
   const memoizedNodeTypes = useMemo(() => nodeTypes, []);
@@ -1172,13 +1279,16 @@ function AppContent() {
 
   // Expand graph by one hop backward
   const handleExpandBackward = useCallback(async () => {
-    if (nodes.length === 0) return;
+    // Get fresh nodes state from ref to avoid stale closure
+    const currentNodes = nodesRef.current;
+    
+    if (currentNodes.length === 0) return;
     
     console.log('⬅️ Expanding graph by 1 hop backward...');
     
     // Get visible nodes in viewport
-    const visibleNodeIds = getVisibleNodeIds(nodes);
-    const visibleNodes = nodes.filter(n => visibleNodeIds.has(n.id));
+    const visibleNodeIds = getVisibleNodeIds(currentNodes);
+    const visibleNodes = currentNodes.filter(n => visibleNodeIds.has(n.id));
     
     if (visibleNodes.length === 0) {
       console.log('No visible nodes to expand');
@@ -1264,17 +1374,21 @@ function AppContent() {
       setIsLoading(false);
       setCurrentProgress(undefined);
     }
-  }, [nodes, expandedNodes, getVisibleNodeIds, handleExpandNode, addLog, setCurrentProgress]);
+  }, [expandedNodes, getVisibleNodeIds, handleExpandNode, addLog, setCurrentProgress]);
 
   // Expand graph by one hop forward
   const handleExpandForward = useCallback(async () => {
-    if (nodes.length === 0) return;
+    // Get fresh nodes state from ref to avoid stale closure
+    const currentNodes = nodesRef.current;
+    
+    if (currentNodes.length === 0) return;
     
     console.log('➡️ Expanding graph by 1 hop forward...');
+    console.log(`📊 Current graph has ${currentNodes.length} nodes:`, currentNodes.map(n => `${n.id} (${n.type})`).join(', '));
     
     // Get visible nodes in viewport
-    const visibleNodeIds = getVisibleNodeIds(nodes);
-    const visibleNodes = nodes.filter(n => visibleNodeIds.has(n.id));
+    const visibleNodeIds = getVisibleNodeIds(currentNodes);
+    const visibleNodes = currentNodes.filter(n => visibleNodeIds.has(n.id));
     
     if (visibleNodes.length === 0) {
       console.log('No visible nodes to expand');
@@ -1300,6 +1414,7 @@ function AppContent() {
     });
     
     console.log(`Expanding ${nodesToExpand.length} rightmost unexpanded nodes`);
+    console.log('Node IDs to expand:', nodesToExpand.map(n => `${n.id} (${n.type})`));
     
     if (nodesToExpand.length === 0) {
       setError('All visible nodes already expanded forward');
@@ -1360,7 +1475,29 @@ function AppContent() {
       setIsLoading(false);
       setCurrentProgress(undefined);
     }
-  }, [nodes, expandedNodes, getVisibleNodeIds, handleExpandNode, addLog, setCurrentProgress]);
+  }, [expandedNodes, getVisibleNodeIds, handleExpandNode, addLog, setCurrentProgress]);
+
+  // Expand only the selected node forward
+  const handleExpandSelectedForward = useCallback(async () => {
+    if (!selectedEntity) {
+      console.log('No node selected');
+      return;
+    }
+    
+    const direction = selectedEntity.type === 'address' ? 'spending' : 'outputs';
+    await handleExpandNode(selectedEntity.id, direction);
+  }, [selectedEntity, handleExpandNode]);
+
+  // Expand only the selected node backward
+  const handleExpandSelectedBackward = useCallback(async () => {
+    if (!selectedEntity) {
+      console.log('No node selected');
+      return;
+    }
+    
+    const direction = selectedEntity.type === 'address' ? 'receiving' : 'inputs';
+    await handleExpandNode(selectedEntity.id, direction);
+  }, [selectedEntity, handleExpandNode]);
 
   // Get query from URL (reactive to changes)
   const [urlQuery, setUrlQuery] = useState(() => {
@@ -1386,18 +1523,28 @@ function AppContent() {
         return;
       }
       
-      if (e.key === '<' || e.key === ',') {
+      if (e.key === '<') {
+        // Shift+, → expand all visible backward
         e.preventDefault();
         handleExpandBackward();
-      } else if (e.key === '>' || e.key === '.') {
+      } else if (e.key === ',') {
+        // , → expand selected backward
+        e.preventDefault();
+        handleExpandSelectedBackward();
+      } else if (e.key === '>') {
+        // Shift+. → expand all visible forward
         e.preventDefault();
         handleExpandForward();
+      } else if (e.key === '.') {
+        // . → expand selected forward
+        e.preventDefault();
+        handleExpandSelectedForward();
       }
     };
     
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [handleExpandBackward, handleExpandForward]);
+  }, [handleExpandBackward, handleExpandForward, handleExpandSelectedBackward, handleExpandSelectedForward]);
 
   // Right-click to toggle selection mode
   useEffect(() => {

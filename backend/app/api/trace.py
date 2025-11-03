@@ -511,7 +511,7 @@ async def trace_from_address(
     address: str,
     hops_before: int = 1,  # Backward hops (show TXs that send TO address - appear LEFT)
     hops_after: int = 1,   # Forward hops (show TXs where address sends FROM - appear RIGHT)
-    max_transactions: int = 100,
+    max_transactions: int = 1000,  # Safety cap (batched, can handle large amounts)
     include_coinjoin: bool = False,
     confidence_threshold: float = 0.5,
     blockchain_service: BlockchainDataService = Depends(get_blockchain_service),
@@ -666,6 +666,10 @@ async def trace_from_address(
         txs_to_include = set()
         tx_needs_input_check = set()  # For edge creation
         
+        # DEBUG: Count matches
+        receiving_count = 0
+        spending_count = 0
+        
         for tx in transactions:
             has_output_to_addr = any(out.address == address for out in tx.outputs)
             
@@ -674,6 +678,18 @@ async def trace_from_address(
                 inp["address"] == address 
                 for inp in tx_complete_data[tx.txid]["inputs"]
             )
+            
+            # DEBUG logging - show first TX details
+            if receiving_count == 0 and spending_count == 0:
+                logger.info(f"🔍 First TX {tx.txid[:20]}: has_output={has_output_to_addr}, has_input={has_input_from_addr}")
+                logger.info(f"   Input addresses: {[inp['address'][:20] for inp in tx_complete_data[tx.txid]['inputs'][:3]]}")
+                logger.info(f"   Output addresses: {[out.address[:20] if out.address else 'None' for out in tx.outputs[:3]]}")
+                logger.info(f"   Looking for: {address[:20]}")
+            
+            if has_output_to_addr:
+                receiving_count += 1
+            if has_input_from_addr:
+                spending_count += 1
             
             # Include based on hop direction
             include_tx = False
@@ -707,7 +723,8 @@ async def trace_from_address(
                     }
                 ))
         
-        logger.info(f"✅ Including {len(txs_to_include)} of {len(transactions)} TXs based on hop direction")
+        logger.info(f"🔍 DEBUG: Found {receiving_count} TXs with outputs to address, {spending_count} TXs with inputs from address")
+        logger.info(f"✅ Including {len(txs_to_include)} of {len(transactions)} TXs based on hop direction (hops_before={hops_before}, hops_after={hops_after})")
         
         # THIRD: Create edges (using complete resolved data)
         for tx in transactions:
