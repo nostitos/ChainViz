@@ -184,3 +184,57 @@ To verify auto-deployment now works:
 2. Add CloudWatch disk space alarm (optional but recommended)
 3. Consider upgrading instance disk if data/logs grow
 
+---
+
+## 🔴 CRITICAL: Electrum Server Incompatibility (Nov 3, 2025 - 01:00 UTC)
+
+### **Issue**: Transactions Not Loading on AWS
+
+After deploying `electrum.blockstream.info`, the backend successfully connects and retrieves address history (52K+ TXs for Satoshi address), BUT fails to fetch actual transaction data:
+
+```
+Batch item 0 error: verbose transactions are currently unsupported
+Batch item 1 error: verbose transactions are currently unsupported
+...
+🔴 After 3 attempts: 0 succeeded, 5 FAILED
+```
+
+**Root Cause**: Blockstream's public Electrum server does NOT support the `verbose=true` parameter in `blockchain.transaction.get`. Our code requests:
+```python
+# In electrum_client.py lines 392, 405
+blockchain.transaction.get(txid, verbose=True)  # ❌ Fails on blockstream
+```
+
+**Impact**: 
+- ✅ Address history works (`get_history` returns TX IDs)
+- ❌ Transaction fetching fails (can't get TX details)
+- ❌ UI shows 0 nodes/0 edges (no graph data)
+- ❌ All trace endpoints return empty graphs
+
+**Solutions**:
+
+1. **Option A: Non-verbose + Manual Decoding** (COMPLEX)
+   - Fetch: `blockchain.transaction.get(txid, False)` → returns raw hex
+   - Manually decode hex to extract inputs/outputs
+   - Pro: Works with all servers
+   - Con: Complex hex parsing, slower
+
+2. **Option B: Find Server with Verbose Support** (SIMPLE)
+   - Test: fulcrum.sethforprivacy.com:50002
+   - Test: electrum.emzy.de:50002
+   - Pro: Simple, just change config
+   - Con: May not be reliable/public
+
+3. **Option C: Mempool.space API** (RECOMMENDED ✅)
+   - Use mempool.space REST API for transaction data
+   - Use Electrum only for address history
+   - Pro: Reliable, well-documented, already tested
+   - Con: Requires HTTP client, CORS handling (already done)
+
+**Immediate Action Required**: 
+- [ ] Test Option B servers for verbose support
+- [ ] OR implement Option C (mempool.space API hybrid)
+- [ ] Update `docker-compose.yml` and redeploy
+
+**Temporary Workaround**: Users can still query addresses, but trace/graph features are non-functional.
+

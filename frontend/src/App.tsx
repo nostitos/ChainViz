@@ -997,6 +997,12 @@ function AppContent() {
               existingIds,
               maxTransactions
             );
+            
+            // Show warning toast if present (10-50 TX range)
+            if ('warning' in result && result.warning) {
+              setError(result.warning);
+              setTimeout(() => setError(null), 1500);
+            }
           }
         } else {
           result = expandResult;
@@ -1032,12 +1038,22 @@ function AppContent() {
         console.error('⚠️ DUPLICATE NODE IDS in newNodes!', newNodes.map(n => n.id));
       }
       
-      // Add nodes with expand handler
+      // Add nodes with expand handler and loadMore handler
       setNodes(nds => {
-        const combined = [...nds, ...newNodes.map(n => ({
-          ...n,
-          data: { ...n.data, onExpand: handleExpandNode, balanceFetchingEnabled }
-        }))];
+        const combined = [...nds, ...newNodes.map(n => {
+          // Add appropriate handlers based on node type
+          if (n.type === 'loadMore') {
+            return {
+              ...n,
+              data: { ...n.data, onLoadMore: handleLoadMore }
+            };
+          } else {
+            return {
+              ...n,
+              data: { ...n.data, onExpand: handleExpandNode, balanceFetchingEnabled }
+            };
+          }
+        })];
         
         // Verify no duplicates in combined
         const allIds = combined.map(n => n.id);

@@ -10,6 +10,7 @@ import { Node, Edge, Position } from '@xyflow/react';
 export interface ExpandResult {
   nodes: Node[];
   edges: Edge[];
+  warning?: string; // Optional warning message for 10-50 TX range
 }
 
 /**
@@ -251,13 +252,17 @@ export async function expandAddressNodeWithFetch(
   // ≤10 TXs: Show all immediately (fast, manageable)
   // 10-50 TXs: Show all with warning (acceptable performance)
   // 50+ TXs: Create cluster with progressive loading
-  const SHOW_ALL_THRESHOLD = 10;
+  const INSTANT_THRESHOLD = 10;
+  const WARNING_THRESHOLD = 50;
   const CLUSTER_THRESHOLD = 50;
   const BATCH_SIZE = 20;
   
-  if (totalTxCount > SHOW_ALL_THRESHOLD && totalTxCount <= CLUSTER_THRESHOLD) {
-    console.log(`⚠️ ${totalTxCount} TXs found - showing all with warning (acceptable performance)`);
+  if (totalTxCount <= INSTANT_THRESHOLD) {
+    console.log(`✅ ${totalTxCount} TXs found - showing all immediately`);
     // Continue to show all TXs (fall through to normal logic below)
+  } else if (totalTxCount <= WARNING_THRESHOLD) {
+    console.warn(`⚠️ Loading ${totalTxCount} TXs - may cause brief lag`);
+    // Continue to show all TXs but with warning (fall through to normal logic below)
   } else if (totalTxCount > CLUSTER_THRESHOLD) {
     console.log(`⚠️ ${totalTxCount} TXs found - creating cluster with progressive loading`);
     
@@ -389,7 +394,12 @@ export async function expandAddressNodeWithFetch(
     });
   
   
-  return { nodes, edges };
+  // Add warning if in the 10-50 range
+  const warning = (totalTxCount > INSTANT_THRESHOLD && totalTxCount <= WARNING_THRESHOLD)
+    ? `Loading ${totalTxCount} transactions...`
+    : undefined;
+  
+  return { nodes, edges, warning };
 }
 
 /**

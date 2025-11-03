@@ -9,10 +9,10 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - ELECTRUM_HOST=electrum.blockstream.info
+      - ELECTRUM_HOST=192.168.8.234
       - ELECTRUM_PORT=50002
-      - ELECTRUM_USE_SSL=true
-      - ELECTRUM_FALLBACK_HOST=fulcrum.sethforprivacy.com
+      - ELECTRUM_USE_SSL=false
+      - ELECTRUM_FALLBACK_HOST=iu1b96e.glddns.com
       - ELECTRUM_FALLBACK_PORT=50002
       - REDIS_HOST=redis
       - REDIS_PORT=6379
