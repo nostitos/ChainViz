@@ -231,10 +231,29 @@ blockchain.transaction.get(txid, verbose=True)  # ❌ Fails on blockstream
    - Pro: Reliable, well-documented, already tested
    - Con: Requires HTTP client, CORS handling (already done)
 
-**Immediate Action Required**: 
-- [ ] Test Option B servers for verbose support
-- [ ] OR implement Option C (mempool.space API hybrid)
-- [ ] Update `docker-compose.yml` and redeploy
+**✅ RESOLVED (Nov 3, 2025 - 05:25 UTC)**: 
 
-**Temporary Workaround**: Users can still query addresses, but trace/graph features are non-functional.
+Benchmarked 18 public Electrum servers from 1209k.com monitoring list:
+- ✅ **15/18 servers support verbose mode** (83% success rate)
+- ❌ Confirmed: Blockstream.info does NOT support verbose
+- 🏆 **Deployed: fulcrum.sethforprivacy.com** (24ms response, Fulcrum 2.0)
+- 🔄 **Fallback: det.electrum.blockitall.us** (43ms response, Fulcrum 1.12.0)
+
+**Test Results (AWS Production)**:
+```
+✅ Address history: 52,378 TXs for Satoshi address
+✅ Transaction fetching: "3 succeeded, 0 failed"
+✅ Graph rendering: 6 nodes, 5 edges (tested with hops_before=1)
+✅ No verbose errors!
+```
+
+**Configuration:**
+```yaml
+environment:
+  - ELECTRUM_HOST=fulcrum.sethforprivacy.com
+  - ELECTRUM_PORT=50002
+  - ELECTRUM_USE_SSL=true
+  - ELECTRUM_FALLBACK_HOST=det.electrum.blockitall.us
+  - ELECTRUM_FALLBACK_PORT=50002
+```
 
