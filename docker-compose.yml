@@ -39,11 +39,11 @@ services:
       - backend
     restart: always
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 30s
     networks:
       - chainviz
 
@@ -63,11 +63,11 @@ services:
         condition: service_healthy
     restart: always
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 30s
     networks:
       - chainviz
 
