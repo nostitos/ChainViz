@@ -78,7 +78,7 @@ depends_on:
 **Setup**:
 ```bash
 # Add to crontab
-*/5 * * * * /home/ubuntu/ChainViz/deployment/monitor-services.sh >> /var/log/chainviz-monitor.log 2>&1
+*/5 * * * * /home/ubuntu/ChainViz/deployment/monitor-services.sh >> /home/ubuntu/ChainViz/logs/chainviz-monitor.log 2>&1
 ```
 
 ---
