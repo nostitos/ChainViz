@@ -18,7 +18,13 @@ services:
       - REDIS_PORT=6379
     depends_on:
       - redis
-    restart: unless-stopped
+    restart: always
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/config').read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     networks:
       - chainviz
 
@@ -31,7 +37,13 @@ services:
       - "80"
     depends_on:
       - backend
-    restart: unless-stopped
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     networks:
       - chainviz
 
@@ -45,9 +57,17 @@ services:
       - ./deployment/nginx.conf:/etc/nginx/conf.d/default.conf
       - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
-      - frontend
-      - backend
-    restart: unless-stopped
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     networks:
       - chainviz
 
@@ -59,7 +79,13 @@ services:
     volumes:
       - redis-data:/data
     command: redis-server --appendonly yes
-    restart: unless-stopped
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     networks:
       - chainviz
 
