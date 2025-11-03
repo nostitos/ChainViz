@@ -519,46 +519,54 @@ class ElectrumClient:
         Returns: (witness_version, witness_program)
         """
         try:
-            # Try to use bech32m library first (for Taproot addresses)
-            import bech32m
-            decoded = bech32m.decode('bc', address)
-            witness_version = decoded.witver
-            witness_program = bytes(decoded.witprog)
-            return witness_version, witness_program
-        except (ImportError, Exception):
-            # Fallback: use bech32 library
-            try:
-                import bech32
-                hrp, data = bech32.bech32_decode(address)
-                if hrp is None or data is None:
-                    raise ValueError("Failed to decode bech32 address")
-                witness_version = data[0]
-                witness_program = bytes(bech32.convertbits(data[1:], 5, 8, False))
-                return witness_version, witness_program
-            except (ImportError, Exception):
-                # Fallback to manual decoding (only supports bech32, not bech32m)
-                CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
-                if '1' not in address:
-                    raise ValueError("Invalid bech32 address")
-                hrp, data = address.rsplit('1', 1)
-                decoded = []
-                for c in data[:-6]:  # Exclude checksum
-                    if c not in CHARSET:
-                        raise ValueError(f"Invalid character in bech32: {c}")
-                    decoded.append(CHARSET.index(c))
-                witness_version = decoded[0]
-                bits = 0
-                value = 0
-                witness_program = []
-                for d in decoded[1:]:
-                    value = (value << 5) | d
-                    bits += 5
-                    if bits >= 8:
-                        bits -= 8
-                witness_program.append((value >> bits) & 0xff)
-                value &= (1 << bits) - 1
-        
-        return witness_version, bytes(witness_program)
+            # Use python-bitcoinlib (already in requirements.txt)
+            from bitcoin.segwit_addr import decode
+            
+            # decode returns (witver, witprog) or (None, None) on failure
+            witver, witprog = decode('bc', address)
+            if witver is None:
+                raise ValueError(f"Failed to decode bech32 address: {address}")
+            
+            return witver, bytes(witprog)
+        except ImportError:
+            # Fallback: manual decoding (basic bech32 only)
+            logger.warning("python-bitcoinlib not available, using manual bech32 decode")
+            CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+            if '1' not in address:
+                raise ValueError("Invalid bech32 address")
+            
+            hrp, data = address.rsplit('1', 1)
+            if hrp != 'bc':
+                raise ValueError(f"Invalid hrp: {hrp}, expected 'bc'")
+            
+            # Decode data part (exclude 6-char checksum)
+            decoded = []
+            for c in data[:-6]:
+                if c not in CHARSET:
+                    raise ValueError(f"Invalid character in bech32: {c}")
+                decoded.append(CHARSET.index(c))
+            
+            if len(decoded) < 1:
+                raise ValueError("Empty data")
+            
+            witness_version = decoded[0]
+            
+            # Convert from 5-bit groups to 8-bit bytes
+            bits = 0
+            value = 0
+            witness_program = []
+            for d in decoded[1:]:
+                value = (value << 5) | d
+                bits += 5
+                if bits >= 8:
+                    bits -= 8
+                    witness_program.append((value >> bits) & 0xff)
+            
+            # Padding check
+            if bits >= 5 or value & ((1 << bits) - 1):
+                raise ValueError("Invalid padding in bech32 data")
+            
+            return witness_version, bytes(witness_program)
 
     @asynccontextmanager
     async def connection(self):
