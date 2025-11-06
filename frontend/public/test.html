@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>React Flow CPU Test</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      background: #0a0a0a;
+      color: white;
+    }
+    #root {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      background: #00bcd4;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-weight: 600;
+    }
+    button:hover {
+      background: #00acc1;
+    }
+    #canvas {
+      width: 800px;
+      height: 600px;
+      background: #1a1a1a;
+      border: 2px solid #333;
+      border-radius: 8px;
+      position: relative;
+    }
+    .node {
+      position: absolute;
+      width: 100px;
+      height: 60px;
+      background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
+      border: 2px solid #00bcd4;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      cursor: move;
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <h1>🔍 CPU Test - Empty Canvas</h1>
+    <p>Check Chrome DevTools Performance tab. CPU should be near 0% when idle.</p>
+    
+    <div id="canvas">
+      <!-- Empty canvas - no nodes -->
+    </div>
+    
+    <div style="display: flex; gap: 10px;">
+      <button onclick="addNodes()">Add 3 Nodes</button>
+      <button onclick="clearNodes()">Clear Nodes</button>
+      <button onclick="addAnimation()">Add Animation (CSS)</button>
+    </div>
+    
+    <p id="status">Status: Empty canvas</p>
+  </div>
+
+  <script>
+    let nodeCount = 0;
+    let hasAnimation = false;
+
+    function addNodes() {
+      const canvas = document.getElementById('canvas');
+      canvas.innerHTML = '';
+      
+      for (let i = 0; i < 3; i++) {
+        const node = document.createElement('div');
+        node.className = 'node';
+        node.textContent = `Node ${i + 1}`;
+        node.style.left = `${100 + i * 150}px`;
+        node.style.top = `${200}px`;
+        canvas.appendChild(node);
+      }
+      
+      nodeCount = 3;
+      document.getElementById('status').textContent = `Status: ${nodeCount} nodes added`;
+    }
+
+    function clearNodes() {
+      document.getElementById('canvas').innerHTML = '';
+      nodeCount = 0;
+      document.getElementById('status').textContent = 'Status: Empty canvas';
+    }
+
+    function addAnimation() {
+      if (hasAnimation) return;
+      
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+        }
+        .node {
+          animation: pulse 2s ease-in-out infinite;
+        }
+      `;
+      document.head.appendChild(style);
+      hasAnimation = true;
+      document.getElementById('status').textContent = `Status: ${nodeCount} nodes with CSS animation`;
+    }
+  </script>
+</body>
+</html>

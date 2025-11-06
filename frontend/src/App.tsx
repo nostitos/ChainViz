@@ -96,7 +96,7 @@ function AppContent() {
     document.cookie = `${name}=${value}; max-age=31536000; path=/`; // 1 year
   };
 
-  const [forceRepulsionEnabled, setForceRepulsionEnabled] = useState(getCookieBool('forceRepulsionEnabled', true)); // Load from cookie
+  const [forceRepulsionEnabled, setForceRepulsionEnabled] = useState(getCookieBool('forceRepulsionEnabled', false)); // Load from cookie - default OFF to save CPU
   const [treeLayoutEnabled, setTreeLayoutEnabled] = useState(getCookieBool('treeLayoutEnabled', false)); // Load from cookie
   const [edgeTensionEnabled, setEdgeTensionEnabled] = useState(getCookieBool('edgeTensionEnabled', false)); // Load from cookie
   const [balanceFetchingEnabled, setBalanceFetchingEnabled] = useState(getCookieBool('balanceFetchingEnabled', true)); // Load from cookie
@@ -349,7 +349,7 @@ function AppContent() {
       console.warn('Viewport check failed:', err);
       return true;
     }
-  }, [getViewport]);
+  }, []); // getViewport is stable from React Flow, no need in deps
 
   // Helper to get IDs of nodes visible in current viewport
   const getVisibleNodeIds = useCallback((nodesToCheck: Node[]): Set<string> => {
@@ -388,7 +388,7 @@ function AppContent() {
       console.warn('Viewport check failed:', err);
       return new Set(nodesToCheck.map(n => n.id));
     }
-  }, [getViewport]);
+  }, []); // getViewport is stable from React Flow, no need in deps
 
   // Handle optimize layout
   const handleOptimizeLayout = useCallback(() => {
@@ -916,6 +916,15 @@ function AppContent() {
     return 0;
   }, [edges]);
 
+  // Store latest nodes/edges in refs to avoid stale closures
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+  
+  useEffect(() => {
+    nodesRef.current = nodes;
+    edgesRef.current = edges;
+  }, [nodes, edges]);
+
   // Expand a node (show hidden connections from cached data - NO network calls!)
   const handleExpandNode = useCallback(async (nodeId: string, direction?: 'inputs' | 'outputs' | 'spending' | 'receiving') => {
     console.log('🚀 Expanding:', nodeId, direction);
@@ -1079,7 +1088,7 @@ function AppContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [expandedNodes, edgeScaleMax, balanceFetchingEnabled, maxTransactions, setNodes, setEdges]);
+  }, [expandedNodes, edgeScaleMax, balanceFetchingEnabled, maxTransactions]); // setNodes/setEdges are stable from React Flow
 
   // Handle LoadMore button clicks for progressive loading
   const handleLoadMore = useCallback(async (address: string, direction: string, currentOffset: number) => {
@@ -1088,9 +1097,9 @@ function AppContent() {
     setIsLoading(true);
     
     try {
-      // Get current nodes/edges
-      const currentNodes = nodes;
-      const currentEdges = edges;
+      // Get current nodes/edges from refs to avoid stale closure
+      const currentNodes = nodesRef.current;
+      const currentEdges = edgesRef.current;
       
       // Find the address node
       const addrNode = currentNodes.find(n => n.id === `addr_${address}`);
@@ -1166,16 +1175,7 @@ function AppContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [nodes, edges, edgeScaleMax, maxTransactions, setNodes, setEdges]);
-
-  // Store latest nodes/edges in refs to avoid stale closures
-  const nodesRef = useRef(nodes);
-  const edgesRef = useRef(edges);
-  
-  useEffect(() => {
-    nodesRef.current = nodes;
-    edgesRef.current = edges;
-  }, [nodes, edges]);
+  }, [edgeScaleMax, maxTransactions]); // nodes/edges read from refs, setNodes/setEdges are stable from React Flow
   
   // Re-attach onExpand handler to all nodes (for restored graphs or when handler changes)
   // OPTIMIZED: Only update if handler actually changed to prevent unnecessary re-renders
@@ -1291,7 +1291,7 @@ function AppContent() {
       console.warn('Visibility optimization failed:', err);
       return nodes;
     }
-  }, [nodes, viewportVersion, getViewport]);
+  }, [nodes, viewportVersion]); // Removed getViewport from deps - it's stable from React Flow
 
   // Expand graph by one hop backward
   const handleExpandBackward = useCallback(async () => {
@@ -1609,7 +1609,6 @@ function AppContent() {
           nodeTypes={memoizedNodeTypes}
           edgeTypes={edgeTypes}
           nodesDraggable={true}
-          fitView
           minZoom={0.1}
           maxZoom={2}
           panOnDrag={!isSelectMode}
@@ -1619,7 +1618,6 @@ function AppContent() {
           selectionMode={isSelectMode ? "partial" : undefined}
           multiSelectionKeyCode={isSelectMode ? "Shift" : null}
           defaultEdgeOptions={memoizedDefaultEdgeOptions}
-          onMove={onMove}
           // Performance optimizations
           nodeOrigin={[0.5, 0.5]}
           selectNodesOnDrag={isSelectMode}
@@ -2009,7 +2007,7 @@ function AppContent() {
           </label>
         </div>
 
-        {/* Performance Monitor (only in development) */}
+        {/* Performance Monitor (only in development) - Note: Uses requestAnimationFrame so it will add some CPU usage */}
         {process.env.NODE_ENV === 'development' && (
           <PerformanceMonitor nodeCount={nodes.length} edgeCount={edges.length} />
         )}

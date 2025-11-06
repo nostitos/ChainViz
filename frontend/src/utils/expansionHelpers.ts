@@ -82,7 +82,8 @@ export function expandTransactionNode(
   direction: 'inputs' | 'outputs',
   edgeScaleMax: number
 ): ExpandResult {
-  const txid = txNode.data.metadata?.txid;
+  const metadata = txNode.data.metadata as any;
+  const txid = metadata?.txid;
   if (!txid) {
     console.warn('TX node missing txid in metadata');
     return { nodes: [], edges: [] };
@@ -90,8 +91,8 @@ export function expandTransactionNode(
   
   // Get addresses from metadata (already fetched during initial load!)
   const addresses = direction === 'inputs' 
-    ? (txNode.data.metadata?.inputs || [])
-    : (txNode.data.metadata?.outputs || []);
+    ? (metadata?.inputs || [])
+    : (metadata?.outputs || []);
   
   if (addresses.length === 0) {
     console.log(`TX ${txid.substring(0, 20)} has no ${direction} to show`);
@@ -134,11 +135,11 @@ export function expandTransactionNode(
   // Create edges - ONE per UTXO (multiple edges to same address if multiple UTXOs!)
   const edges: Edge[] = [];
   addressGroups.forEach((utxos, address) => {
-    utxos.forEach((utxo, utxoIdx) => {
-      // Create unique edge ID using UTXO index to allow multiple edges
-      const edgeId = direction === 'inputs'
-        ? `e-addr_${address}-tx_${txid}-utxo${utxo.index}`
-        : `e-tx_${txid}-addr_${address}-utxo${utxo.index}`;
+      utxos.forEach((utxo, utxoIdx) => {
+      // Create unique edge ID using UTXO index to allow multiple edges (for reference, not used here)
+      // const edgeId = direction === 'inputs'
+      //   ? `e-addr_${address}-tx_${txid}-utxo${utxo.index}`
+      //   : `e-tx_${txid}-addr_${address}-utxo${utxo.index}`;
       
       const source = direction === 'inputs' ? `addr_${address}` : `tx_${txid}`;
       const target = direction === 'inputs' ? `tx_${txid}` : `addr_${address}`;
@@ -168,11 +169,12 @@ export function expandTransactionNode(
   // The inputs/outputs arrays can be HUGE (100+ items with full addresses)
   // Once we've created the nodes/edges, we don't need this data anymore
   if (txNode.data?.metadata) {
-    if (direction === 'inputs' && txNode.data.metadata.inputs) {
-      delete txNode.data.metadata.inputs;
+    const meta = txNode.data.metadata as any;
+    if (direction === 'inputs' && meta.inputs) {
+      delete meta.inputs;
       console.log('🧹 Cleared inputs metadata to free memory');
-    } else if (direction === 'outputs' && txNode.data.metadata.outputs) {
-      delete txNode.data.metadata.outputs;
+    } else if (direction === 'outputs' && meta.outputs) {
+      delete meta.outputs;
       console.log('🧹 Cleared outputs metadata to free memory');
     }
   }
@@ -189,11 +191,12 @@ export function expandTransactionNode(
  */
 export function expandAddressNode(
   addrNode: Node,
-  direction: 'receiving' | 'spending',
-  allNodes: Node[],
-  allEdges: Edge[]
+  _direction: 'receiving' | 'spending',
+  _allNodes: Node[],
+  _allEdges: Edge[]
 ): ExpandResult | { needsFetch: true; address: string } {
-  const address = addrNode.data.address || addrNode.data.metadata?.address;
+  const metadata = addrNode.data.metadata as any;
+  const address = addrNode.data.address || metadata?.address;
   
   // ALWAYS fetch from backend for addresses
   // Unlike transactions (which have ALL inputs/outputs in metadata),
@@ -244,7 +247,8 @@ export async function expandAddressNodeWithFetch(
   if (totalTxCount === 0) {
     const directionText = direction === 'receiving' ? 'receiving' : 'spending';
     console.log(`ℹ️ Address has no ${directionText} transactions`);
-    alert(`This address has no ${directionText} transactions.\n\n${direction === 'spending' ? 'The address has only received funds and never spent them.' : 'The address has only spent funds and never received them.'}`);
+    const shortAddress = address.length > 20 ? `${address.substring(0, 10)}...${address.substring(address.length - 10)}` : address;
+    alert(`Address ${shortAddress} has no ${directionText} transactions.\n\n${direction === 'spending' ? 'This address has only received funds and never spent them.' : 'This address has only spent funds and never received them.'}`);
     return { nodes: [], edges: [] };
   }
   
@@ -414,7 +418,7 @@ export async function loadMoreTransactions(
   addrNode: Node,
   edgeScaleMax: number,
   apiBaseUrl: string,
-  existingNodeIds: Set<string>,
+  _existingNodeIds: Set<string>, // Reserved for future filtering
   maxTransactions: number = 1000
 ): Promise<ExpandResult & { remainingCount: number }> {
   console.log(`📡 Loading more TXs for ${address.substring(0, 20)}... offset=${currentOffset}`);

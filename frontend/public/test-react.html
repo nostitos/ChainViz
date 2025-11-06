@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>React CPU Test (No React Flow)</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      background: #0a0a0a;
+      color: white;
+    }
+    #root {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      background: #00bcd4;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-weight: 600;
+    }
+    .canvas {
+      width: 800px;
+      height: 600px;
+      background: #1a1a1a;
+      border: 2px solid #333;
+      border-radius: 8px;
+      position: relative;
+    }
+    .node {
+      position: absolute;
+      width: 100px;
+      height: 60px;
+      background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
+      border: 2px solid #00bcd4;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    function App() {
+      const [nodes, setNodes] = useState([]);
+
+      return (
+        <div style={{ 
+          width: '100%', 
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
+          gap: '20px'
+        }}>
+          <h1>🔍 React CPU Test (No React Flow)</h1>
+          <p>Check Chrome DevTools Performance. CPU should be near 0% when idle.</p>
+          
+          <div className="canvas">
+            {nodes.map((node, i) => (
+              <div 
+                key={i}
+                className="node"
+                style={{
+                  left: `${100 + i * 150}px`,
+                  top: '200px'
+                }}
+              >
+                Node {i + 1}
+              </div>
+            ))}
+          </div>
+          
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={() => setNodes([1, 2, 3])}>
+              Add 3 Nodes
+            </button>
+            <button onClick={() => setNodes([])}>
+              Clear Nodes
+            </button>
+          </div>
+          
+          <p>Status: {nodes.length} nodes</p>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
+
+
+

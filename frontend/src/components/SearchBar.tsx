@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { Search, Loader2, Settings, Info, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface SearchBarProps {
@@ -15,7 +15,7 @@ interface SearchBarProps {
   initialQuery?: string;
 }
 
-export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpenSettings, onOpenAbout, edgeScaleMax, onEdgeScaleMaxChange, onExpandBackward, onExpandForward, hasGraph, initialQuery }: SearchBarProps) {
+export const SearchBar = memo(function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpenSettings, onOpenAbout, edgeScaleMax, onEdgeScaleMaxChange, onExpandBackward, onExpandForward, hasGraph, initialQuery }: SearchBarProps) {
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<string[]>([]);
   
@@ -293,5 +293,5 @@ export function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpe
       `}</style>
     </div>
   );
-}
+});
 

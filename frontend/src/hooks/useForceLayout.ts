@@ -30,11 +30,9 @@ export function useForceLayout(
 
   // Main simulation effect - only depends on node COUNT, not node positions
   useEffect(() => {
-    console.log(`🔧 Force layout effect: enabled=${enabled}, nodes=${nodes.length}`);
     if (!enabled || nodes.length === 0) {
       // Clean up simulation when disabled
       if (simulationRef.current) {
-        console.log('🛑 Stopping force simulation (disabled or no nodes)');
         simulationRef.current.stop();
         simulationRef.current = null;
       }
@@ -50,8 +48,6 @@ export function useForceLayout(
       return;
     }
 
-    console.log('🎯 Starting optimized force simulation with', nodes.length, 'nodes');
-    console.trace('Stack trace for simulation start');
     tickCountRef.current = 0;
 
     // Clean up old simulation
@@ -93,7 +89,6 @@ export function useForceLayout(
 
       // Stop simulation after max ticks or low energy
       if (tickCountRef.current >= maxTicks || simulation.alpha() < 0.01) {
-        console.log(`✅ Force simulation stopped after ${tickCountRef.current} ticks (alpha: ${simulation.alpha().toFixed(4)})`);
         simulation.stop();
         simulation.on('tick', null); // Remove tick handler to prevent memory leak
         isUpdatingRef.current = false;
@@ -136,7 +131,6 @@ export function useForceLayout(
     // Cleanup on unmount
     return () => {
       if (simulationRef.current) {
-        console.log('🧹 Cleaning up force simulation');
         simulationRef.current.stop();
         simulationRef.current.on('tick', null); // Remove all event listeners
         simulationRef.current = null;
@@ -163,7 +157,6 @@ export function useForceLayout(
     // Restart with low energy (don't fully reheat)
     tickCountRef.current = 0;
     simulationRef.current.alpha(0.1).restart();
-    console.log('🔥 Simulation reheated after manual drag');
   }, [nodes, enabled]);
 
   // Expose reheat function for manual triggers (e.g., after drag)

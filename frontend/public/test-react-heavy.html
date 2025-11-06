@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>React Heavy Test</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      background: #0a0a0a;
+      color: white;
+    }
+    #root {
+      width: 100vw;
+      height: 100vh;
+    }
+    .search-bar {
+      background: #1a1a1a;
+      padding: 20px;
+      border-bottom: 1px solid #333;
+    }
+    .stats {
+      position: absolute;
+      top: 80px;
+      right: 20px;
+      background: rgba(26, 26, 26, 0.95);
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid #333;
+    }
+    button {
+      padding: 10px 20px;
+      background: #00bcd4;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      margin: 5px;
+    }
+    input {
+      padding: 10px;
+      width: 300px;
+      background: #2a2a2a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: white;
+      margin: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useCallback, useMemo, useRef, memo } = React;
+
+    // Mimic SearchBar component
+    const SearchBar = memo(function SearchBar({ onSearch, value, onChange }) {
+      const [history, setHistory] = useState([]);
+      
+      useEffect(() => {
+        const saved = localStorage.getItem('test_history');
+        if (saved) {
+          setHistory(JSON.parse(saved));
+        }
+      }, []);
+
+      return (
+        <div className="search-bar">
+          <h2>🔍 Heavy React Test (Multiple Components + Hooks)</h2>
+          <input 
+            type="text" 
+            value={value} 
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Type something..."
+          />
+          <button onClick={onSearch}>Search</button>
+          <p>History: {history.length} items</p>
+        </div>
+      );
+    });
+
+    // Mimic StatsPanel component
+    const StatsPanel = memo(function StatsPanel({ nodes, edges }) {
+      return (
+        <div className="stats">
+          <h3>Stats</h3>
+          <p>Nodes: {nodes}</p>
+          <p>Edges: {edges}</p>
+        </div>
+      );
+    });
+
+    // Main App - mimics our actual app structure
+    function App() {
+      const [input, setInput] = useState('');
+      const [nodes, setNodes] = useState([]);
+      const [edges, setEdges] = useState([]);
+      const [isLoading, setIsLoading] = useState(false);
+      const [selectedNode, setSelectedNode] = useState(null);
+      const [expandedNodes, setExpandedNodes] = useState(new Set());
+      
+      const nodesRef = useRef(nodes);
+      useEffect(() => {
+        nodesRef.current = nodes;
+      }, [nodes]);
+
+      const handleSearch = useCallback(() => {
+        setIsLoading(true);
+        setTimeout(() => {
+          setNodes([1, 2, 3, 4, 5]);
+          setEdges([1, 2, 3, 4]);
+          setIsLoading(false);
+        }, 100);
+      }, []);
+
+      const handleExpand = useCallback((nodeId) => {
+        setExpandedNodes(prev => {
+          const next = new Set(prev);
+          next.add(nodeId);
+          return next;
+        });
+      }, []);
+
+      const statsData = useMemo(() => ({
+        nodes: nodes.length,
+        edges: edges.length,
+      }), [nodes.length, edges.length]);
+
+      return (
+        <div>
+          <SearchBar 
+            onSearch={handleSearch}
+            value={input}
+            onChange={setInput}
+          />
+          
+          <StatsPanel 
+            nodes={statsData.nodes}
+            edges={statsData.edges}
+          />
+
+          <div style={{ padding: '20px', marginTop: '80px' }}>
+            <h3>Canvas Area (Empty - No React Flow)</h3>
+            <p>Loading: {isLoading ? 'Yes' : 'No'}</p>
+            <p>Expanded nodes: {expandedNodes.size}</p>
+            
+            <div style={{ marginTop: '20px' }}>
+              <button onClick={handleSearch}>Simulate Load</button>
+              <button onClick={() => handleExpand(Math.random())}>Simulate Expand</button>
+              <button onClick={() => {
+                setNodes([]);
+                setEdges([]);
+                setExpandedNodes(new Set());
+              }}>Clear</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
+
+
+

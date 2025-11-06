@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Activity, GitBranch, Wallet, ArrowRightLeft } from 'lucide-react';
 
 interface StatsPanelProps {
@@ -7,7 +8,7 @@ interface StatsPanelProps {
   addresses: number;
 }
 
-export function StatsPanel({ totalNodes, totalEdges, transactions, addresses }: StatsPanelProps) {
+export const StatsPanel = memo(function StatsPanel({ totalNodes, totalEdges, transactions, addresses }: StatsPanelProps) {
   return (
     <div className="stats-panel">
       
@@ -36,7 +37,7 @@ export function StatsPanel({ totalNodes, totalEdges, transactions, addresses }: 
       </div>
     </div>
   );
-}
+});
 
 
 
