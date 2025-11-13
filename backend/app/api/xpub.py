@@ -1,135 +1,73 @@
-"""xpub derivation API endpoints"""
+"""xpub API endpoints for address derivation and transaction history"""
 
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+from typing import List, Optional
+from app.services.xpub_service import XpubService
+from app.services.mempool_client import get_mempool_client
 import logging
-from fastapi import APIRouter, HTTPException, Depends
-
-from app.models.api import XPubDeriveRequest, XPubDeriveResponse, AddressResponse
-from app.services.xpub_parser import XPubParser
-from app.services.blockchain_data import get_blockchain_service, BlockchainDataService
-from app.config import settings
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter()
 
 
-@router.post("/derive", response_model=XPubDeriveResponse)
-async def derive_from_xpub(
-    request: XPubDeriveRequest,
-    blockchain_service: BlockchainDataService = Depends(get_blockchain_service),
-):
+class XpubHistoryRequest(BaseModel):
+    """Request model for xpub history endpoint"""
+    xpub: str = Field(..., description="Extended public key (zpub/ypub/xpub)")
+    derivation_path: str = Field(default="m/84h/0h/0h", description="Base derivation path")
+    count: int = Field(default=100, ge=1, le=1000, description="Number of addresses to derive")
+    change: int = Field(default=0, ge=0, le=1, description="0 for receive, 1 for change")
+    root_fingerprint: Optional[str] = Field(default=None, description="Root fingerprint (optional)")
+
+
+class XpubHistoryResponse(BaseModel):
+    """Response model for xpub history endpoint"""
+    xpub: str
+    total_addresses: int
+    addresses_with_history: int
+    total_transactions: int
+    addresses: List[dict]
+
+
+@router.post("/history", response_model=XpubHistoryResponse)
+async def get_xpub_history(request: XpubHistoryRequest):
     """
-    Derive addresses from extended public key (xpub/ypub/zpub)
-    
-    Supports multiple xpub standards:
-    - xpub: BIP32 legacy (P2PKH addresses)
-    - ypub: BIP49 (P2SH-wrapped SegWit)
-    - zpub: BIP84 (native SegWit P2WPKH)
+    Generate transaction history for first N addresses from xpub
     
     Example:
-    ```json
-    {
-      "xpub": "xpub6CUGRUo...",
-      "derivation_path": "m/0/0",
-      "start_index": 0,
-      "count": 20,
-      "include_change": false
-    }
-    ```
+        xpub: zpub6qyBNaAYEgDZtiW6cMnFNnTNwTwcJ9ovgyXDrMWXb2ZFHmgY5pjA1aH6n6z7ykpXBE2HN4vwrnomMFwGfqXdb3odnqZQagG2gE8LdfHof31
+        derivation_path: m/84h/0h/0h
+        count: 100
+        root_fingerprint: 8a4de3d6
+    """
+    logger.info(f"Deriving {request.count} addresses from {request.xpub[:20]}...")
     
-    Maximum 10,000 addresses per request.
-    """
-    try:
-        logger.info(f"Deriving addresses from xpub: {request.xpub[:20]}...")
-
-        if request.count > settings.max_xpub_derivation:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Maximum {settings.max_xpub_derivation} addresses per request",
-            )
-
-        # Validate xpub
-        if not XPubParser.validate_xpub(request.xpub):
-            raise HTTPException(status_code=400, detail="Invalid xpub format")
-
-        # Derive external addresses
-        external_addresses = XPubParser.derive_addresses(
-            request.xpub,
-            start_index=request.start_index,
-            count=request.count,
-            change=False,
-        )
-
-        all_addresses = external_addresses
-
-        # Derive change addresses if requested
-        if request.include_change:
-            change_addresses = XPubParser.derive_addresses(
-                request.xpub,
-                start_index=request.start_index,
-                count=request.count,
-                change=True,
-            )
-            all_addresses += change_addresses
-
-        # Extract just addresses and paths
-        addresses = [addr for addr, path in all_addresses]
-        paths = [path for addr, path in all_addresses]
-
-        # Optionally fetch address info (can be expensive for many addresses)
-        address_info = None
-        # Uncomment to enable:
-        # if len(addresses) <= 100:
-        #     histories = await blockchain_service.fetch_address_histories_batch(addresses)
-        #     address_info = []
-        #     for addr in addresses:
-        #         info = await blockchain_service.fetch_address_info(addr)
-        #         txids = histories.get(addr, [])
-        #         address_info.append(AddressResponse(...))
-
-        return XPubDeriveResponse(
-            xpub=request.xpub,
-            addresses=addresses,
-            derivation_paths=paths,
-            address_info=address_info,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to derive from xpub: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to derive addresses: {str(e)}")
-
-
-@router.post("/validate")
-async def validate_xpub(xpub: str):
-    """
-    Validate xpub format
+    # Derive addresses
+    xpub_service = XpubService()
+    addresses = xpub_service.derive_addresses(
+        xpub=request.xpub,
+        derivation_path=request.derivation_path,
+        count=request.count,
+        change=request.change
+    )
     
-    Example: POST /api/xpub/validate?xpub=xpub6CUGRUo...
-    """
-    try:
-        is_valid = XPubParser.validate_xpub(xpub)
-
-        if is_valid:
-            xpub_type = XPubParser._detect_xpub_type(xpub)
-            return {
-                "valid": True,
-                "type": xpub_type,
-                "message": f"Valid {xpub_type}",
-            }
-        else:
-            return {
-                "valid": False,
-                "message": "Invalid xpub format",
-            }
-
-    except Exception as e:
-        return {
-            "valid": False,
-            "message": f"Validation error: {str(e)}",
-        }
-
-
-
-
+    if not addresses:
+        raise HTTPException(status_code=400, detail="Failed to derive addresses from xpub")
+    
+    logger.info(f"Derived {len(addresses)} addresses, fetching transaction history...")
+    
+    # Get transaction history for each address
+    mempool = get_mempool_client()
+    addresses_with_history = await xpub_service.get_addresses_with_history(addresses, mempool)
+    
+    total_transactions = sum(addr["tx_count"] for addr in addresses_with_history)
+    
+    logger.info(f"Found {total_transactions} transactions across {len(addresses_with_history)} addresses")
+    
+    return XpubHistoryResponse(
+        xpub=request.xpub[:20] + "...",
+        total_addresses=len(addresses),
+        addresses_with_history=len(addresses_with_history),
+        total_transactions=total_transactions,
+        addresses=addresses_with_history
+    )

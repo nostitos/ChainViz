@@ -83,7 +83,8 @@ Open: **http://localhost:5173**
 ### Backend
 
 - **Framework**: FastAPI (Python 3.11+)
-- **Data Source**: Electrum server (default: fulcrum.sethforprivacy.com:50002)
+- **Primary Data Source**: Tiered mempool.space-compatible HTTP endpoints (local node, community mirrors, public API) routed through a lightweight mempool multiplexer with health tracking
+- **Fallback Data Source**: Electrum multiplexer (lazy connections, round-robin retry) used only when HTTP tier cannot satisfy a request
 - **Caching**: Redis (optional)
 - **Analysis**: NetworkX for graph analysis
 - **Heuristics**: Multiple algorithms with confidence scoring
@@ -103,6 +104,12 @@ User Input → Frontend → Backend API → Electrum Server → Blockchain Data
                 ↓
          Graph Visualization ← Confidence Scores ← Heuristics Analysis
 ```
+
+### Data Sources Strategy
+
+- The backend first queries a **local mempool.space instance** for full transaction context (inputs, outputs, prevouts).  
+- If a transaction exceeds configured thresholds (inputs/size) or the local node is unavailable, the request is routed to **community-hosted mempool.space mirrors** or the public API, respecting per-endpoint concurrency limits.  
+- Only when all HTTP tiers fail does ChainViz fall back to the Electrum multiplexer to guarantee coverage.
 
 ---
 

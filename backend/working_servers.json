@@ -1,0 +1,3460 @@
+[
+  {
+    "host": "guichet.centure.cc",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.019,
+    "version_time": 0.011,
+    "tx_time": 0.028,
+    "total_latency": 0.058,
+    "status": "working"
+  },
+  {
+    "host": "guichet.centure.cc",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.048,
+    "version_time": 0.016,
+    "tx_time": 0.024,
+    "total_latency": 0.087,
+    "status": "working"
+  },
+  {
+    "host": "electrum.loyce.club",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 1.12.0",
+      "1.4"
+    ],
+    "connect_time": 0.041,
+    "version_time": 0.013,
+    "tx_time": 0.037,
+    "total_latency": 0.091,
+    "status": "working"
+  },
+  {
+    "host": "horsey.cryptocowboys.net",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.03,
+    "version_time": 0.018,
+    "tx_time": 0.047,
+    "total_latency": 0.095,
+    "status": "working"
+  },
+  {
+    "host": "52.1.56.181",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.029,
+    "version_time": 0.025,
+    "tx_time": 0.056,
+    "total_latency": 0.11,
+    "status": "working"
+  },
+  {
+    "host": "gods-of-rock.screaminglemur.net",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.053,
+    "version_time": 0.022,
+    "tx_time": 0.045,
+    "total_latency": 0.119,
+    "status": "working"
+  },
+  {
+    "host": "electrumx-btc.cryptonermal.net",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.058,
+    "version_time": 0.02,
+    "tx_time": 0.047,
+    "total_latency": 0.125,
+    "status": "working"
+  },
+  {
+    "host": "fulcrum1.getsrt.net",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "Fulcrum 1.10.0",
+      "1.4"
+    ],
+    "connect_time": 0.078,
+    "version_time": 0.01,
+    "tx_time": 0.038,
+    "total_latency": 0.126,
+    "status": "working"
+  },
+  {
+    "host": "smmalis37.ddns.net",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 2.0",
+      "1.4"
+    ],
+    "connect_time": 0.06,
+    "version_time": 0.023,
+    "tx_time": 0.057,
+    "total_latency": 0.141,
+    "status": "working"
+  },
+  {
+    "host": "horsey.cryptocowboys.net",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.072,
+    "version_time": 0.019,
+    "tx_time": 0.051,
+    "total_latency": 0.143,
+    "status": "working"
+  },
+  {
+    "host": "5.161.104.106",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.129,
+    "version_time": 0.023,
+    "tx_time": 0.048,
+    "total_latency": 0.2,
+    "status": "working"
+  },
+  {
+    "host": "electrum.acinq.co",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.15.0",
+      "1.4"
+    ],
+    "connect_time": 0.141,
+    "version_time": 0.024,
+    "tx_time": 0.054,
+    "total_latency": 0.219,
+    "status": "working"
+  },
+  {
+    "host": "det.electrum.blockitall.us",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 1.12.0",
+      "1.4"
+    ],
+    "connect_time": 0.065,
+    "version_time": 0.051,
+    "tx_time": 0.156,
+    "total_latency": 0.272,
+    "status": "working"
+  },
+  {
+    "host": "static.106.104.161.5.clients.your-server.de",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.185,
+    "version_time": 0.026,
+    "tx_time": 0.079,
+    "total_latency": 0.291,
+    "status": "working"
+  },
+  {
+    "host": "electrum.degga.net",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 1.12.0",
+      "1.4"
+    ],
+    "connect_time": 0.071,
+    "version_time": 0.057,
+    "tx_time": 0.167,
+    "total_latency": 0.296,
+    "status": "working"
+  },
+  {
+    "host": "electrumx-p2p.prod-utility-eks-us-west-2.staked.cloud",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.109,
+    "version_time": 0.072,
+    "tx_time": 0.152,
+    "total_latency": 0.333,
+    "status": "working"
+  },
+  {
+    "host": "137.184.125.23",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.082,
+    "version_time": 0.085,
+    "tx_time": 0.169,
+    "total_latency": 0.335,
+    "status": "working"
+  },
+  {
+    "host": "143.198.108.195",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.087,
+    "version_time": 0.085,
+    "tx_time": 0.19,
+    "total_latency": 0.362,
+    "status": "working"
+  },
+  {
+    "host": "164.92.148.39",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.087,
+    "version_time": 0.09,
+    "tx_time": 0.189,
+    "total_latency": 0.366,
+    "status": "working"
+  },
+  {
+    "host": "electrum.blockitall.us",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 1.12.0",
+      "1.4"
+    ],
+    "connect_time": 0.1,
+    "version_time": 0.075,
+    "tx_time": 0.214,
+    "total_latency": 0.389,
+    "status": "working"
+  },
+  {
+    "host": "se-mma-crypto-payments-001.mullvad.net",
+    "port": 5000,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.17.0",
+      "1.4"
+    ],
+    "connect_time": 0.1,
+    "version_time": 0.102,
+    "tx_time": 0.208,
+    "total_latency": 0.409,
+    "status": "working"
+  },
+  {
+    "host": "blockitall.us",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 1.12.0",
+      "1.4"
+    ],
+    "connect_time": 0.081,
+    "version_time": 0.088,
+    "tx_time": 0.25,
+    "total_latency": 0.419,
+    "status": "working"
+  },
+  {
+    "host": "chi.electrum.blockitall.us",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 1.12.0",
+      "1.4"
+    ],
+    "connect_time": 0.08,
+    "version_time": 0.089,
+    "tx_time": 0.25,
+    "total_latency": 0.419,
+    "status": "working"
+  },
+  {
+    "host": "168.119.136.176",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 1.11.1",
+      "1.4"
+    ],
+    "connect_time": 0.109,
+    "version_time": 0.106,
+    "tx_time": 0.221,
+    "total_latency": 0.435,
+    "status": "working"
+  },
+  {
+    "host": "static.82.9.235.167.clients.your-server.de",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 2.0",
+      "1.4"
+    ],
+    "connect_time": 0.116,
+    "version_time": 0.106,
+    "tx_time": 0.218,
+    "total_latency": 0.44,
+    "status": "working"
+  },
+  {
+    "host": "electrum.bitaroo.net",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.113,
+    "version_time": 0.108,
+    "tx_time": 0.221,
+    "total_latency": 0.442,
+    "status": "working"
+  },
+  {
+    "host": "btc.electroncash.dk",
+    "port": 60001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 2.0",
+      "1.4"
+    ],
+    "connect_time": 0.116,
+    "version_time": 0.106,
+    "tx_time": 0.223,
+    "total_latency": 0.445,
+    "status": "working"
+  },
+  {
+    "host": "143.198.108.195",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.176,
+    "version_time": 0.084,
+    "tx_time": 0.186,
+    "total_latency": 0.446,
+    "status": "working"
+  },
+  {
+    "host": "5.78.90.154",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.167,
+    "version_time": 0.083,
+    "tx_time": 0.198,
+    "total_latency": 0.449,
+    "status": "working"
+  },
+  {
+    "host": "167.235.9.82",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 2.0",
+      "1.4"
+    ],
+    "connect_time": 0.116,
+    "version_time": 0.109,
+    "tx_time": 0.226,
+    "total_latency": 0.451,
+    "status": "working"
+  },
+  {
+    "host": "137.184.125.23",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.184,
+    "version_time": 0.091,
+    "tx_time": 0.181,
+    "total_latency": 0.456,
+    "status": "working"
+  },
+  {
+    "host": "fulcrum-core.1209k.com",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 1.11.1",
+      "1.4"
+    ],
+    "connect_time": 0.134,
+    "version_time": 0.103,
+    "tx_time": 0.224,
+    "total_latency": 0.46,
+    "status": "working"
+  },
+  {
+    "host": "exsrv2.ignorelist.com",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.114,
+    "version_time": 0.104,
+    "tx_time": 0.243,
+    "total_latency": 0.46,
+    "status": "working"
+  },
+  {
+    "host": "alviss.coinjoined.com",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.113,
+    "version_time": 0.111,
+    "tx_time": 0.237,
+    "total_latency": 0.461,
+    "status": "working"
+  },
+  {
+    "host": "static.4.49.140.128.clients.your-server.de",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.12,
+    "version_time": 0.109,
+    "tx_time": 0.233,
+    "total_latency": 0.462,
+    "status": "working"
+  },
+  {
+    "host": "paris.anties.org",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.12,
+    "version_time": 0.113,
+    "tx_time": 0.229,
+    "total_latency": 0.463,
+    "status": "working"
+  },
+  {
+    "host": "lille.anties.org",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.127,
+    "version_time": 0.112,
+    "tx_time": 0.228,
+    "total_latency": 0.467,
+    "status": "working"
+  },
+  {
+    "host": "164.92.148.39",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.19,
+    "version_time": 0.089,
+    "tx_time": 0.189,
+    "total_latency": 0.468,
+    "status": "working"
+  },
+  {
+    "host": "marseille.anties.org",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.128,
+    "version_time": 0.112,
+    "tx_time": 0.232,
+    "total_latency": 0.472,
+    "status": "working"
+  },
+  {
+    "host": "5.78.65.104",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.187,
+    "version_time": 0.092,
+    "tx_time": 0.196,
+    "total_latency": 0.476,
+    "status": "working"
+  },
+  {
+    "host": "80.209.87.103.static.fibianet.dk",
+    "port": 60001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 2.0",
+      "1.4"
+    ],
+    "connect_time": 0.134,
+    "version_time": 0.116,
+    "tx_time": 0.235,
+    "total_latency": 0.484,
+    "status": "working"
+  },
+  {
+    "host": "skbxmit.coinjoined.com",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.141,
+    "version_time": 0.121,
+    "tx_time": 0.229,
+    "total_latency": 0.49,
+    "status": "working"
+  },
+  {
+    "host": "ns3104364.ip-54-36-168.eu",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 2.0",
+      "1.4"
+    ],
+    "connect_time": 0.134,
+    "version_time": 0.116,
+    "tx_time": 0.246,
+    "total_latency": 0.496,
+    "status": "working"
+  },
+  {
+    "host": "btc.aftrek.org",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.141,
+    "version_time": 0.119,
+    "tx_time": 0.239,
+    "total_latency": 0.499,
+    "status": "working"
+  },
+  {
+    "host": "54.36.168.56",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 2.0",
+      "1.4"
+    ],
+    "connect_time": 0.118,
+    "version_time": 0.119,
+    "tx_time": 0.268,
+    "total_latency": 0.505,
+    "status": "working"
+  },
+  {
+    "host": "static.104.65.78.5.clients.your-server.de",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.27,
+    "version_time": 0.084,
+    "tx_time": 0.169,
+    "total_latency": 0.524,
+    "status": "working"
+  },
+  {
+    "host": "node1.btccuracao.com",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.135,
+    "version_time": 0.128,
+    "tx_time": 0.266,
+    "total_latency": 0.529,
+    "status": "working"
+  },
+  {
+    "host": "static.176.136.119.168.clients.your-server.de",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 1.11.1",
+      "1.4"
+    ],
+    "connect_time": 0.224,
+    "version_time": 0.106,
+    "tx_time": 0.22,
+    "total_latency": 0.55,
+    "status": "working"
+  },
+  {
+    "host": "65.109.168.25",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.126,
+    "version_time": 0.126,
+    "tx_time": 0.299,
+    "total_latency": 0.551,
+    "status": "working"
+  },
+  {
+    "host": "api.ordimint.com",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 2.0",
+      "1.4"
+    ],
+    "connect_time": 0.148,
+    "version_time": 0.134,
+    "tx_time": 0.278,
+    "total_latency": 0.56,
+    "status": "working"
+  },
+  {
+    "host": "static.154.90.78.5.clients.your-server.de",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.286,
+    "version_time": 0.09,
+    "tx_time": 0.185,
+    "total_latency": 0.562,
+    "status": "working"
+  },
+  {
+    "host": "dijon.anties.org",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.206,
+    "version_time": 0.117,
+    "tx_time": 0.239,
+    "total_latency": 0.562,
+    "status": "working"
+  },
+  {
+    "host": "88.119.165.222",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.133,
+    "version_time": 0.133,
+    "tx_time": 0.296,
+    "total_latency": 0.563,
+    "status": "working"
+  },
+  {
+    "host": "exs.dyshek.org",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.132,
+    "version_time": 0.128,
+    "tx_time": 0.306,
+    "total_latency": 0.565,
+    "status": "working"
+  },
+  {
+    "host": "exsrv2.ignorelist.com",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.253,
+    "version_time": 0.103,
+    "tx_time": 0.213,
+    "total_latency": 0.569,
+    "status": "working"
+  },
+  {
+    "host": "stavver.dyshek.org",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.133,
+    "version_time": 0.128,
+    "tx_time": 0.31,
+    "total_latency": 0.57,
+    "status": "working"
+  },
+  {
+    "host": "ip212-227-150-147.pbiaas.com",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 2.0",
+      "1.4"
+    ],
+    "connect_time": 0.152,
+    "version_time": 0.137,
+    "tx_time": 0.282,
+    "total_latency": 0.571,
+    "status": "working"
+  },
+  {
+    "host": "node.btccuracao.com",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.138,
+    "version_time": 0.129,
+    "tx_time": 0.305,
+    "total_latency": 0.572,
+    "status": "working"
+  },
+  {
+    "host": "128.140.67.192",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.224,
+    "version_time": 0.112,
+    "tx_time": 0.237,
+    "total_latency": 0.573,
+    "status": "working"
+  },
+  {
+    "host": "electrum.coinfinity.co",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.277,
+    "version_time": 0.096,
+    "tx_time": 0.211,
+    "total_latency": 0.583,
+    "status": "working"
+  },
+  {
+    "host": "116.203.86.228",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.232,
+    "version_time": 0.122,
+    "tx_time": 0.25,
+    "total_latency": 0.604,
+    "status": "working"
+  },
+  {
+    "host": "lille.anties.org",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.256,
+    "version_time": 0.114,
+    "tx_time": 0.24,
+    "total_latency": 0.61,
+    "status": "working"
+  },
+  {
+    "host": "btc.aftrek.org",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.261,
+    "version_time": 0.121,
+    "tx_time": 0.241,
+    "total_latency": 0.623,
+    "status": "working"
+  },
+  {
+    "host": "alviss.coinjoined.com",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.274,
+    "version_time": 0.114,
+    "tx_time": 0.247,
+    "total_latency": 0.635,
+    "status": "working"
+  },
+  {
+    "host": "static.25.168.109.65.clients.your-server.de",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.229,
+    "version_time": 0.125,
+    "tx_time": 0.283,
+    "total_latency": 0.637,
+    "status": "working"
+  },
+  {
+    "host": "static.4.49.140.128.clients.your-server.de",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.287,
+    "version_time": 0.122,
+    "tx_time": 0.23,
+    "total_latency": 0.639,
+    "status": "working"
+  },
+  {
+    "host": "ssd.jhoenicke.de",
+    "port": 50099,
+    "ssl": false,
+    "version": [
+      "Fulcrum 1.12.0",
+      "1.4"
+    ],
+    "connect_time": 0.178,
+    "version_time": 0.148,
+    "tx_time": 0.321,
+    "total_latency": 0.647,
+    "status": "working"
+  },
+  {
+    "host": "mempool.8333.mobi",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 1.11.1",
+      "1.4"
+    ],
+    "connect_time": 0.186,
+    "version_time": 0.153,
+    "tx_time": 0.309,
+    "total_latency": 0.647,
+    "status": "working"
+  },
+  {
+    "host": "electrum.coinfroggy.com",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 1.12.0",
+      "1.4"
+    ],
+    "connect_time": 0.185,
+    "version_time": 0.152,
+    "tx_time": 0.314,
+    "total_latency": 0.651,
+    "status": "working"
+  },
+  {
+    "host": "dijon.anties.org",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.297,
+    "version_time": 0.112,
+    "tx_time": 0.242,
+    "total_latency": 0.651,
+    "status": "working"
+  },
+  {
+    "host": "mempool.coinfroggy.com",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 1.12.0",
+      "1.4"
+    ],
+    "connect_time": 0.185,
+    "version_time": 0.152,
+    "tx_time": 0.315,
+    "total_latency": 0.652,
+    "status": "working"
+  },
+  {
+    "host": "marseille.anties.org",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.282,
+    "version_time": 0.118,
+    "tx_time": 0.252,
+    "total_latency": 0.653,
+    "status": "working"
+  },
+  {
+    "host": "electrum.jochen-hoenicke.de",
+    "port": 50099,
+    "ssl": false,
+    "version": [
+      "Fulcrum 1.12.0",
+      "1.4"
+    ],
+    "connect_time": 0.186,
+    "version_time": 0.153,
+    "tx_time": 0.315,
+    "total_latency": 0.654,
+    "status": "working"
+  },
+  {
+    "host": "paris.anties.org",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.297,
+    "version_time": 0.122,
+    "tx_time": 0.246,
+    "total_latency": 0.665,
+    "status": "working"
+  },
+  {
+    "host": "btc.reichster.de",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 2.0",
+      "1.4"
+    ],
+    "connect_time": 0.186,
+    "version_time": 0.153,
+    "tx_time": 0.34,
+    "total_latency": 0.68,
+    "status": "working"
+  },
+  {
+    "host": "2ex.digitaleveryware.com",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 2.0",
+      "1.4"
+    ],
+    "connect_time": 0.185,
+    "version_time": 0.154,
+    "tx_time": 0.342,
+    "total_latency": 0.68,
+    "status": "working"
+  },
+  {
+    "host": "se-mma-crypto-payments-001.mullvad.net",
+    "port": 5010,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.17.0",
+      "1.4"
+    ],
+    "connect_time": 0.317,
+    "version_time": 0.113,
+    "tx_time": 0.251,
+    "total_latency": 0.682,
+    "status": "working"
+  },
+  {
+    "host": "static.192.67.140.128.clients.your-server.de",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.324,
+    "version_time": 0.111,
+    "tx_time": 0.247,
+    "total_latency": 0.682,
+    "status": "working"
+  },
+  {
+    "host": "bitcoin.grey.pw",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "Fulcrum 2.0",
+      "1.4"
+    ],
+    "connect_time": 0.354,
+    "version_time": 0.111,
+    "tx_time": 0.223,
+    "total_latency": 0.688,
+    "status": "working"
+  },
+  {
+    "host": "135.181.36.122",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.253,
+    "version_time": 0.124,
+    "tx_time": 0.311,
+    "total_latency": 0.688,
+    "status": "working"
+  },
+  {
+    "host": "95.217.179.14",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.249,
+    "version_time": 0.125,
+    "tx_time": 0.314,
+    "total_latency": 0.688,
+    "status": "working"
+  },
+  {
+    "host": "88.119.165.222",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.252,
+    "version_time": 0.122,
+    "tx_time": 0.315,
+    "total_latency": 0.689,
+    "status": "working"
+  },
+  {
+    "host": "vmd128083.contaboserver.net",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 2.0",
+      "1.4"
+    ],
+    "connect_time": 0.186,
+    "version_time": 0.153,
+    "tx_time": 0.355,
+    "total_latency": 0.694,
+    "status": "working"
+  },
+  {
+    "host": "molten.tranquille.cc",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 1.12.0",
+      "1.4"
+    ],
+    "connect_time": 0.187,
+    "version_time": 0.153,
+    "tx_time": 0.355,
+    "total_latency": 0.695,
+    "status": "working"
+  },
+  {
+    "host": "elx.bitske.com",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.173,
+    "version_time": 0.172,
+    "tx_time": 0.35,
+    "total_latency": 0.695,
+    "status": "working"
+  },
+  {
+    "host": "37.27.18.174",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.256,
+    "version_time": 0.127,
+    "tx_time": 0.313,
+    "total_latency": 0.696,
+    "status": "working"
+  },
+  {
+    "host": "65.108.146.20",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.253,
+    "version_time": 0.128,
+    "tx_time": 0.315,
+    "total_latency": 0.697,
+    "status": "working"
+  },
+  {
+    "host": "d762li0k0g.d.firewalla.org",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 1.11.0",
+      "1.4"
+    ],
+    "connect_time": 0.176,
+    "version_time": 0.133,
+    "tx_time": 0.412,
+    "total_latency": 0.72,
+    "status": "working"
+  },
+  {
+    "host": "electrum.bitaroo.net",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.402,
+    "version_time": 0.109,
+    "tx_time": 0.211,
+    "total_latency": 0.723,
+    "status": "working"
+  },
+  {
+    "host": "eai.coincited.net",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.31,
+    "version_time": 0.135,
+    "tx_time": 0.278,
+    "total_latency": 0.723,
+    "status": "working"
+  },
+  {
+    "host": "static.228.86.203.116.clients.your-server.de",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.342,
+    "version_time": 0.121,
+    "tx_time": 0.266,
+    "total_latency": 0.73,
+    "status": "working"
+  },
+  {
+    "host": "static.122.36.181.135.clients.your-server.de",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.354,
+    "version_time": 0.124,
+    "tx_time": 0.277,
+    "total_latency": 0.756,
+    "status": "working"
+  },
+  {
+    "host": "static.174.18.27.37.clients.your-server.de",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.353,
+    "version_time": 0.128,
+    "tx_time": 0.285,
+    "total_latency": 0.765,
+    "status": "working"
+  },
+  {
+    "host": "2electrumx.hopto.me",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.325,
+    "version_time": 0.136,
+    "tx_time": 0.309,
+    "total_latency": 0.77,
+    "status": "working"
+  },
+  {
+    "host": "static.14.179.217.95.clients.your-server.de",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.355,
+    "version_time": 0.124,
+    "tx_time": 0.291,
+    "total_latency": 0.77,
+    "status": "working"
+  },
+  {
+    "host": "static.20.146.108.65.clients.your-server.de",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.344,
+    "version_time": 0.125,
+    "tx_time": 0.332,
+    "total_latency": 0.802,
+    "status": "working"
+  },
+  {
+    "host": "fortress.qtornado.com",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.345,
+    "version_time": 0.119,
+    "tx_time": 0.389,
+    "total_latency": 0.853,
+    "status": "working"
+  },
+  {
+    "host": "electrumx.turboblaster.it",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.533,
+    "version_time": 0.104,
+    "tx_time": 0.224,
+    "total_latency": 0.861,
+    "status": "working"
+  },
+  {
+    "host": "btce.iiiiiii.biz",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.214,
+    "version_time": 0.211,
+    "tx_time": 0.439,
+    "total_latency": 0.864,
+    "status": "working"
+  },
+  {
+    "host": "electrum.turboblaster.it",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.539,
+    "version_time": 0.114,
+    "tx_time": 0.221,
+    "total_latency": 0.874,
+    "status": "working"
+  },
+  {
+    "host": "bolt.schulzemic.net",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 2.0",
+      "1.4"
+    ],
+    "connect_time": 0.34,
+    "version_time": 0.178,
+    "tx_time": 0.364,
+    "total_latency": 0.882,
+    "status": "working"
+  },
+  {
+    "host": "kareoke.qoppa.org",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.229,
+    "version_time": 0.227,
+    "tx_time": 0.466,
+    "total_latency": 0.922,
+    "status": "working"
+  },
+  {
+    "host": "elx.bitske.com",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.4,
+    "version_time": 0.177,
+    "tx_time": 0.355,
+    "total_latency": 0.931,
+    "status": "working"
+  },
+  {
+    "host": "eai.coincited.net",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.136,
+    "version_time": 0.132,
+    "tx_time": 0.726,
+    "total_latency": 0.994,
+    "status": "working"
+  },
+  {
+    "host": "170.64.183.239",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.44,
+    "version_time": 0.218,
+    "tx_time": 0.442,
+    "total_latency": 1.101,
+    "status": "working"
+  },
+  {
+    "host": "electrum.pabu.io",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.372,
+    "version_time": 0.298,
+    "tx_time": 0.448,
+    "total_latency": 1.118,
+    "status": "working"
+  },
+  {
+    "host": "bitcoin.aranguren.org",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 2.0",
+      "1.4"
+    ],
+    "connect_time": 0.291,
+    "version_time": 0.283,
+    "tx_time": 0.563,
+    "total_latency": 1.137,
+    "status": "working"
+  },
+  {
+    "host": "kareoke.qoppa.org",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.476,
+    "version_time": 0.228,
+    "tx_time": 0.45,
+    "total_latency": 1.154,
+    "status": "working"
+  },
+  {
+    "host": "exs.dyshek.org",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.301,
+    "version_time": 0.129,
+    "tx_time": 0.724,
+    "total_latency": 1.154,
+    "status": "working"
+  },
+  {
+    "host": "34.138.250.15",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.031,
+    "version_time": 1.032,
+    "tx_time": 0.103,
+    "total_latency": 1.166,
+    "status": "working"
+  },
+  {
+    "host": "34.133.127.109",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.035,
+    "version_time": 1.035,
+    "tx_time": 0.106,
+    "total_latency": 1.176,
+    "status": "working"
+  },
+  {
+    "host": "35.238.228.147",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.036,
+    "version_time": 1.035,
+    "tx_time": 0.107,
+    "total_latency": 1.177,
+    "status": "working"
+  },
+  {
+    "host": "electrum.kampfschnitzel.at",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "electrs/0.10.9",
+      "1.4"
+    ],
+    "connect_time": 0.504,
+    "version_time": 0.292,
+    "tx_time": 0.384,
+    "total_latency": 1.18,
+    "status": "working"
+  },
+  {
+    "host": "34.172.232.121",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.071,
+    "version_time": 0.999,
+    "tx_time": 0.111,
+    "total_latency": 1.181,
+    "status": "working"
+  },
+  {
+    "host": "35.225.75.62",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.036,
+    "version_time": 1.035,
+    "tx_time": 0.11,
+    "total_latency": 1.181,
+    "status": "working"
+  },
+  {
+    "host": "34.138.250.15",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.103,
+    "version_time": 0.972,
+    "tx_time": 0.108,
+    "total_latency": 1.183,
+    "status": "working"
+  },
+  {
+    "host": "34.171.34.8",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.035,
+    "version_time": 1.037,
+    "tx_time": 0.112,
+    "total_latency": 1.184,
+    "status": "working"
+  },
+  {
+    "host": "btc.hodler.ninja",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.498,
+    "version_time": 0.222,
+    "tx_time": 0.464,
+    "total_latency": 1.185,
+    "status": "working"
+  },
+  {
+    "host": "34.121.73.82",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.036,
+    "version_time": 1.034,
+    "tx_time": 0.117,
+    "total_latency": 1.187,
+    "status": "working"
+  },
+  {
+    "host": "104.198.149.61",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.079,
+    "version_time": 0.995,
+    "tx_time": 0.115,
+    "total_latency": 1.19,
+    "status": "working"
+  },
+  {
+    "host": "34.173.233.138",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.036,
+    "version_time": 1.037,
+    "tx_time": 0.118,
+    "total_latency": 1.19,
+    "status": "working"
+  },
+  {
+    "host": "104.198.149.61",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.035,
+    "version_time": 1.036,
+    "tx_time": 0.119,
+    "total_latency": 1.19,
+    "status": "working"
+  },
+  {
+    "host": "35.238.228.147",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.122,
+    "version_time": 0.96,
+    "tx_time": 0.11,
+    "total_latency": 1.192,
+    "status": "working"
+  },
+  {
+    "host": "35.225.75.62",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.084,
+    "version_time": 0.991,
+    "tx_time": 0.117,
+    "total_latency": 1.193,
+    "status": "working"
+  },
+  {
+    "host": "34.121.73.82",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.083,
+    "version_time": 0.998,
+    "tx_time": 0.124,
+    "total_latency": 1.204,
+    "status": "working"
+  },
+  {
+    "host": "34.173.233.138",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.133,
+    "version_time": 0.953,
+    "tx_time": 0.124,
+    "total_latency": 1.209,
+    "status": "working"
+  },
+  {
+    "host": "34.171.34.8",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.081,
+    "version_time": 1.002,
+    "tx_time": 0.131,
+    "total_latency": 1.214,
+    "status": "working"
+  },
+  {
+    "host": "34.133.127.109",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.137,
+    "version_time": 0.947,
+    "tx_time": 0.131,
+    "total_latency": 1.215,
+    "status": "working"
+  },
+  {
+    "host": "btce.iiiiiii.biz",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.465,
+    "version_time": 0.213,
+    "tx_time": 0.56,
+    "total_latency": 1.237,
+    "status": "working"
+  },
+  {
+    "host": "34.172.232.121",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.038,
+    "version_time": 1.061,
+    "tx_time": 0.151,
+    "total_latency": 1.25,
+    "status": "working"
+  },
+  {
+    "host": "203-132-94-196.ip4.superloop.au",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "Fulcrum 2.0",
+      "1.4"
+    ],
+    "connect_time": 0.339,
+    "version_time": 0.317,
+    "tx_time": 0.64,
+    "total_latency": 1.295,
+    "status": "working"
+  },
+  {
+    "host": "167.172.71.79",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.524,
+    "version_time": 0.258,
+    "tx_time": 0.526,
+    "total_latency": 1.308,
+    "status": "working"
+  },
+  {
+    "host": "139.59.232.148",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.524,
+    "version_time": 0.261,
+    "tx_time": 0.524,
+    "total_latency": 1.309,
+    "status": "working"
+  },
+  {
+    "host": "165.22.98.208",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.528,
+    "version_time": 0.263,
+    "tx_time": 0.528,
+    "total_latency": 1.318,
+    "status": "working"
+  },
+  {
+    "host": "159.223.40.244",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.531,
+    "version_time": 0.26,
+    "tx_time": 0.527,
+    "total_latency": 1.318,
+    "status": "working"
+  },
+  {
+    "host": "209.97.160.100",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.517,
+    "version_time": 0.272,
+    "tx_time": 0.531,
+    "total_latency": 1.32,
+    "status": "working"
+  },
+  {
+    "host": "157.230.254.6",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.533,
+    "version_time": 0.266,
+    "tx_time": 0.535,
+    "total_latency": 1.334,
+    "status": "working"
+  },
+  {
+    "host": "35.197.22.214",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.069,
+    "version_time": 1.07,
+    "tx_time": 0.218,
+    "total_latency": 1.357,
+    "status": "working"
+  },
+  {
+    "host": "206.189.83.21",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.536,
+    "version_time": 0.269,
+    "tx_time": 0.555,
+    "total_latency": 1.359,
+    "status": "working"
+  },
+  {
+    "host": "35.197.22.214",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.143,
+    "version_time": 0.998,
+    "tx_time": 0.221,
+    "total_latency": 1.362,
+    "status": "working"
+  },
+  {
+    "host": "260.whyza.net",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.561,
+    "version_time": 0.267,
+    "tx_time": 0.54,
+    "total_latency": 1.368,
+    "status": "working"
+  },
+  {
+    "host": "electrum.tjader.xyz",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "electrs/0.10.8",
+      "1.4"
+    ],
+    "connect_time": 0.354,
+    "version_time": 0.174,
+    "tx_time": 0.858,
+    "total_latency": 1.386,
+    "status": "working"
+  },
+  {
+    "host": "134.199.142.123",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.08,
+    "version_time": 1.08,
+    "tx_time": 0.251,
+    "total_latency": 1.411,
+    "status": "working"
+  },
+  {
+    "host": "134.199.136.239",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.083,
+    "version_time": 1.083,
+    "tx_time": 0.254,
+    "total_latency": 1.42,
+    "status": "working"
+  },
+  {
+    "host": "134.199.142.123",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.169,
+    "version_time": 1.001,
+    "tx_time": 0.251,
+    "total_latency": 1.421,
+    "status": "working"
+  },
+  {
+    "host": "137.184.244.174",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.084,
+    "version_time": 1.088,
+    "tx_time": 0.253,
+    "total_latency": 1.425,
+    "status": "working"
+  },
+  {
+    "host": "34.39.9.100",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.083,
+    "version_time": 1.088,
+    "tx_time": 0.254,
+    "total_latency": 1.425,
+    "status": "working"
+  },
+  {
+    "host": "164.90.247.216",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.175,
+    "version_time": 0.996,
+    "tx_time": 0.26,
+    "total_latency": 1.432,
+    "status": "working"
+  },
+  {
+    "host": "134.199.136.239",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.176,
+    "version_time": 0.999,
+    "tx_time": 0.262,
+    "total_latency": 1.437,
+    "status": "working"
+  },
+  {
+    "host": "209.38.172.84",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.085,
+    "version_time": 1.085,
+    "tx_time": 0.268,
+    "total_latency": 1.438,
+    "status": "working"
+  },
+  {
+    "host": "34.94.210.245",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.084,
+    "version_time": 1.084,
+    "tx_time": 0.271,
+    "total_latency": 1.439,
+    "status": "working"
+  },
+  {
+    "host": "24.199.71.49",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.087,
+    "version_time": 1.09,
+    "tx_time": 0.262,
+    "total_latency": 1.439,
+    "status": "working"
+  },
+  {
+    "host": "24.199.71.49",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.195,
+    "version_time": 0.988,
+    "tx_time": 0.259,
+    "total_latency": 1.441,
+    "status": "working"
+  },
+  {
+    "host": "34.94.210.245",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.175,
+    "version_time": 0.997,
+    "tx_time": 0.269,
+    "total_latency": 1.442,
+    "status": "working"
+  },
+  {
+    "host": "209.38.172.84",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.177,
+    "version_time": 0.999,
+    "tx_time": 0.266,
+    "total_latency": 1.442,
+    "status": "working"
+  },
+  {
+    "host": "137.184.244.174",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.177,
+    "version_time": 1.002,
+    "tx_time": 0.267,
+    "total_latency": 1.445,
+    "status": "working"
+  },
+  {
+    "host": "34.39.9.100",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.182,
+    "version_time": 1.0,
+    "tx_time": 0.264,
+    "total_latency": 1.446,
+    "status": "working"
+  },
+  {
+    "host": "146.190.150.164",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.182,
+    "version_time": 0.998,
+    "tx_time": 0.272,
+    "total_latency": 1.452,
+    "status": "working"
+  },
+  {
+    "host": "164.90.247.216",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.087,
+    "version_time": 1.094,
+    "tx_time": 0.271,
+    "total_latency": 1.452,
+    "status": "working"
+  },
+  {
+    "host": "129.212.164.62",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.181,
+    "version_time": 0.999,
+    "tx_time": 0.278,
+    "total_latency": 1.457,
+    "status": "working"
+  },
+  {
+    "host": "ns3206912.ip-198-244-201.eu",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.096,
+    "version_time": 1.088,
+    "tx_time": 0.276,
+    "total_latency": 1.46,
+    "status": "working"
+  },
+  {
+    "host": "34.175.239.109",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.09,
+    "version_time": 1.089,
+    "tx_time": 0.282,
+    "total_latency": 1.461,
+    "status": "working"
+  },
+  {
+    "host": "34.175.239.109",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.188,
+    "version_time": 1.001,
+    "tx_time": 0.278,
+    "total_latency": 1.466,
+    "status": "working"
+  },
+  {
+    "host": "bitcoin.lu.ke",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.212,
+    "version_time": 0.993,
+    "tx_time": 0.276,
+    "total_latency": 1.481,
+    "status": "working"
+  },
+  {
+    "host": "206.189.62.190",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.096,
+    "version_time": 1.093,
+    "tx_time": 0.304,
+    "total_latency": 1.493,
+    "status": "working"
+  },
+  {
+    "host": "electrum1.bluewallet.io",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.099,
+    "version_time": 1.093,
+    "tx_time": 0.303,
+    "total_latency": 1.495,
+    "status": "working"
+  },
+  {
+    "host": "bitcoin.lu.ke",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.12,
+    "version_time": 1.093,
+    "tx_time": 0.289,
+    "total_latency": 1.502,
+    "status": "working"
+  },
+  {
+    "host": "electrum3.bluewallet.io",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.106,
+    "version_time": 1.096,
+    "tx_time": 0.301,
+    "total_latency": 1.503,
+    "status": "working"
+  },
+  {
+    "host": "electrum2.bluewallet.io",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.101,
+    "version_time": 1.093,
+    "tx_time": 0.31,
+    "total_latency": 1.504,
+    "status": "working"
+  },
+  {
+    "host": "34.32.48.252",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.1,
+    "version_time": 1.102,
+    "tx_time": 0.307,
+    "total_latency": 1.508,
+    "status": "working"
+  },
+  {
+    "host": "34.32.51.209",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.098,
+    "version_time": 1.098,
+    "tx_time": 0.312,
+    "total_latency": 1.509,
+    "status": "working"
+  },
+  {
+    "host": "34.32.48.56",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.098,
+    "version_time": 1.098,
+    "tx_time": 0.314,
+    "total_latency": 1.51,
+    "status": "working"
+  },
+  {
+    "host": "129.212.164.62",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.082,
+    "version_time": 1.089,
+    "tx_time": 0.346,
+    "total_latency": 1.516,
+    "status": "working"
+  },
+  {
+    "host": "34.32.12.235",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.102,
+    "version_time": 1.103,
+    "tx_time": 0.312,
+    "total_latency": 1.516,
+    "status": "working"
+  },
+  {
+    "host": "34.32.48.56",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.21,
+    "version_time": 0.997,
+    "tx_time": 0.312,
+    "total_latency": 1.519,
+    "status": "working"
+  },
+  {
+    "host": "34.32.51.209",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.212,
+    "version_time": 0.999,
+    "tx_time": 0.31,
+    "total_latency": 1.521,
+    "status": "working"
+  },
+  {
+    "host": "34.32.48.252",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.207,
+    "version_time": 0.999,
+    "tx_time": 0.316,
+    "total_latency": 1.522,
+    "status": "working"
+  },
+  {
+    "host": "34.32.12.235",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.207,
+    "version_time": 0.997,
+    "tx_time": 0.317,
+    "total_latency": 1.522,
+    "status": "working"
+  },
+  {
+    "host": "34.32.36.131",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.21,
+    "version_time": 0.998,
+    "tx_time": 0.319,
+    "total_latency": 1.527,
+    "status": "working"
+  },
+  {
+    "host": "electrum2.cipig.net",
+    "port": 10000,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.111,
+    "version_time": 1.106,
+    "tx_time": 0.331,
+    "total_latency": 1.548,
+    "status": "working"
+  },
+  {
+    "host": "electrum1.cipig.net",
+    "port": 10000,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.119,
+    "version_time": 1.104,
+    "tx_time": 0.326,
+    "total_latency": 1.549,
+    "status": "working"
+  },
+  {
+    "host": "206.189.62.190",
+    "port": 443,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.212,
+    "version_time": 1.0,
+    "tx_time": 0.344,
+    "total_latency": 1.556,
+    "status": "working"
+  },
+  {
+    "host": "ns3206912.ip-198-244-201.eu",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.288,
+    "version_time": 0.996,
+    "tx_time": 0.273,
+    "total_latency": 1.557,
+    "status": "working"
+  },
+  {
+    "host": "34.32.36.131",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.103,
+    "version_time": 1.103,
+    "tx_time": 0.352,
+    "total_latency": 1.557,
+    "status": "working"
+  },
+  {
+    "host": "34.118.1.54",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.108,
+    "version_time": 1.118,
+    "tx_time": 0.336,
+    "total_latency": 1.563,
+    "status": "working"
+  },
+  {
+    "host": "34.118.1.54",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.217,
+    "version_time": 1.01,
+    "tx_time": 0.337,
+    "total_latency": 1.564,
+    "status": "working"
+  },
+  {
+    "host": "34.116.254.239",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.112,
+    "version_time": 1.114,
+    "tx_time": 0.343,
+    "total_latency": 1.569,
+    "status": "working"
+  },
+  {
+    "host": "34.116.254.239",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.226,
+    "version_time": 0.996,
+    "tx_time": 0.351,
+    "total_latency": 1.572,
+    "status": "working"
+  },
+  {
+    "host": "electrum2.cipig.net",
+    "port": 20000,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.267,
+    "version_time": 0.989,
+    "tx_time": 0.329,
+    "total_latency": 1.585,
+    "status": "working"
+  },
+  {
+    "host": "84.242.84.78",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.24,
+    "version_time": 0.992,
+    "tx_time": 0.355,
+    "total_latency": 1.588,
+    "status": "working"
+  },
+  {
+    "host": "electrum1.cipig.net",
+    "port": 20000,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.273,
+    "version_time": 0.987,
+    "tx_time": 0.331,
+    "total_latency": 1.591,
+    "status": "working"
+  },
+  {
+    "host": "electrum3.bluewallet.io",
+    "port": 443,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.23,
+    "version_time": 1.049,
+    "tx_time": 0.328,
+    "total_latency": 1.607,
+    "status": "working"
+  },
+  {
+    "host": "34.88.214.4",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.124,
+    "version_time": 1.124,
+    "tx_time": 0.376,
+    "total_latency": 1.623,
+    "status": "working"
+  },
+  {
+    "host": "34.88.214.4",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.256,
+    "version_time": 0.997,
+    "tx_time": 0.39,
+    "total_latency": 1.644,
+    "status": "working"
+  },
+  {
+    "host": "electrum1.bluewallet.io",
+    "port": 443,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.222,
+    "version_time": 1.066,
+    "tx_time": 0.358,
+    "total_latency": 1.645,
+    "status": "working"
+  },
+  {
+    "host": "electrum3.cipig.net",
+    "port": 10000,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.161,
+    "version_time": 1.12,
+    "tx_time": 0.368,
+    "total_latency": 1.648,
+    "status": "working"
+  },
+  {
+    "host": "electrum2.bluewallet.io",
+    "port": 443,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.219,
+    "version_time": 1.065,
+    "tx_time": 0.38,
+    "total_latency": 1.664,
+    "status": "working"
+  },
+  {
+    "host": "35.198.35.60",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.133,
+    "version_time": 1.135,
+    "tx_time": 0.42,
+    "total_latency": 1.688,
+    "status": "working"
+  },
+  {
+    "host": "35.198.35.60",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.283,
+    "version_time": 0.999,
+    "tx_time": 0.42,
+    "total_latency": 1.702,
+    "status": "working"
+  },
+  {
+    "host": "kirsche.emzy.de",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.433,
+    "version_time": 0.988,
+    "tx_time": 0.323,
+    "total_latency": 1.744,
+    "status": "working"
+  },
+  {
+    "host": "electrum.emzy.de",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.429,
+    "version_time": 0.986,
+    "tx_time": 0.328,
+    "total_latency": 1.744,
+    "status": "working"
+  },
+  {
+    "host": "btc-main.compumundohipermegared.one",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.499,
+    "version_time": 0.986,
+    "tx_time": 0.341,
+    "total_latency": 1.825,
+    "status": "working"
+  },
+  {
+    "host": "159.196.3.239",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.16.0",
+      "1.4"
+    ],
+    "connect_time": 0.539,
+    "version_time": 0.266,
+    "tx_time": 1.056,
+    "total_latency": 1.861,
+    "status": "working"
+  },
+  {
+    "host": "btc-alt.compumundohipermegared.one",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.508,
+    "version_time": 0.994,
+    "tx_time": 0.379,
+    "total_latency": 1.881,
+    "status": "working"
+  },
+  {
+    "host": "34.18.69.244",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.178,
+    "version_time": 1.177,
+    "tx_time": 0.555,
+    "total_latency": 1.91,
+    "status": "working"
+  },
+  {
+    "host": "34.18.66.115",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.367,
+    "version_time": 0.998,
+    "tx_time": 0.554,
+    "total_latency": 1.919,
+    "status": "working"
+  },
+  {
+    "host": "electrum.hsmiths.com",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.10.0",
+      "1.4"
+    ],
+    "connect_time": 0.939,
+    "version_time": 0.239,
+    "tx_time": 0.757,
+    "total_latency": 1.935,
+    "status": "working"
+  },
+  {
+    "host": "35.194.147.142",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.379,
+    "version_time": 0.994,
+    "tx_time": 0.565,
+    "total_latency": 1.937,
+    "status": "working"
+  },
+  {
+    "host": "34.64.177.133",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.375,
+    "version_time": 0.997,
+    "tx_time": 0.566,
+    "total_latency": 1.937,
+    "status": "working"
+  },
+  {
+    "host": "34.64.177.133",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.188,
+    "version_time": 1.184,
+    "tx_time": 0.569,
+    "total_latency": 1.941,
+    "status": "working"
+  },
+  {
+    "host": "35.194.147.142",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.186,
+    "version_time": 1.19,
+    "tx_time": 0.568,
+    "total_latency": 1.945,
+    "status": "working"
+  },
+  {
+    "host": "35.221.221.16",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.187,
+    "version_time": 1.19,
+    "tx_time": 0.569,
+    "total_latency": 1.946,
+    "status": "working"
+  },
+  {
+    "host": "34.18.66.115",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.194,
+    "version_time": 1.19,
+    "tx_time": 0.585,
+    "total_latency": 1.969,
+    "status": "working"
+  },
+  {
+    "host": "35.221.221.16",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.384,
+    "version_time": 1.001,
+    "tx_time": 0.586,
+    "total_latency": 1.971,
+    "status": "working"
+  },
+  {
+    "host": "34.18.69.244",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.396,
+    "version_time": 0.998,
+    "tx_time": 0.595,
+    "total_latency": 1.989,
+    "status": "working"
+  },
+  {
+    "host": "34.96.220.189",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.409,
+    "version_time": 0.997,
+    "tx_time": 0.615,
+    "total_latency": 2.022,
+    "status": "working"
+  },
+  {
+    "host": "34.96.220.189",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.205,
+    "version_time": 1.204,
+    "tx_time": 0.622,
+    "total_latency": 2.031,
+    "status": "working"
+  },
+  {
+    "host": "189.220.96.34.bc.googleusercontent.com",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.214,
+    "version_time": 1.218,
+    "tx_time": 0.638,
+    "total_latency": 2.069,
+    "status": "working"
+  },
+  {
+    "host": "189.220.96.34.bc.googleusercontent.com",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.461,
+    "version_time": 0.997,
+    "tx_time": 0.622,
+    "total_latency": 2.08,
+    "status": "working"
+  },
+  {
+    "host": "34.128.81.215",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.246,
+    "version_time": 1.247,
+    "tx_time": 0.745,
+    "total_latency": 2.238,
+    "status": "working"
+  },
+  {
+    "host": "34.50.93.134",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.247,
+    "version_time": 1.247,
+    "tx_time": 0.753,
+    "total_latency": 2.247,
+    "status": "working"
+  },
+  {
+    "host": "34.128.68.204",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.51,
+    "version_time": 0.995,
+    "tx_time": 0.754,
+    "total_latency": 2.259,
+    "status": "working"
+  },
+  {
+    "host": "34.87.227.41",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.25,
+    "version_time": 1.25,
+    "tx_time": 0.76,
+    "total_latency": 2.26,
+    "status": "working"
+  },
+  {
+    "host": "34.128.68.204",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.247,
+    "version_time": 1.255,
+    "tx_time": 0.759,
+    "total_latency": 2.261,
+    "status": "working"
+  },
+  {
+    "host": "34.40.149.244",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.511,
+    "version_time": 0.995,
+    "tx_time": 0.761,
+    "total_latency": 2.268,
+    "status": "working"
+  },
+  {
+    "host": "35.244.75.18",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.515,
+    "version_time": 0.994,
+    "tx_time": 0.761,
+    "total_latency": 2.27,
+    "status": "working"
+  },
+  {
+    "host": "34.87.220.132",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.509,
+    "version_time": 0.997,
+    "tx_time": 0.767,
+    "total_latency": 2.272,
+    "status": "working"
+  },
+  {
+    "host": "35.244.89.238",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.254,
+    "version_time": 1.252,
+    "tx_time": 0.766,
+    "total_latency": 2.272,
+    "status": "working"
+  },
+  {
+    "host": "35.244.89.238",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.517,
+    "version_time": 0.996,
+    "tx_time": 0.76,
+    "total_latency": 2.273,
+    "status": "working"
+  },
+  {
+    "host": "35.189.13.187",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.515,
+    "version_time": 0.994,
+    "tx_time": 0.765,
+    "total_latency": 2.274,
+    "status": "working"
+  },
+  {
+    "host": "34.87.220.132",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.251,
+    "version_time": 1.25,
+    "tx_time": 0.773,
+    "total_latency": 2.274,
+    "status": "working"
+  },
+  {
+    "host": "34.101.170.221",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.254,
+    "version_time": 1.252,
+    "tx_time": 0.768,
+    "total_latency": 2.274,
+    "status": "working"
+  },
+  {
+    "host": "34.40.149.244",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.251,
+    "version_time": 1.251,
+    "tx_time": 0.773,
+    "total_latency": 2.275,
+    "status": "working"
+  },
+  {
+    "host": "35.244.75.18",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.254,
+    "version_time": 1.251,
+    "tx_time": 0.77,
+    "total_latency": 2.275,
+    "status": "working"
+  },
+  {
+    "host": "35.244.75.164",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.511,
+    "version_time": 1.002,
+    "tx_time": 0.764,
+    "total_latency": 2.277,
+    "status": "working"
+  },
+  {
+    "host": "35.189.13.187",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.254,
+    "version_time": 1.252,
+    "tx_time": 0.771,
+    "total_latency": 2.278,
+    "status": "working"
+  },
+  {
+    "host": "34.128.81.215",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.514,
+    "version_time": 0.992,
+    "tx_time": 0.773,
+    "total_latency": 2.28,
+    "status": "working"
+  },
+  {
+    "host": "34.87.227.41",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.518,
+    "version_time": 0.989,
+    "tx_time": 0.772,
+    "total_latency": 2.28,
+    "status": "working"
+  },
+  {
+    "host": "34.50.93.134",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.52,
+    "version_time": 0.993,
+    "tx_time": 0.769,
+    "total_latency": 2.282,
+    "status": "working"
+  },
+  {
+    "host": "35.244.75.164",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.256,
+    "version_time": 1.254,
+    "tx_time": 0.773,
+    "total_latency": 2.282,
+    "status": "working"
+  },
+  {
+    "host": "34.101.170.221",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.516,
+    "version_time": 0.999,
+    "tx_time": 0.77,
+    "total_latency": 2.285,
+    "status": "working"
+  },
+  {
+    "host": "34.101.39.54",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.538,
+    "version_time": 0.998,
+    "tx_time": 0.763,
+    "total_latency": 2.299,
+    "status": "working"
+  },
+  {
+    "host": "54.39.101.34.bc.googleusercontent.com",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.256,
+    "version_time": 1.253,
+    "tx_time": 0.79,
+    "total_latency": 2.299,
+    "status": "working"
+  },
+  {
+    "host": "34.101.39.54",
+    "port": 50001,
+    "ssl": false,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.256,
+    "version_time": 1.254,
+    "tx_time": 0.797,
+    "total_latency": 2.307,
+    "status": "working"
+  },
+  {
+    "host": "175.41.191.135",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.532,
+    "version_time": 0.99,
+    "tx_time": 0.795,
+    "total_latency": 2.317,
+    "status": "working"
+  },
+  {
+    "host": "54.39.101.34.bc.googleusercontent.com",
+    "port": 50002,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.18.0",
+      "1.4"
+    ],
+    "connect_time": 0.578,
+    "version_time": 0.989,
+    "tx_time": 0.752,
+    "total_latency": 2.318,
+    "status": "working"
+  },
+  {
+    "host": "ecdsa.net",
+    "port": 110,
+    "ssl": true,
+    "version": [
+      "ElectrumX 1.10.0",
+      "1.4"
+    ],
+    "connect_time": 0.967,
+    "version_time": 0.239,
+    "tx_time": 1.583,
+    "total_latency": 2.789,
+    "status": "working"
+  }
+]

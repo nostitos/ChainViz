@@ -518,55 +518,92 @@ class ElectrumClient:
         
         Returns: (witness_version, witness_program)
         """
-        try:
-            # Use python-bitcoinlib (already in requirements.txt)
-            from bitcoin.segwit_addr import decode
-            
-            # decode returns (witver, witprog) or (None, None) on failure
-            witver, witprog = decode('bc', address)
-            if witver is None:
-                raise ValueError(f"Failed to decode bech32 address: {address}")
-            
-            return witver, bytes(witprog)
-        except ImportError:
-            # Fallback: manual decoding (basic bech32 only)
-            logger.warning("python-bitcoinlib not available, using manual bech32 decode")
-            CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
-            if '1' not in address:
-                raise ValueError("Invalid bech32 address")
-            
-            hrp, data = address.rsplit('1', 1)
-            if hrp != 'bc':
-                raise ValueError(f"Invalid hrp: {hrp}, expected 'bc'")
-            
-            # Decode data part (exclude 6-char checksum)
-            decoded = []
-            for c in data[:-6]:
-                if c not in CHARSET:
-                    raise ValueError(f"Invalid character in bech32: {c}")
-                decoded.append(CHARSET.index(c))
-            
-            if len(decoded) < 1:
-                raise ValueError("Empty data")
-            
-            witness_version = decoded[0]
-            
-            # Convert from 5-bit groups to 8-bit bytes
+        CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+        BECH32_CONST = 1
+        BECH32M_CONST = 0x2BC830A3
+
+        def _polymod(values: list[int]) -> int:
+            generator = [0x3B6A57B2, 0x26508E6D, 0x1EA119FA, 0x3D4233DD, 0x2A1462B3]
+            chk = 1
+            for value in values:
+                top = chk >> 25
+                chk = ((chk & 0x1FFFFFF) << 5) ^ value
+                for i in range(5):
+                    if (top >> i) & 1:
+                        chk ^= generator[i]
+            return chk
+
+        def _hrp_expand(hrp: str) -> list[int]:
+            return [ord(x) >> 5 for x in hrp] + [0] + [ord(x) & 31 for x in hrp]
+
+        def _verify_checksum(hrp: str, data: list[int], const: int) -> bool:
+            return _polymod(_hrp_expand(hrp) + data) == const
+
+        def _convert_bits(data: list[int], from_bits: int, to_bits: int) -> list[int]:
+            acc = 0
             bits = 0
-            value = 0
-            witness_program = []
-            for d in decoded[1:]:
-                value = (value << 5) | d
-                bits += 5
-                if bits >= 8:
-                    bits -= 8
-                    witness_program.append((value >> bits) & 0xff)
-            
-            # Padding check
-            if bits >= 5 or value & ((1 << bits) - 1):
+            ret: list[int] = []
+            maxv = (1 << to_bits) - 1
+            for value in data:
+                if value < 0 or value >= (1 << from_bits):
+                    raise ValueError("Invalid value in bech32 data")
+                acc = (acc << from_bits) | value
+                bits += from_bits
+                while bits >= to_bits:
+                    bits -= to_bits
+                    ret.append((acc >> bits) & maxv)
+            if bits >= from_bits or (acc << (to_bits - bits)) & maxv:
                 raise ValueError("Invalid padding in bech32 data")
-            
-            return witness_version, bytes(witness_program)
+            return ret
+
+        if not address or address.lower() != address and address.upper() != address:
+            raise ValueError("Invalid bech32 casing")
+
+        bech = address.lower()
+        if "1" not in bech:
+            raise ValueError("Invalid bech32 address")
+
+        hrp, data_part = bech.rsplit("1", 1)
+        if hrp != "bc":
+            raise ValueError(f"Invalid hrp: {hrp}, expected 'bc'")
+
+        if len(data_part) < 7:
+            raise ValueError("Invalid bech32 data length")
+
+        data = []
+        for char in data_part:
+            if char not in CHARSET:
+                raise ValueError(f"Invalid character in bech32: {char}")
+            data.append(CHARSET.index(char))
+
+        payload, checksum = data[:-6], data[-6:]
+        if not payload:
+            raise ValueError("Empty bech32 payload")
+
+        witness_version = payload[0]
+        if witness_version < 0 or witness_version > 16:
+            raise ValueError(f"Invalid witness version: {witness_version}")
+
+        if _verify_checksum(hrp, payload + checksum, BECH32_CONST):
+            checksum_const = BECH32_CONST
+        elif _verify_checksum(hrp, payload + checksum, BECH32M_CONST):
+            checksum_const = BECH32M_CONST
+        else:
+            raise ValueError("Invalid bech32 checksum")
+
+        if witness_version == 0 and checksum_const != BECH32_CONST:
+            raise ValueError("Invalid checksum for witness version 0")
+        if witness_version > 0 and checksum_const != BECH32M_CONST:
+            raise ValueError("Invalid checksum for witness version >=1 (bech32m expected)")
+
+        program = _convert_bits(payload[1:], 5, 8)
+        if len(program) < 2 or len(program) > 40:
+            raise ValueError("Invalid witness program length")
+
+        if witness_version == 0 and len(program) not in (20, 32):
+            raise ValueError("Invalid witness program length for v0 address")
+
+        return witness_version, bytes(program)
 
     @asynccontextmanager
     async def connection(self):

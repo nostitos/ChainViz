@@ -3,7 +3,9 @@ annotated-types==0.7.0
 anyio==4.11.0
 async-timeout==5.0.1
 base58==2.1.1
+beautifulsoup4==4.12.3
 bip32utils==0.3.post4
+bip-utils==2.9.3
 certifi==2025.10.5
 click==8.3.0
 ecdsa==0.19.1

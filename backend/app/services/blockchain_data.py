@@ -2,7 +2,7 @@
 
 import logging
 import json
-from typing import List, Optional, Dict, Any
+from typing import Iterable, List, Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta
 import redis.asyncio as aioredis
 import hashlib
@@ -16,10 +16,30 @@ from app.models.blockchain import (
     Address,
     ScriptType,
 )
-from app.services.electrum_client import get_electrum_client
+from app.services.electrum_multiplexer import get_electrum_client
+from app.services.mempool_client import get_mempool_client
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _dedupe_preserve_order(items: Iterable[str]) -> Tuple[List[str], List[Tuple[int, int]]]:
+    """
+    Deduplicate iterable while preserving original ordering and tracking the mapping
+    back to the source indices.
+    """
+
+    seen: Dict[str, int] = {}
+    unique: List[str] = []
+    index_map: List[Tuple[int, int]] = []
+
+    for i, item in enumerate(items):
+        if item not in seen:
+            seen[item] = len(unique)
+            unique.append(item)
+        index_map.append((i, seen[item]))
+
+    return unique, index_map
 
 
 def _extract_pubkey_from_p2pk_script(script_pubkey_hex: str) -> Optional[str]:
@@ -178,12 +198,91 @@ class BlockchainDataService:
         if cached:
             return json.loads(cached)
 
-        # Fetch from Electrum (use fresh client)
-        logger.info(f"Creating fresh Electrum client...")
+        # Try mempool.space tier first
+        mempool = get_mempool_client()
+        expected_count = None
+        summary_priorities = (0, 1, 2)
+        for priority in summary_priorities:
+            try:
+                summary = await mempool.get_address_summary(address, min_priority=priority)
+                if summary:
+                    expected_count = (
+                        summary.get("chain_stats", {}).get("tx_count")
+                        + summary.get("mempool_stats", {}).get("tx_count", 0)
+                    )
+                    logger.info(
+                        "Address %s summary indicates %s total txs (priority %s)",
+                        address[:12],
+                        expected_count,
+                        priority,
+                    )
+                    break
+            except Exception as exc:
+                logger.debug(
+                    "Address summary fetch failed for %s via priority %s: %s",
+                    address[:12],
+                    priority,
+                    exc,
+                )
+
+        best_txids: List[str] = []
+        try:
+            for priority in (0, 1, 2):
+                txids = await mempool.get_address_txids(
+                    address,
+                    min_priority=priority,
+                    max_results=expected_count or 500,
+                )
+                if not txids:
+                    logger.debug(
+                        "Mempool priority %s returned no txs for %s",
+                        priority,
+                        address[:12],
+                    )
+                    continue
+
+                if len(txids) > len(best_txids):
+                    best_txids = txids
+
+                if expected_count and len(txids) >= expected_count:
+                    logger.info(
+                        "✅ Address %s resolved via mempool priority %s (%s txs)",
+                        address[:10],
+                        priority,
+                        len(txids),
+                    )
+                    await self._set_cache(
+                        cache_key, json.dumps(txids), settings.cache_ttl_address_history
+                    )
+                    return txids
+
+            if best_txids:
+                if expected_count and len(best_txids) < expected_count:
+                    logger.warning(
+                        "Address %s returned %s/%s txs from mempool API; will top up via Electrum",
+                        address[:12],
+                        len(best_txids),
+                        expected_count,
+                    )
+                else:
+                    logger.info(
+                        "✅ Address %s resolved via mempool (%s txs)",
+                        address[:10],
+                        len(best_txids),
+                    )
+                    await self._set_cache(
+                        cache_key, json.dumps(best_txids), settings.cache_ttl_address_history
+                    )
+                    return best_txids
+        except Exception as exc:
+            logger.warning(f"Mempool address lookup failed for {address[:12]}*: {exc}")
+
+        # Fallback to Electrum (use fresh client)
+        logger.info(f"Mempool unavailable, creating Electrum client for {address[:12]}* ...")
         electrum = get_electrum_client()
         logger.info(f"Calling get_history for address: {address}")
         history = await electrum.get_history(address)
-        logger.info(f"Got {len(history)} history items")
+        logger.info(f"Got {len(history)} history items from Electrum")
         txids = [item["tx_hash"] for item in history]
 
         # Cache result
@@ -235,7 +334,10 @@ class BlockchainDataService:
 
     async def fetch_transaction(self, txid: str) -> Transaction:
         """
-        Fetch transaction details with input values
+        Fetch transaction with three-tier strategy:
+        1. Local mempool.space (fast, handles most TXs)
+        2. Public mempool.space (for large TXs)
+        3. Electrum multiplexer (if mempool.space fails)
         
         Args:
             txid: Transaction ID
@@ -254,55 +356,50 @@ class BlockchainDataService:
             else:
                 return Transaction(**data)
 
-        # Fetch from Electrum (use fresh client)
+        # Try mempool.space first (handles local vs public routing internally)
+        mempool = get_mempool_client()
+        data = await mempool.get_transaction(txid)
+        
+        if data:
+            transaction = self._parse_mempool_transaction(txid, data)
+            await self._set_cache(cache_key, transaction.model_dump_json(), settings.cache_ttl_transaction)
+            logger.info(f"✅ Fetched TX {txid[:20]} from mempool.space (1 request)")
+            return transaction
+        
+        # Fallback to Electrum multiplexer
+        logger.warning(f"Mempool.space failed for {txid[:20]}, using Electrum")
         electrum = get_electrum_client()
         tx_data = await electrum.get_transaction(txid, verbose=True)
         
-        # Debug: Log what Electrum actually returned
-        logger.info(f"TX {txid[:20]}: Electrum returned - blockheight={tx_data.get('blockheight')}, blockhash={tx_data.get('blockhash')[:20] if tx_data.get('blockhash') else 'None'}, confirmations={tx_data.get('confirmations')}")
-        
-        # Fetch input values from previous transactions - DISABLED (too slow, use batching instead)
-        # The trace.py endpoint already handles batching for input values
-        # for vin in tx_data.get("vin", []):
-        #     if "value" not in vin or vin.get("value") is None:
-        #         # Need to fetch the previous transaction to get the output value
-        #         prev_txid = vin.get("txid")
-        #         prev_vout = vin.get("vout")
-        #         logger.info(f"Fetching input value for {prev_txid}:{prev_vout}")
-        #         if prev_txid and prev_vout is not None:
-        #             try:
-        #                 prev_tx = await electrum.get_transaction(prev_txid, verbose=True)
-        #                 if prev_vout < len(prev_tx.get("vout", [])):
-        #                     vin["value"] = int(prev_tx["vout"][prev_vout].get("value", 0) * 100_000_000)
-        #                     logger.info(f"✅ Fetched input value: {vin['value']} satoshis")
-        #             except Exception as e:
-        #                 logger.error(f"Could not fetch input value for {prev_txid}:{prev_vout}: {e}")
+        if not tx_data:
+            raise ValueError(f"Failed to fetch transaction {txid} from all sources")
         
         transaction = self._parse_transaction(txid, tx_data)
-
-        # Cache result
-        await self._set_cache(
-            cache_key, transaction.model_dump_json(), settings.cache_ttl_transaction
-        )
-
+        await self._set_cache(cache_key, transaction.model_dump_json(), settings.cache_ttl_transaction)
         return transaction
 
     async def fetch_transactions_batch(self, txids: List[str]) -> List[Transaction]:
         """
-        Fetch multiple transactions (uses batching for speed)
+        Fetch multiple transactions (uses batching for speed + deduplication)
         
         Args:
             txids: List of transaction IDs
             
         Returns:
-            List of Transaction objects
+            List of Transaction objects (in same order as input, with duplicates preserved)
         """
-        # Check cache first
-        result = []
+        # OPTIMIZATION: Deduplicate input while preserving order
+        unique_txids, txid_positions = _dedupe_preserve_order(txids)
+        
+        if len(unique_txids) < len(txids):
+            logger.info(f"📦 Deduplicated {len(txids)} → {len(unique_txids)} unique transactions (saved {len(txids) - len(unique_txids)} fetches)")
+        
+        # Check cache first (for unique txids)
+        result_map = {}
         uncached_txids = []
         cached_indices = {}
 
-        for i, txid in enumerate(txids):
+        for i, txid in enumerate(unique_txids):
             cache_key = f"tx:{txid}"
             cached = await self._get_cache(cache_key)
             if cached:
@@ -312,60 +409,47 @@ class BlockchainDataService:
                     logger.info(f"TX {txid[:20]}: Cached data missing block_height, will re-fetch...")
                     uncached_txids.append((i, txid))
                 else:
-                    result.append(Transaction(**data))
-                    cached_indices[i] = len(result) - 1
+                    result_map[txid] = Transaction(**data)
             else:
                 uncached_txids.append((i, txid))
 
-        # Batch fetch uncached transactions (with verbose=True to get block info)
+        # Batch fetch uncached transactions from mempool.space first
         if uncached_txids:
             txids_to_fetch = [txid for _, txid in uncached_txids]
-            electrum = get_electrum_client()
-            tx_data_list = await electrum.get_transactions_batch(txids_to_fetch, verbose=True)
-
-            for (original_idx, txid), tx_data in zip(uncached_txids, tx_data_list):
-                if tx_data:
-                    # DEBUG: Log block info for ALL transactions
-                    block_height = tx_data.get('blockheight')
-                    block_hash = tx_data.get('blockhash')
-                    logger.debug(f"TX {txid[:20]} from Electrum: blockheight={block_height}, blockhash={block_hash[:20] if block_hash else 'None'}, confirmations={tx_data.get('confirmations')}")
-                    
-                    # DEBUG: Log for problematic transaction
-                    if txid and txid.startswith("b1b980bb"):
-                        logger.warning(f"DEBUG: fetch_transactions_batch received TX b1b980bb with {len(tx_data.get('vin', []))} inputs from Electrum")
-                    
-                    # DISABLED: Recursive input value fetching
-                    # This causes exponential request growth for large transactions!
-                    # For hops=1, we only need specific outputs from input TXs, not ALL input values
-                    # The trace endpoint handles getting specific input values when needed
-                    # 
-                    # If input values are needed in the future, fetch them only for:
-                    # 1. Specific inputs we're tracing (not all inputs of all TXs)
-                    # 2. Only when verbose=True responses don't include values (modern servers do)
-                    #
-                    # Old recursive code (disabled):
-                    # for vin in tx_data.get("vin", []):
-                    #     if "value" not in vin or vin.get("value") is None:
-                    #         prev_txid = vin.get("txid")
-                    #         prev_vout = vin.get("vout")
-                    #         if prev_txid and prev_vout is not None:
-                    #             try:
-                    #                 prev_tx = await electrum.get_transaction(prev_txid, verbose=True)
-                    #                 if prev_vout < len(prev_tx.get("vout", [])):
-                    #                     vin["value"] = int(prev_tx["vout"][prev_vout].get("value", 0) * 100_000_000)
-                    #             except Exception as e:
-                    #                 logger.debug(f"Could not fetch input value for {prev_txid}:{prev_vout}: {e}")
-                    
-                    transaction = self._parse_transaction(txid, tx_data)
-                    result.insert(original_idx, transaction)
-
-                    # Cache result
-                    cache_key = f"tx:{txid}"
-                    await self._set_cache(
-                        cache_key,
-                        transaction.model_dump_json(),
-                        settings.cache_ttl_transaction,
-                    )
+            
+            # Try mempool.space first
+            mempool = get_mempool_client()
+            mempool_results = await mempool.get_transactions_batch(txids_to_fetch)
+            
+            failed_txids = []
+            for txid, data in zip(txids_to_fetch, mempool_results):
+                if data:
+                    tx = self._parse_mempool_transaction(txid, data)
+                    result_map[txid] = tx
+                    await self._set_cache(f"tx:{txid}", tx.model_dump_json(), settings.cache_ttl_transaction)
+                else:
+                    failed_txids.append(txid)
+            
+            # Fallback to Electrum for failures
+            if failed_txids:
+                logger.warning(f"Mempool.space failed for {len(failed_txids)} TXs, using Electrum")
+                electrum = get_electrum_client()
+                electrum_results = await electrum.get_transactions_batch(failed_txids, verbose=True)
+                
+                for txid, tx_data in zip(failed_txids, electrum_results):
+                    if tx_data:
+                        tx = self._parse_transaction(txid, tx_data)
+                        result_map[txid] = tx
+                        await self._set_cache(f"tx:{txid}", tx.model_dump_json(), settings.cache_ttl_transaction)
+        
+        # Map back to original order (with duplicates restored)
+        result = []
+        for original_idx, unique_idx in txid_positions:
+            txid = unique_txids[unique_idx]
+            if txid in result_map:
+                result.append(result_map[txid])
+            else:
+                result.append(None)  # Failed to fetch
 
         return result
 
@@ -425,6 +509,94 @@ class BlockchainDataService:
             tx_count=len(txids),
             first_seen=first_seen,
             last_seen=last_seen,
+        )
+
+    def _map_mempool_script_type(self, mempool_type: Optional[str]) -> Optional[str]:
+        """
+        Map mempool.space script types to our model's script types
+        
+        Mempool.space uses: v0_p2wpkh, v1_p2tr, p2pkh, p2sh, etc.
+        Our model uses: p2wpkh, p2tr, p2pkh, p2sh, etc.
+        """
+        if not mempool_type:
+            return "unknown"
+        
+        # Strip version prefixes
+        if mempool_type.startswith("v0_"):
+            return mempool_type[3:]  # v0_p2wpkh -> p2wpkh
+        elif mempool_type.startswith("v1_"):
+            return mempool_type[3:]  # v1_p2tr -> p2tr
+        elif mempool_type in ["p2pk", "p2pkh", "p2sh", "p2wpkh", "p2wsh", "p2tr"]:
+            return mempool_type
+        else:
+            return "unknown"
+    
+    def _parse_mempool_transaction(self, txid: str, data: Dict[str, Any]) -> Transaction:
+        """
+        Parse transaction from mempool.space format (includes prevout with addresses/values!)
+        
+        Key difference: vin[].prevout already contains address and value!
+        No need to fetch previous transactions.
+        
+        Args:
+            txid: Transaction ID
+            data: Raw transaction data from mempool.space
+            
+        Returns:
+            Transaction object
+        """
+        # Parse inputs (prevout already has address and value!)
+        inputs = []
+        for vin in data.get("vin", []):
+            prevout = vin.get("prevout", {})
+            inputs.append(TransactionInput(
+                txid=vin.get("txid"),
+                vout=vin.get("vout"),
+                sequence=vin.get("sequence"),
+                address=prevout.get("scriptpubkey_address"),  # Already included!
+                value=prevout.get("value"),  # Already included!
+                script_sig=vin.get("scriptsig", ""),
+                witness=vin.get("witness", []),
+            ))
+        
+        # Parse outputs
+        outputs = []
+        for i, vout in enumerate(data.get("vout", [])):
+            outputs.append(TransactionOutput(
+                n=i,
+                value=vout.get("value"),  # Already in satoshis
+                address=vout.get("scriptpubkey_address"),
+                script_pubkey=vout.get("scriptpubkey", ""),
+                script_type=self._map_mempool_script_type(vout.get("scriptpubkey_type")),
+            ))
+        
+        # Parse block info
+        status = data.get("status", {})
+        
+        # Calculate fee
+        total_in = sum(inp.value for inp in inputs if inp.value)
+        total_out = sum(out.value for out in outputs)
+        fee = data.get("fee") or (total_in - total_out if total_in > 0 else None)
+        
+        # Calculate vsize from weight (vsize = ceil(weight / 4))
+        weight = data.get("weight", 0)
+        size = data.get("size", 0)
+        vsize = (weight + 3) // 4 if weight > 0 else size  # Round up division
+        
+        return Transaction(
+            txid=txid,
+            version=data.get("version", 1),
+            locktime=data.get("locktime", 0),
+            size=size,
+            vsize=vsize,
+            weight=weight,
+            fee=fee,
+            inputs=inputs,
+            outputs=outputs,
+            block_height=status.get("block_height"),
+            block_hash=status.get("block_hash"),
+            timestamp=status.get("block_time"),
+            confirmations=0,  # Not provided by mempool.space, set to 0
         )
 
     def _parse_transaction(self, txid: str, tx_data: Dict[str, Any]) -> Transaction:

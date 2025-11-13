@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, ExternalLink, Expand, ArrowRight, ArrowLeft, Copy, Check } from 'lucide-react';
 import type { Node } from '@xyflow/react';
 import { CollapsibleSection } from './CollapsibleSection';
@@ -128,8 +128,17 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
   const [txDetails, setTxDetails] = useState<TransactionDetails | null>(null);
   const [addressInfo, setAddressInfo] = useState<AddressInfo | null>(null);
   const [loading, setLoading] = useState(false);
+  const [addressDetailsLoaded, setAddressDetailsLoaded] = useState(false);
+  const [addressError, setAddressError] = useState<string | null>(null);
+  const [autoFetchAddressDetails, setAutoFetchAddressDetails] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const stored = localStorage.getItem('autoFetchAddressDetails');
+    return stored ? stored === 'true' : false;
+  });
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+  const currentAddress: string | undefined = data.address || metadata.address;
 
   const copyToClipboard = async (text: string, type: 'id' | 'address') => {
     try {
@@ -204,54 +213,85 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
     }
   }, [entity.id, isTransaction, data.txid, metadata.txid]);
   
-  // Fetch address info when address is selected
-  useEffect(() => {
-    if (!isTransaction) {
-      const address = data.address || metadata.address;
-      if (!address) return;
-      
-      // Don't fetch for placeholder addresses (P2PK, OP_RETURN, etc.)
-      // Check if it's not a valid Bitcoin address format
-      const isValidAddress = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$|^bc1[a-z0-9]{39,87}$/.test(address);
-      
-      if (!isValidAddress) {
-        console.log('⏭️ Skipping address fetch for non-address:', address);
-        setAddressInfo({
-          balance: 0,
-          total_received: 0,
-          total_sent: 0,
-          tx_count: 0,
-          transactions: [],
-          utxos: [],
-          first_seen: null,
-          last_seen: null,
-        });
-        setLoading(false);
+  const loadAddressDetails = useCallback(async () => {
+    if (!currentAddress) return;
+
+    const isValidAddress = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$|^bc1[a-z0-9]{39,87}$/.test(currentAddress);
+
+    if (!isValidAddress) {
+      console.log('⏭️ Skipping address fetch for non-address:', currentAddress);
+      setAddressInfo({
+        balance: 0,
+        total_received: 0,
+        total_sent: 0,
+        tx_count: 0,
+        transactions: [],
+        utxos: [],
+        first_seen: null,
+        last_seen: null,
+        script_type: null,
+      });
+      setAddressError(null);
+      setAddressDetailsLoaded(true);
+      return;
+    }
+
+    setLoading(true);
+    setAddressError(null);
+
+    try {
+      const response = await fetch(`${apiBase}/address/${currentAddress}?include_details=true`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const data = await response.json();
+
+      if (!data.details_included) {
+        setAddressError('Detailed balance fetching is currently disabled on the server.');
+        setAddressDetailsLoaded(false);
         return;
       }
-      
-      setLoading(true);
-      fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/address/${address}`)
-        .then(res => res.json())
-        .then(data => {
-          console.log('📊 Address info fetched:', data);
-          setAddressInfo({
-            balance: data.balance || 0,
-            total_received: data.total_received || 0,
-            total_sent: data.total_sent || 0,
-            tx_count: data.tx_count || 0,
-            transactions: data.transactions || [],
-            // NEW FIELDS:
-            utxos: data.utxos || [],
-            first_seen: data.first_seen || null,
-            last_seen: data.last_seen || null,
-            script_type: data.script_type || null,
-          });
-        })
-        .catch(err => console.error('Failed to fetch address info:', err))
-        .finally(() => setLoading(false));
+
+      console.log('📊 Address info fetched:', data);
+      setAddressInfo({
+        balance: data.balance || 0,
+        total_received: data.total_received || 0,
+        total_sent: data.total_sent || 0,
+        tx_count: data.tx_count || 0,
+        transactions: data.transactions || [],
+        utxos: data.utxos || [],
+        first_seen: data.first_seen || null,
+        last_seen: data.last_seen || null,
+        script_type: data.script_type || null,
+      });
+      setAddressDetailsLoaded(true);
+    } catch (err) {
+      console.error('Failed to fetch address info:', err);
+      setAddressError('Failed to load address details. Please try again.');
+      setAddressDetailsLoaded(false);
+    } finally {
+      setLoading(false);
     }
-  }, [entity.id, isTransaction, data.address, metadata.address]);
+  }, [apiBase, currentAddress]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('autoFetchAddressDetails', String(autoFetchAddressDetails));
+    }
+  }, [autoFetchAddressDetails]);
+
+  useEffect(() => {
+    if (!isTransaction) {
+      setAddressInfo(null);
+      setAddressDetailsLoaded(false);
+      setAddressError(null);
+      setLoading(false);
+
+      if (autoFetchAddressDetails) {
+        void loadAddressDetails();
+      }
+    }
+  }, [entity.id, isTransaction, currentAddress, autoFetchAddressDetails, loadAddressDetails]);
 
   const renderField = (label: string, value: any, copyable: boolean = false) => {
     if (value === undefined || value === null) return null;
@@ -445,9 +485,78 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
             {renderField('Cluster ID', metadata.cluster_id)}
             
             {/* Show address statistics */}
+            {!addressDetailsLoaded && !loading && (
+              <div
+                style={{
+                  marginTop: '12px',
+                  padding: '12px',
+                  background: 'rgba(100, 181, 246, 0.1)',
+                  borderRadius: '6px',
+                  borderLeft: '3px solid #64b5f6',
+                  fontSize: '12px',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                Address balances are paused. Click "Load Address Details" to fetch on demand.
+              </div>
+            )}
+
+            <div
+              style={{
+                marginTop: '16px',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '12px',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+                <input
+                  type="checkbox"
+                  checked={autoFetchAddressDetails}
+                  onChange={(e) => setAutoFetchAddressDetails(e.target.checked)}
+                />
+                Auto-load address details
+              </label>
+              <button
+                onClick={() => loadAddressDetails()}
+                disabled={loading || !currentAddress}
+                style={{
+                  padding: '8px 14px',
+                  backgroundColor: loading ? '#555' : '#64b5f6',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: '#fff',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  opacity: loading ? 0.7 : 1,
+                }}
+              >
+                {loading ? 'Loading…' : 'Load Address Details'}
+              </button>
+            </div>
+
+            {addressError && (
+              <div
+                style={{
+                  marginTop: '12px',
+                  padding: '10px',
+                  background: 'rgba(244, 67, 54, 0.15)',
+                  borderRadius: '6px',
+                  borderLeft: '3px solid #f44336',
+                  fontSize: '12px',
+                  color: '#ef9a9a',
+                }}
+              >
+                {addressError}
+              </div>
+            )}
+
             {loading ? (
               <div className="tx-loading">Loading address info...</div>
-            ) : addressInfo ? (
+            ) : addressInfo && addressDetailsLoaded ? (
               <div style={{ marginTop: '16px' }}>
                 <h3 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '12px', color: '#4caf50' }}>
                   📊 Address Statistics

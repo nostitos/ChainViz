@@ -974,6 +974,8 @@ function AppContent() {
     
     setIsLoading(true);
     
+    let lastApiRequest: string | null = null;
+
     try {
       let result: { nodes: Node[]; edges: Edge[] };
       
@@ -996,6 +998,7 @@ function AppContent() {
             
             const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
             const existingIds = new Set(currentNodes.map(n => n.id));
+            lastApiRequest = `${API_BASE_URL}/trace/address?address=${encodeURIComponent(address)}&direction=${direction}`;
             
             result = await expandAddressNodeWithFetch(
               address,
@@ -1084,7 +1087,17 @@ function AppContent() {
       
     } catch (error) {
       console.error('Error expanding node:', error);
-      setError('Failed to expand node');
+      const nodeDescriptor =
+        node?.type === 'transaction'
+          ? node?.data?.metadata?.txid || node?.data?.label || node?.id
+          : node?.data?.address || node?.data?.metadata?.address || node?.data?.label || node?.id;
+      const parts = [
+        `Failed to expand ${node?.type || 'node'} ${nodeDescriptor ?? ''}`.trim(),
+        direction ? `Direction: ${direction}` : null,
+        lastApiRequest ? `API: ${lastApiRequest}` : null,
+        error instanceof Error ? `Reason: ${error.message}` : null,
+      ].filter(Boolean);
+      setError(parts.join(' • '));
     } finally {
       setIsLoading(false);
     }

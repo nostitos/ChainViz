@@ -39,6 +39,10 @@ class BulkAddressImportRequest(BaseModel):
 
     addresses: List[str] = Field(..., min_length=1, max_length=1000, description="List of addresses")
     fetch_history: bool = Field(default=True, description="Fetch transaction history")
+    include_details: Optional[bool] = Field(
+        default=None,
+        description="Override auto-fetch behaviour for balances/UTXOs (default comes from backend config)",
+    )
 
 
 class XPubDeriveRequest(BaseModel):
@@ -122,6 +126,7 @@ class AddressResponse(BaseModel):
     first_seen: Optional[int] = Field(None, description="First transaction timestamp")
     last_seen: Optional[int] = Field(None, description="Last transaction timestamp")
     script_type: Optional[str] = Field(None, description="Address script type")
+    details_included: bool = Field(True, description="Whether the response includes full balance/UTXO details")
 
 
 class TransactionResponse(BaseModel):
