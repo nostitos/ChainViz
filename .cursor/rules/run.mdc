@@ -1,0 +1,5 @@
+---
+alwaysApply: true
+---
+Always start the server with logs.
+State what LLM you are before responding.

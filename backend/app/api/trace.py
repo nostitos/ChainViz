@@ -397,6 +397,50 @@ async def trace_utxo(
                                     metadata={"vout": out_idx}
                                 ))
                                 logger.info(f"  ➕ Added output edge: TX {txid[:20]} → {out.address[:20]}")
+
+                    # ---------------------------------------------------------
+                    # CRITICAL FIX: Populate metadata.inputs/outputs for frontend expansion
+                    # ---------------------------------------------------------
+                    inputs_data = []
+                    for inp in tx.inputs:
+                        addr_str = "Unknown (Not Fetched)"
+                        val = 0
+                        
+                        if inp.txid and inp.txid in input_tx_map:
+                            prev_tx = input_tx_map[inp.txid]
+                            if prev_tx and inp.vout < len(prev_tx.outputs):
+                                prev_output = prev_tx.outputs[inp.vout]
+                                val = prev_output.value
+                                if prev_output.address:
+                                    addr_str = prev_output.address
+                                else:
+                                    # Try to extract pubkey for P2PK
+                                    script_type = prev_output.script_type
+                                    if script_type == "p2pk":
+                                        # We don't have the extractor imported here easily, just label it
+                                        addr_str = "P2PK Script"
+                                    else:
+                                        addr_str = f"No Address ({script_type or 'unknown'})"
+                        elif not inp.txid:
+                            addr_str = "Coinbase"
+                        
+                        inputs_data.append({"address": addr_str, "value": val})
+
+                    outputs_data = []
+                    for out in tx.outputs:
+                        addr_str = out.address
+                        if not addr_str:
+                            script_type = out.script_type
+                            if script_type == "p2pk":
+                                addr_str = "P2PK Script"
+                            else:
+                                addr_str = f"No Address ({script_type or 'unknown'})"
+                        
+                        outputs_data.append({"address": addr_str, "value": out.value})
+
+                    tx_node_data.metadata["inputs"] = inputs_data
+                    tx_node_data.metadata["outputs"] = outputs_data
+                    # ---------------------------------------------------------
             else:
                 logger.info(f"⏭️ Skipping address fetching for single transaction view (hops_before={request.hops_before}, hops_after={request.hops_after})")
         
@@ -529,7 +573,7 @@ async def trace_from_address(
     Example: POST /api/trace/address?address=1A1z...&hops_before=1&hops_after=1
     """
     try:
-        logger.info(f"Tracing from address: {address} with hops_before={hops_before}, hops_after={hops_after}")
+        logger.info(f"Tracing address {address[:20]}... (hops_before={hops_before}, hops_after={hops_after})")
 
         # Build graph based on hop level
         nodes = []
@@ -547,7 +591,7 @@ async def trace_from_address(
         
         # HOP 0,0: Only the address node, no transactions
         if hops_before == 0 and hops_after == 0:
-            logger.info(f"✅ Hops 0,0: Returning only the address node")
+            logger.debug(f"Hops 0,0: Returning only the address node")
             return TraceGraphResponse(
                 nodes=nodes,
                 edges=[],
@@ -561,9 +605,11 @@ async def trace_from_address(
             )
         
         # HOP 1+: Get transactions connected to this address
-        logger.info(f"Fetching history for address: {address}")
-        txids = await blockchain_service.fetch_address_history(address)
-        logger.info(f"Got {len(txids)} transactions for address")
+        logger.debug(f"Fetching history for address: {address}")
+        # IMPORTANT: Pass max_transactions to limit the initial fetch!
+        # This prevents fetching ALL txids for addresses with thousands of transactions
+        txids = await blockchain_service.fetch_address_history(address, max_results=max_transactions)
+        logger.info(f"Found {len(txids)} transactions for address (limited to {max_transactions})")
         
         if not txids:
             logger.warning(f"No transactions found for address: {address}")
@@ -580,93 +626,22 @@ async def trace_from_address(
             )
 
         # Get all transactions that output to this address (use BATCHING for speed!)
-        txids_to_fetch = txids[:max_transactions]
-        logger.info(f"⚡ Batch fetching {len(txids_to_fetch)} transactions (of {len(txids)} total)...")
+        txids_to_fetch = txids  # Already limited by fetch_address_history
+        logger.debug(f"Batch fetching {len(txids_to_fetch)} transactions")
         transactions_raw = await blockchain_service.fetch_transactions_batch(txids_to_fetch)
         transactions = [tx for tx in transactions_raw if tx is not None]  # Filter out None values
         
-        logger.info(f"Successfully fetched {len(transactions)} of {len(txids_to_fetch)} transactions")
-        
-        # FIRST: Resolve ALL input addresses for ALL transactions (for frontend expansion - no extra fetching!)
-        all_input_txids = set()
-        for tx in transactions:
-            for inp in tx.inputs:
-                if inp.txid:
-                    all_input_txids.add(inp.txid)
-        
-        logger.info(f"⚡ Batch fetching {len(all_input_txids)} input transactions to resolve ALL input addresses...")
-        input_txs = await blockchain_service.fetch_transactions_batch(list(all_input_txids))
-        input_tx_map = {tx.txid: tx for tx in input_txs if tx}
-        
-        # Build complete input/output data for each transaction
-        tx_complete_data = {}
-        for tx in transactions:
-            # Resolve inputs
-            resolved_inputs = []
-            for inp in tx.inputs:
-                if inp.txid and inp.txid in input_tx_map:
-                    prev_tx = input_tx_map[inp.txid]
-                    if inp.vout < len(prev_tx.outputs):
-                        prev_output = prev_tx.outputs[inp.vout]
-                        if prev_output.address:
-                            resolved_inputs.append({
-                                "address": prev_output.address,
-                                "value": prev_output.value
-                            })
-                        else:
-                            # No address (P2PK or other non-standard script)
-                            # For P2PK, try to extract and show the public key
-                            from app.services.blockchain_data import _extract_pubkey_from_p2pk_script
-                            script_type = prev_output.script_type
-                            
-                            if script_type == "p2pk":
-                                pubkey = _extract_pubkey_from_p2pk_script(prev_output.script_pubkey)
-                                logger.info(f"🔍 P2PK input: extracted pubkey={pubkey[:20] if pubkey else 'None'}... from script_pubkey={prev_output.script_pubkey[:40] if prev_output.script_pubkey else 'None'}...")
-                                if pubkey:
-                                    placeholder = f"P2PK: {pubkey[:40]}..." if len(pubkey) > 40 else f"P2PK: {pubkey}"
-                                else:
-                                    placeholder = "P2PK Script"
-                            else:
-                                logger.info(f"🔍 Non-P2PK input: script_type={script_type}, has scriptPubKey={bool(prev_output.script_pubkey)}")
-                                placeholder = f"No Address ({script_type or 'unknown'})"
-                            
-                            resolved_inputs.append({
-                                "address": placeholder,
-                                "value": prev_output.value
-                            })
-            
-            # Outputs (include even without addresses - P2PK, OP_RETURN, etc.)
-            outputs_data = []
-            for out in tx.outputs:
-                if out.address:
-                    outputs_data.append({"address": out.address, "value": out.value})
-                else:
-                    # No address (P2PK, OP_RETURN, etc.)
-                    from app.services.blockchain_data import _extract_pubkey_from_p2pk_script
-                    script_type = out.script_type
-                    
-                    if script_type == "p2pk":
-                        pubkey = _extract_pubkey_from_p2pk_script(out.script_pubkey)
-                        if pubkey:
-                            placeholder = f"P2PK: {pubkey[:40]}..." if len(pubkey) > 40 else f"P2PK: {pubkey}"
-                        else:
-                            placeholder = "P2PK Script"
-                    else:
-                        placeholder = f"No Address ({script_type or 'unknown'})"
-                    
-                    outputs_data.append({"address": placeholder, "value": out.value})
-            
-            tx_complete_data[tx.txid] = {
-                "inputs": resolved_inputs,
-                "outputs": outputs_data
-            }
+        failed_count = len(txids_to_fetch) - len(transactions)
+        if failed_count > 0:
+            logger.warning(f"Failed to fetch {failed_count} of {len(txids_to_fetch)} transactions")
+        else:
+            logger.debug(f"Successfully fetched {len(transactions)} transactions")
         
         # SECOND: Determine which TXs to include based on direction (using resolved data)
-        logger.info(f"Processing {len(transactions)} transactions...")
+        logger.debug(f"Processing {len(transactions)} transactions...")
         txs_to_include = set()
-        tx_needs_input_check = set()  # For edge creation
         
-        # DEBUG: Count matches
+        # Count matches
         receiving_count = 0
         spending_count = 0
         
@@ -674,17 +649,13 @@ async def trace_from_address(
             has_output_to_addr = any(out.address == address for out in tx.outputs)
             
             # Check if address is in inputs (now we can check the resolved data!)
-            has_input_from_addr = any(
-                inp["address"] == address 
-                for inp in tx_complete_data[tx.txid]["inputs"]
-            )
-            
-            # DEBUG logging - show first TX details
-            if receiving_count == 0 and spending_count == 0:
-                logger.info(f"🔍 First TX {tx.txid[:20]}: has_output={has_output_to_addr}, has_input={has_input_from_addr}")
-                logger.info(f"   Input addresses: {[inp['address'][:20] for inp in tx_complete_data[tx.txid]['inputs'][:3]]}")
-                logger.info(f"   Output addresses: {[out.address[:20] if out.address else 'None' for out in tx.outputs[:3]]}")
-                logger.info(f"   Looking for: {address[:20]}")
+            has_input_from_addr = False
+            if tx.inputs:
+                has_input_from_addr = any(
+                    inp.address == address
+                    for inp in tx.inputs
+                    if inp.address
+                )
             
             if has_output_to_addr:
                 receiving_count += 1
@@ -697,17 +668,10 @@ async def trace_from_address(
                 include_tx = True  # TX sends to address (appears LEFT)
             if has_input_from_addr and hops_after > 0:
                 include_tx = True  # Address sends to TX (appears RIGHT)
-                tx_needs_input_check.add(tx.txid)  # Need to check inputs for edge creation
             
             if include_tx:
                 txs_to_include.add(tx.txid)
                 tx_node_id = f"tx_{tx.txid}"
-                
-                # Include data for frontend expansion (limit to first 100 to prevent huge metadata)
-                MAX_METADATA_ITEMS = 100
-                inputs_data = tx_complete_data[tx.txid]["inputs"][:MAX_METADATA_ITEMS]
-                outputs_data = tx_complete_data[tx.txid]["outputs"][:MAX_METADATA_ITEMS]
-                
                 nodes.append(NodeData(
                     id=tx_node_id,
                     label=f"{tx.txid[:16]}...",
@@ -716,15 +680,11 @@ async def trace_from_address(
                     metadata={
                         "txid": tx.txid,
                         "timestamp": tx.timestamp,
-                        "inputCount": len(tx.inputs),
-                        "outputCount": len(tx.outputs),
-                        "inputs": inputs_data,  # Limited to prevent memory issues
-                        "outputs": outputs_data,  # Limited to prevent memory issues
                     }
                 ))
         
-        logger.info(f"🔍 DEBUG: Found {receiving_count} TXs with outputs to address, {spending_count} TXs with inputs from address")
-        logger.info(f"✅ Including {len(txs_to_include)} of {len(transactions)} TXs based on hop direction (hops_before={hops_before}, hops_after={hops_after})")
+        logger.debug(f"Found {receiving_count} TXs with outputs to address, {spending_count} TXs with inputs from address")
+        logger.info(f"Including {len(txs_to_include)} of {len(transactions)} TXs (hops_before={hops_before}, hops_after={hops_after})")
         
         # THIRD: Create edges (using complete resolved data)
         for tx in transactions:
@@ -739,11 +699,13 @@ async def trace_from_address(
             
             # Check if any input comes from our address (using resolved data)
             inputs_from_addr = [
-                inp for inp in tx_complete_data[tx.txid]["inputs"]
-                if inp["address"] == address
+                {"address": inp.address, "value": inp.value}
+                for inp in tx.inputs
+                if inp.address == address
             ]
             
-            logger.info(f"TX {tx.txid[:20]}: {len(outputs_to_addr)} outputs to addr, {len(inputs_from_addr)} inputs from addr")
+            # Only log per-transaction details in debug mode (too verbose for large traces)
+            logger.debug(f"TX {tx.txid[:20]}: {len(outputs_to_addr)} outputs to addr, {len(inputs_from_addr)} inputs from addr")
             
             # Directional filtering: Only add edges based on hop settings
             # TX → Address (receiving): Include if hops_before > 0
@@ -777,7 +739,7 @@ async def trace_from_address(
                 logger.warning(f"   Showing same result as hops=1 (only transactions directly connected to address)")
                 logger.warning(f"   TODO: Implement proper recursive expansion")
         
-        logger.info(f"✅ Address trace complete: {len(nodes)} nodes, {len(edges)} edges")
+        logger.info(f"Address trace complete: {len(nodes)} nodes, {len(edges)} edges")
         
         return TraceGraphResponse(
             nodes=nodes,

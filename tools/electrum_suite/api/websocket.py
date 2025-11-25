@@ -3,13 +3,20 @@
 import logging
 import asyncio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
 
-from app.services.electrum_client import get_electrum_client
-from app.models.api import BlockNotification
+from tools.electrum_suite.services.electrum_multiplexer import get_electrum_client
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+class BlockNotification(BaseModel):
+    height: int
+    hash: str
+    timestamp: int
+    tx_count: int
 
 
 class ConnectionManager:

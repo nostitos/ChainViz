@@ -7,6 +7,8 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 from contextlib import asynccontextmanager
 
+from tools.electrum_suite.settings import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -72,7 +74,6 @@ class ElectrumClient:
             logger.error(f"❌ Failed to connect to primary Electrum server {self.host}:{self.port} (SSL={self.use_ssl}): {type(e).__name__}: {e}")
             
             # Try fallback server if configured
-            from app.config import settings
             if hasattr(settings, 'electrum_fallback_host') and self.host != settings.electrum_fallback_host:
                 logger.info(f"🔄 Trying fallback server: {settings.electrum_fallback_host}:{settings.electrum_fallback_port}")
                 self.host = settings.electrum_fallback_host

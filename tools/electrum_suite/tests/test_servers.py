@@ -1,7 +1,6 @@
 import asyncio
-import sys
-sys.path.insert(0, '/app')
-from app.services.electrum_client import ElectrumClient
+
+from tools.electrum_suite.services.electrum_client import ElectrumClient
 
 SERVERS = [
     {"name": "Seth's Fulcrum", "host": "fulcrum.sethforprivacy.com", "port": 50002, "ssl": True},

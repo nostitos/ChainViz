@@ -126,6 +126,8 @@ class AddressResponse(BaseModel):
     first_seen: Optional[int] = Field(None, description="First transaction timestamp")
     last_seen: Optional[int] = Field(None, description="Last transaction timestamp")
     script_type: Optional[str] = Field(None, description="Address script type")
+    receiving_count: Optional[int] = Field(None, description="Number of receiving transactions (estimated)")
+    spending_count: Optional[int] = Field(None, description="Number of spending transactions (estimated)")
     details_included: bool = Field(True, description="Whether the response includes full balance/UTXO details")
 
 

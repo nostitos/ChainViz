@@ -18,7 +18,7 @@ interface SearchBarProps {
 export const SearchBar = memo(function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpenSettings, onOpenAbout, edgeScaleMax, onEdgeScaleMaxChange, onExpandBackward, onExpandForward, hasGraph, initialQuery }: SearchBarProps) {
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<string[]>([]);
-  
+
   // Save edgeScaleMax to localStorage when it changes
   const handleEdgeScaleMaxChange = (value: number) => {
     onEdgeScaleMaxChange(value);
@@ -37,7 +37,7 @@ export const SearchBar = memo(function SearchBar({ onTraceAddress, onTraceTransa
       }
     }
   }, []);
-  
+
   // Set input from initial query (from URL)
   useEffect(() => {
     if (initialQuery) {
@@ -83,7 +83,7 @@ export const SearchBar = memo(function SearchBar({ onTraceAddress, onTraceTransa
           <h1>⛓️ UTXO.link</h1>
           <p>Bitcoin Blockchain Analysis</p>
         </div>
-        
+
         <div className="header-buttons">
           <button className="settings-button" onClick={onOpenSettings} title="Settings">
             <Settings size={20} />
@@ -92,7 +92,7 @@ export const SearchBar = memo(function SearchBar({ onTraceAddress, onTraceTransa
             <Info size={20} />
           </button>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="search-form">
           <div className="input-group">
             <Search size={20} className="search-icon" />
@@ -106,7 +106,7 @@ export const SearchBar = memo(function SearchBar({ onTraceAddress, onTraceTransa
               className="address-input"
               disabled={isLoading}
             />
-            
+
             {/* History Dropdown */}
             {showDropdown && history.length > 0 && (
               <div className="history-dropdown">
@@ -131,14 +131,18 @@ export const SearchBar = memo(function SearchBar({ onTraceAddress, onTraceTransa
               </div>
             )}
           </div>
-          
+
           {/* Hop Navigation Buttons - Only show when graph is loaded */}
           {hasGraph && (onExpandBackward || onExpandForward) && (
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               {onExpandBackward && (
                 <button
                   type="button"
-                  onClick={onExpandBackward}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onExpandBackward?.();
+                  }}
                   disabled={isLoading}
                   className="hop-arrow-button"
                   title="Expand graph by 1 hop backward (or press < key)"
@@ -158,7 +162,11 @@ export const SearchBar = memo(function SearchBar({ onTraceAddress, onTraceTransa
               {onExpandForward && (
                 <button
                   type="button"
-                  onClick={onExpandForward}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onExpandForward?.();
+                  }}
                   disabled={isLoading}
                   className="hop-arrow-button"
                   title="Expand graph by 1 hop forward (or press > key)"
@@ -177,36 +185,22 @@ export const SearchBar = memo(function SearchBar({ onTraceAddress, onTraceTransa
               )}
             </div>
           )}
-                  
-                  {/* Edge Width Scale */}
-                  <div className="depth-control">
-                    <label>Amount/Width</label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <input
-                        type="number"
-                        min="1"
-                        max="500"
-                        step="any"
-                        value={edgeScaleMax}
-                        onChange={(e) => handleEdgeScaleMaxChange(parseFloat(e.target.value) || 1)}
-                        className="hop-input"
-                        disabled={isLoading}
-                        style={{ width: '80px' }}
-                      />
-                      <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>BTC</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="500"
-                      step="0.1"
-                      value={edgeScaleMax}
-                      onChange={(e) => handleEdgeScaleMaxChange(parseFloat(e.target.value))}
-                      className="depth-slider"
-                      disabled={isLoading}
-                    />
-                  </div>
-          
+
+          {/* Edge Width Scale */}
+          <div className="depth-control">
+            <label>Amount/Width</label>
+            <input
+              type="range"
+              min="1"
+              max="1000"
+              step="0.1"
+              value={edgeScaleMax}
+              onChange={(e) => handleEdgeScaleMaxChange(parseFloat(e.target.value))}
+              className="depth-slider"
+              disabled={isLoading}
+            />
+          </div>
+
           <button
             type="submit"
             disabled={isLoading || !input.trim()}

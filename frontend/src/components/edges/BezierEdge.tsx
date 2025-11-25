@@ -3,6 +3,7 @@ import { EdgeProps, getBezierPath, EdgeLabelRenderer } from '@xyflow/react';
 
 /**
  * Custom edge component that supports multiple parallel edges with offset curves
+ * Labels are positioned at 45% along the edge (instead of the default 50%)
  */
 export const BezierEdge = memo(({
   id,
@@ -19,19 +20,29 @@ export const BezierEdge = memo(({
   data,
 }: EdgeProps) => {
   // Get offset from edge data (for multiple edges between same nodes)
-  const offset = data?.offset || 0;
-  
+  const offset = (data?.offset as number) || 0;
+
+  const curvature = 0.25 + Math.abs(offset) * 0.01;
+
   // Calculate bezier path with offset for parallel edges
-  const [edgePath, labelX, labelY] = getBezierPath({
+  const [edgePath, defaultLabelX, defaultLabelY] = getBezierPath({
     sourceX,
     sourceY,
     sourcePosition,
     targetX,
     targetY,
     targetPosition,
-    curvature: 0.25 + Math.abs(offset) * 0.01, // Increase curvature for offset edges
+    curvature,
   });
-  
+
+  // Calculate label position at 2/3 (67%) along the curve
+  // We interpolate between the default label position (at 50%) and the target
+  // At 67%, we're 33% of the way from the 50% point to the target
+  const labelPosition = {
+    x: defaultLabelX + (targetX - defaultLabelX) * 0.33,
+    y: defaultLabelY + (targetY - defaultLabelY) * 0.33,
+  };
+
   // Apply perpendicular offset to the path for parallel edges
   // This shifts the edge up/down to prevent overlap
   let finalPath = edgePath;
@@ -40,7 +51,7 @@ export const BezierEdge = memo(({
     // A more sophisticated approach would recalculate the bezier curve
     finalPath = edgePath;
   }
-  
+
   return (
     <>
       <path
@@ -55,7 +66,7 @@ export const BezierEdge = memo(({
           <div
             style={{
               position: 'absolute',
-              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY + offset}px)`,
+              transform: `translate(-50%, -50%) translate(${labelPosition.x}px,${labelPosition.y + offset}px)`,
               pointerEvents: 'all',
               ...labelBgStyle,
               padding: '2px 4px',

@@ -331,18 +331,15 @@ curl -X POST http://localhost:8000/api/xpub/derive \
 
 ### Get Configuration
 
-Get current backend configuration.
+Report the active blockchain data source.
 
 **Endpoint**: `GET /api/config`
 
 **Response**:
 ```json
 {
-  "electrum_host": "string",
-  "electrum_port": 50002,
-  "electrum_use_ssl": true,
-  "redis_host": "localhost",
-  "redis_port": 6379
+  "data_source": "mempool",
+  "electrum_enabled": false
 }
 ```
 
@@ -351,141 +348,16 @@ Get current backend configuration.
 curl http://localhost:8000/api/config
 ```
 
----
-
-### Update Electrum Server
-
-Update the Electrum server configuration.
-
-**Endpoint**: `POST /api/config/electrum`
-
-**Request Body**:
-```json
-{
-  "host": "string",
-  "port": 50002,
-  "use_ssl": true
-}
-```
-
-**Parameters**:
-- `host` (string, required): Electrum server hostname
-- `port` (integer, required): Electrum server port
-- `use_ssl` (boolean, required): Use SSL/TLS
-
-**Response**:
-```json
-{
-  "electrum_host": "string",
-  "electrum_port": 50002,
-  "electrum_use_ssl": true,
-  "message": "Configuration updated successfully"
-}
-```
-
-**Example**:
-```bash
-curl -X POST http://localhost:8000/api/config/electrum \
-  -H "Content-Type: application/json" \
-  -d '{
-    "host": "fulcrum.sethforprivacy.com",
-    "port": 50002,
-    "use_ssl": true
-  }'
-```
-
----
-
-### Test Electrum Server
-
-Test connection to an Electrum server.
-
-**Endpoint**: `POST /api/config/electrum/test`
-
-**Request Body**:
-```json
-{
-  "host": "string",
-  "port": 50002,
-  "use_ssl": true
-}
-```
-
-**Parameters**:
-- `host` (string, required): Electrum server hostname
-- `port` (integer, required): Electrum server port
-- `use_ssl` (boolean, required): Use SSL/TLS
-
-**Response**:
-```json
-{
-  "success": true,
-  "message": "Connection successful",
-  "latency_ms": 150,
-  "features": {
-    "batch": true,
-    "verbose": true
-  }
-}
-```
-
-**Example**:
-```bash
-curl -X POST http://localhost:8000/api/config/electrum/test \
-  -H "Content-Type: application/json" \
-  -d '{
-    "host": "fulcrum.sethforprivacy.com",
-    "port": 50002,
-    "use_ssl": true
-  }'
-```
+> Electrum proxies and diagnostics now live under `tools/electrum_suite/`.
+> See `docs/electrum-migration.md` for usage.
 
 ---
 
 ## WebSocket
 
-### Connect to WebSocket
-
-Connect to real-time blockchain updates.
-
-**Endpoint**: `ws://localhost:8000/ws`
-
-**Message Format**:
-```json
-{
-  "action": "subscribe",
-  "address": "string"
-}
-```
-
-**Response**:
-```json
-{
-  "type": "notification",
-  "data": {
-    "address": "string",
-    "transaction": "string",
-    "block_height": 800000
-  }
-}
-```
-
-**Example**:
-```javascript
-const ws = new WebSocket('ws://localhost:8000/ws');
-
-ws.onopen = () => {
-  ws.send(JSON.stringify({
-    action: 'subscribe',
-    address: '1Gw5PwF6sGVxomatMbj5p4bkk7ED4pyfbu'
-  }));
-};
-
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  console.log('New transaction:', data);
-};
-```
+The mempool-only backend no longer exposes a websocket. If you need header
+notifications, deploy the standalone router located at
+`tools/electrum_suite/api/websocket.py`.
 
 ---
 

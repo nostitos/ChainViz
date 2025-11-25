@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Any, Dict, List, Union
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from app.services.electrum_multiplexer import get_electrum_client
+from tools.electrum_suite.services.electrum_multiplexer import get_electrum_client
 
 logger = logging.getLogger(__name__)
 

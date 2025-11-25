@@ -21,6 +21,8 @@ interface TraceData {
       inputCount?: number;
       outputCount?: number;
       is_bidirectional?: boolean;
+      receiving_count?: number;
+      spending_count?: number;
     };
   }>;
   edges: Array<{
@@ -96,6 +98,25 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
         addrReceiving.get(e.target)!.push(e.source);
       }
     }
+  });
+
+  // Enrich node metadata with derived counts so the UI has immediate numbers
+  txData.forEach(txNode => {
+    const metadata = { ...(txNode.metadata ?? {}) } as Record<string, any>;
+    const derivedInputs = txInputs.get(txNode.id)?.length ?? 0;
+    const derivedOutputs = txOutputs.get(txNode.id)?.length ?? 0;
+    metadata.inputCount = metadata.inputCount ?? derivedInputs;
+    metadata.outputCount = metadata.outputCount ?? derivedOutputs;
+    txNode.metadata = metadata;
+  });
+
+  addrData.forEach(addrNode => {
+    const metadata = { ...(addrNode.metadata ?? {}) } as Record<string, any>;
+    const derivedReceiving = addrReceiving.get(addrNode.id)?.length ?? 0;
+    const derivedSending = addrSending.get(addrNode.id)?.length ?? 0;
+    metadata.receiving_count = metadata.receiving_count ?? derivedReceiving;
+    metadata.spending_count = metadata.spending_count ?? derivedSending;
+    addrNode.metadata = metadata;
   });
 
   // Sort TXs chronologically
@@ -332,8 +353,9 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     const txNodeInGraph = nodes.find(n => n.id === txNode.id)!;
     
     // Get ACTUAL counts from backend metadata
-    const actualInputCount = txNodeInGraph.data.metadata?.inputCount ?? 0;
-    const actualOutputCount = txNodeInGraph.data.metadata?.outputCount ?? 0;
+    const txGraphMetadata = (txNodeInGraph.data?.metadata ?? {}) as Record<string, any>;
+    const actualInputCount = txGraphMetadata.inputCount ?? 0;
+    const actualOutputCount = txGraphMetadata.outputCount ?? 0;
     
     // Input addresses (LEFT of TX) - these are what we're DISPLAYING, not the total
     const inputAddrIds = txInputs.get(txNode.id) || [];
@@ -711,10 +733,9 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
 
   // Remove duplicate standalone address nodes that are now part of clusters
   const clusteredAddressIds = new Set<string>();
-  const clusterNodes = nodes.filter(n => n.type === 'addressCluster');
   
   nodes.forEach(n => {
-    if (n.type === 'addressCluster' && n.data.addresses) {
+    if (n.type === 'addressCluster' && Array.isArray(n.data?.addresses)) {
       n.data.addresses.forEach((addr: any) => {
         const addrId = `addr_${addr.address}`;
         clusteredAddressIds.add(addrId);
@@ -733,7 +754,7 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
   // Build edges (remap to cluster nodes if addresses are in clusters)
   const addrToCluster = new Map<string, { clusterId: string; index: number; direction: 'inputs' | 'outputs' }>();
   nodes.forEach(n => {
-    if (n.type === 'addressCluster' && n.data.addresses) {
+    if (n.type === 'addressCluster' && Array.isArray(n.data?.addresses)) {
       const clusterDirection = n.data.direction as 'inputs' | 'outputs';
       n.data.addresses.forEach((addr: any, idx: number) => {
         const addrId = `addr_${addr.address}`;
@@ -743,9 +764,6 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
   });
   
   
-  // Find max amount for proportional edge widths
-  const maxAmount = Math.max(...data.edges.map(e => e.amount || 0), 1);
-  
   // Square root scaling: edgeScaleMax BTC = 70% of max width (70px out of 100px)
   // Formula: width = 2 + sqrt(amount/minAmount) / sqrt(scaleMax/minAmount) * 68
   // where minAmount = 0.001 BTC (100,000 sats)
@@ -753,8 +771,10 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
   const scaleMaxSats = edgeScaleMax * 100000000; // Convert BTC to satoshis
   const sqrtBase = Math.sqrt(scaleMaxSats / minAmountSats);
   
-  data.edges.forEach((edgeData, index) => {
-    const confidence = edgeData.confidence ?? 1.0;
+  // Count occurrences of each source-target pair to calculate parallel edge offsets
+  const pairCounts = new Map<string, number>();
+
+  data.edges.forEach((edgeData) => {
     const amount = edgeData.amount || 0;
     
     // All edges are green - they represent actual on-chain transactions
@@ -806,10 +826,21 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     // Only show label if NOT connecting to a cluster node
     const isClusterEdge = source.startsWith('cluster-') || target.startsWith('cluster-');
     
-    // Create unique edge ID based on source, target, and handles to prevent duplicates
-    const edgeId = sourceHandle || targetHandle
+    // Calculate offset for parallel edges
+    // We use source-target pair to track duplicates
+    const pairId = `${source}-${target}-${sourceHandle || ''}-${targetHandle || ''}`;
+    const indexInPair = pairCounts.get(pairId) || 0;
+    pairCounts.set(pairId, indexInPair + 1);
+    
+    // Alternating offset: 0, 15, -15, 30, -30...
+    const offsetStep = 15;
+    const offset = indexInPair === 0 ? 0 : (Math.ceil(indexInPair / 2) * offsetStep * (indexInPair % 2 === 0 ? -1 : 1));
+    
+    // Append index to edge ID to make it unique for parallel edges
+    const baseEdgeId = sourceHandle || targetHandle
       ? `e-${source}-${sourceHandle || 'default'}-${target}-${targetHandle || 'default'}`
       : `e-${source}-${target}`;
+    const edgeId = `${baseEdgeId}-${indexInPair}`;
     
     const edge: Edge = {
       id: edgeId,
@@ -817,10 +848,11 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
       target,
       sourceHandle,
       targetHandle,
-      type: 'default',
+      type: 'default', // BezierEdge is usually mapped to 'default' in App.tsx or custom types
       animated: false, // All edges are the same - no animation by default
       data: {
         amount: amount, // Store amount in data for recalculation
+        offset: offset, // Pass offset to BezierEdge
       },
       style: {
         stroke: strokeColor,
@@ -841,15 +873,9 @@ export function buildGraphFromTraceDataBipartite(data: TraceData, edgeScaleMax: 
     edges.push(edge);
   });
 
-  // Deduplicate edges by ID to prevent React warnings
-  const edgeMap = new Map<string, Edge>();
-  edges.forEach(e => {
-    if (!edgeMap.has(e.id)) {
-      edgeMap.set(e.id, e);
-    }
-    // Duplicates are silently merged (keep first occurrence)
-  });
-  edges = Array.from(edgeMap.values());
+  // Deduplication is no longer needed since we want parallel edges and IDs are unique
+  // edgeMap logic removed
+
 
   return { nodes, edges };
 }
@@ -965,7 +991,8 @@ function optimizeSinglePass(nodes: Node[], edges: Edge[], iteration: number): No
           totalMoved++;
         }
         
-        console.log(`  ${item.node.data.label?.substring(0, 20)}... y: ${oldY.toFixed(0)} → ${newY.toFixed(0)} (bc=${item.bc.toFixed(0)}, conn=${item.connections})`);
+        const labelPreview = String(item.node.data?.label ?? item.node.id).substring(0, 20);
+        console.log(`  ${labelPreview}... y: ${oldY.toFixed(0)} → ${newY.toFixed(0)} (bc=${item.bc.toFixed(0)}, conn=${item.connections})`);
       }
     });
   });

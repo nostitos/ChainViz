@@ -71,10 +71,10 @@ function getChangeDecision(inputs: any[], outputs: any[]): ChangeDecision {
   const inputTypes = inputs.map(i => scriptTypeFromAddress(i.address));
   const typeCounts = new Map<string, number>();
   inputTypes.forEach(t => typeCounts.set(t, (typeCounts.get(t) || 0) + 1));
-  const predominantType = Array.from(typeCounts.entries()).sort((a,b)=>b[1]-a[1])[0]?.[0] || 'unknown';
+  const predominantType = Array.from(typeCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || 'unknown';
 
-  const amounts = outputs.map((o: any) => o.value).sort((a: number,b: number)=>a-b);
-  const median = amounts[Math.floor(amounts.length/2)];
+  const amounts = outputs.map((o: any) => o.value).sort((a: number, b: number) => a - b);
+  const median = amounts[Math.floor(amounts.length / 2)];
 
   const isRoundAmount = (sats: number) => sats % 1000000 === 0 || sats % 100000 === 0;
 
@@ -82,13 +82,13 @@ function getChangeDecision(inputs: any[], outputs: any[]): ChangeDecision {
   const scored = outputs.map((o: any) => {
     let score = 0;
     const reasons: string[] = [];
-    
+
     const outScriptType = scriptTypeFromAddress(o.address);
     const matchesInputType = outScriptType === predominantType;
     const isSmallerThanMedian = o.value < median;
     const isNonRound = !isRoundAmount(o.value);
     const isNotFirst = o.vout > 0;
-    
+
     // Prefer matching input script type
     if (matchesInputType) {
       score += 3;
@@ -109,12 +109,12 @@ function getChangeDecision(inputs: any[], outputs: any[]): ChangeDecision {
       score += 1;
       reasons.push(`Positioned after first output (vout #${o.vout})`);
     }
-    
+
     return { vout: o.vout, score, reasons, probability: score / maxScore };
   });
 
   // Pick unique top candidate above threshold
-  const top = scored.sort((a,b)=>b.score-a.score);
+  const top = scored.sort((a, b) => b.score - a.score);
   if (top.length === 0) return null;
   if (top[0].score < 3) return null; // threshold
   if (top.length > 1 && top[0].score === top[1].score) return null; // ambiguous
@@ -130,11 +130,6 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
   const [loading, setLoading] = useState(false);
   const [addressDetailsLoaded, setAddressDetailsLoaded] = useState(false);
   const [addressError, setAddressError] = useState<string | null>(null);
-  const [autoFetchAddressDetails, setAutoFetchAddressDetails] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    const stored = localStorage.getItem('autoFetchAddressDetails');
-    return stored ? stored === 'true' : false;
-  });
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
@@ -171,7 +166,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
           .then((response: any) => {
             const tx = response.transaction;
             console.log('📦 Fetched TX data from backend (Electrum):', tx);
-            
+
             // Backend provides Transaction model with inputs/outputs already resolved
             const inputsWithAddrs = (tx.inputs || []).map((inp: any) => ({
               txid: inp.txid,
@@ -180,7 +175,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
               value: inp.value || 0,
               scriptpubkey_type: inp.script_type || 'Unknown',
             }));
-            
+
             const outputs = (tx.outputs || []).map((out: any) => ({
               address: out.address || 'Unknown',
               value: out.value || 0,
@@ -204,6 +199,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
               version: tx.version || 1,
               locktime: tx.locktime || 0,
             });
+            setLoading(false);
           })
           .catch(async (err) => {
             console.error('Failed to fetch transaction from backend:', err);
@@ -212,7 +208,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
       }
     }
   }, [entity.id, isTransaction, data.txid, metadata.txid]);
-  
+
   const loadAddressDetails = useCallback(async () => {
     if (!currentAddress) return;
 
@@ -274,12 +270,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
     }
   }, [apiBase, currentAddress]);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('autoFetchAddressDetails', String(autoFetchAddressDetails));
-    }
-  }, [autoFetchAddressDetails]);
-
+  // Auto-load address details when address is selected (just like transactions!)
   useEffect(() => {
     if (!isTransaction) {
       setAddressInfo(null);
@@ -287,18 +278,17 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
       setAddressError(null);
       setLoading(false);
 
-      if (autoFetchAddressDetails) {
-        void loadAddressDetails();
-      }
+      // Always auto-fetch address details when clicked
+      void loadAddressDetails();
     }
-  }, [entity.id, isTransaction, currentAddress, autoFetchAddressDetails, loadAddressDetails]);
+  }, [entity.id, isTransaction, currentAddress, loadAddressDetails]);
 
   const renderField = (label: string, value: any, copyable: boolean = false) => {
     if (value === undefined || value === null) return null;
-    
+
     const valueStr = String(value);
     const isCopied = copiedId === valueStr || copiedAddress === valueStr;
-    
+
     return (
       <div className="detail-row">
         <span className="detail-label">{label}:</span>
@@ -331,14 +321,14 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
     // Always show full 8 decimal places
     return (sats / 100000000).toFixed(8) + ' BTC';
   };
-  const shortAddr = (addr: string) => addr.length > 20 
+  const shortAddr = (addr: string) => addr.length > 20
     ? `${addr.substring(0, 10)}...${addr.substring(addr.length - 10)}`
     : addr;
-  
+
   const formatTimeAgo = (timestamp: number) => {
     const now = Date.now() / 1000; // Current time in seconds
     const diff = now - timestamp; // Difference in seconds
-    
+
     if (diff < 60) return 'just now';
     if (diff < 3600) return `${Math.floor(diff / 60)} minute${Math.floor(diff / 60) !== 1 ? 's' : ''} ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)} hour${Math.floor(diff / 3600) !== 1 ? 's' : ''} ago`;
@@ -362,11 +352,11 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
           <>
             {renderField('Transaction ID', data.txid || metadata.txid, true)}
             {metadata.timestamp && renderField('Timestamp', txDetails && txDetails.block_height !== null
-                ? `${new Date(metadata.timestamp * 1000).toLocaleString()} (Block #${txDetails.block_height}) - ${formatTimeAgo(metadata.timestamp)}`
-                : `${new Date(metadata.timestamp * 1000).toLocaleString()} - ${formatTimeAgo(metadata.timestamp)}`)}
+              ? `${new Date(metadata.timestamp * 1000).toLocaleString()} (Block #${txDetails.block_height}) - ${formatTimeAgo(metadata.timestamp)}`
+              : `${new Date(metadata.timestamp * 1000).toLocaleString()} - ${formatTimeAgo(metadata.timestamp)}`)}
             {txDetails && txDetails.block_height && !metadata.timestamp && renderField('Block', `#${txDetails.block_height}`)}
             {txDetails && !txDetails.block_height && renderField('Size', `${txDetails.size} bytes (vsize: ${txDetails.vsize}, weight: ${txDetails.weight})`)}
-            {txDetails && txDetails.fee !== null && txDetails.fee_rate !== null && renderField('Fee', `${formatBTC(txDetails.fee)} (${txDetails.fee_rate} sat/vB)`) }
+            {txDetails && txDetails.fee !== null && txDetails.fee_rate !== null && renderField('Fee', `${formatBTC(txDetails.fee)} (${txDetails.fee_rate} sat/vB)`)}
 
             {/* Show Inputs and Outputs */}
             {loading ? (
@@ -387,94 +377,94 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                   ))}
                 </div>
 
-                        <div className="tx-section">
-                          <h3 className="tx-section-title">
-                            <ArrowRight size={16} /> Outputs ({txDetails.outputs.length})
-                          </h3>
-                          {/* Regular outputs (not change) */}
-                          {(() => {
-                            // Use backend's change determination, NOT frontend recalculation
-                            const changeVout = txDetails.change_output ?? null;
-                            return txDetails.outputs.filter((o: any) => o.vout !== changeVout);
-                          })().map((output: any) => (
-                            <div key={output.vout} className="tx-item">
-                              <span className="tx-item-vout">#{output.vout}</span>
-                              <span className="tx-item-addr" title={output.address}>
-                                {shortAddr(output.address)}
-                              </span>
-                              <span className="tx-item-amount">{formatBTC(output.value)}</span>
-                            </div>
-                          ))}
-                          
-                          {/* Probable change output (single, if any) - USE BACKEND DETERMINATION */}
-                          {(() => {
-                            // Use backend's change detection, don't recalculate!
-                            if (txDetails.change_output === null) return null;
-                            const changeOutput = txDetails.outputs.find((o: any) => o.vout === txDetails.change_output);
-                            if (!changeOutput) return null;
-                            
-                            // Recalculate reasons ONLY to explain what the backend found
-                            const decision = getChangeDecision(txDetails.inputs, txDetails.outputs);
-                            const actualReasons = decision?.vout === txDetails.change_output ? decision.reasons : [];
-                            
-                            return (
-                              <>
-                                <div className="tx-change-separator">
-                                  Probable Change ({txDetails.change_confidence ? (txDetails.change_confidence * 100).toFixed(0) : '0'}% confidence):
-                                </div>
-                                <div className="tx-item tx-item-change">
-                                  <span className="tx-item-vout">#{changeOutput.vout}</span>
-                                  <span className="tx-item-addr" title={changeOutput.address}>
-                                    {shortAddr(changeOutput.address)}
-                                  </span>
-                                  <span className="tx-item-amount">{formatBTC(changeOutput.value)}</span>
-                                  <span className="change-badge">CHANGE</span>
-                                </div>
-                                {actualReasons.length > 0 && (
-                                  <div style={{
-                                    fontSize: '12px',
-                                    color: 'var(--text-primary)',
-                                    marginTop: '12px',
-                                    padding: '12px',
-                                    background: 'rgba(255, 152, 0, 0.15)',
-                                    borderRadius: '6px',
-                                    borderLeft: '3px solid var(--accent-orange)'
-                                  }}>
-                                    <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#ffa726' }}>
-                                    ⚠️ Evidence for Change Detection:
-                                  </div>
-                                    <ul style={{ margin: '0', paddingLeft: '20px', lineHeight: '1.6' }}>
-                                      {actualReasons.map((reason, i) => (
-                                        <li key={i} style={{ marginBottom: '4px', color: '#fff' }}>{reason}</li>
-                                      ))}
-                                    </ul>
-                                  <div style={{
-                                    fontSize: '11px',
-                                    color: '#ff9800',
-                                    marginTop: '8px',
-                                    padding: '8px',
-                                    background: 'rgba(255, 152, 0, 0.1)',
-                                    borderRadius: '4px',
-                                    borderLeft: '3px solid #ff9800'
-                                  }}>
-                                    ⓘ Only {actualReasons.length} of 4 possible indicators detected. Weak evidence - change detection is uncertain.
-                                  </div>
-                                  </div>
-                                )}
-                                <div style={{ 
-                                  marginTop: '10px', 
-                                  fontSize: '11px', 
-                                  fontStyle: 'italic',
-                                  color: 'var(--text-secondary)',
-                                  borderTop: '1px solid rgba(255, 152, 0, 0.2)',
-                                  paddingTop: '8px'
-                                }}>
-                                  ⓘ Change detection is PROBABILISTIC, not certain. Heuristics can be wrong.
-                                </div>
-                              </>
-                            );
-                          })()}
+                <div className="tx-section">
+                  <h3 className="tx-section-title">
+                    <ArrowRight size={16} /> Outputs ({txDetails.outputs.length})
+                  </h3>
+                  {/* Regular outputs (not change) */}
+                  {(() => {
+                    // Use backend's change determination, NOT frontend recalculation
+                    const changeVout = txDetails.change_output ?? null;
+                    return txDetails.outputs.filter((o: any) => o.vout !== changeVout);
+                  })().map((output: any) => (
+                    <div key={output.vout} className="tx-item">
+                      <span className="tx-item-vout">#{output.vout}</span>
+                      <span className="tx-item-addr" title={output.address}>
+                        {shortAddr(output.address)}
+                      </span>
+                      <span className="tx-item-amount">{formatBTC(output.value)}</span>
+                    </div>
+                  ))}
+
+                  {/* Probable change output (single, if any) - USE BACKEND DETERMINATION */}
+                  {(() => {
+                    // Use backend's change detection, don't recalculate!
+                    if (txDetails.change_output === null) return null;
+                    const changeOutput = txDetails.outputs.find((o: any) => o.vout === txDetails.change_output);
+                    if (!changeOutput) return null;
+
+                    // Recalculate reasons ONLY to explain what the backend found
+                    const decision = getChangeDecision(txDetails.inputs, txDetails.outputs);
+                    const actualReasons = decision?.vout === txDetails.change_output ? decision.reasons : [];
+
+                    return (
+                      <>
+                        <div className="tx-change-separator">
+                          Probable Change ({txDetails.change_confidence ? (txDetails.change_confidence * 100).toFixed(0) : '0'}% confidence):
                         </div>
+                        <div className="tx-item tx-item-change">
+                          <span className="tx-item-vout">#{changeOutput.vout}</span>
+                          <span className="tx-item-addr" title={changeOutput.address}>
+                            {shortAddr(changeOutput.address)}
+                          </span>
+                          <span className="tx-item-amount">{formatBTC(changeOutput.value)}</span>
+                          <span className="change-badge">CHANGE</span>
+                        </div>
+                        {actualReasons.length > 0 && (
+                          <div style={{
+                            fontSize: '12px',
+                            color: 'var(--text-primary)',
+                            marginTop: '12px',
+                            padding: '12px',
+                            background: 'rgba(255, 152, 0, 0.15)',
+                            borderRadius: '6px',
+                            borderLeft: '3px solid var(--accent-orange)'
+                          }}>
+                            <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#ffa726' }}>
+                              ⚠️ Evidence for Change Detection:
+                            </div>
+                            <ul style={{ margin: '0', paddingLeft: '20px', lineHeight: '1.6' }}>
+                              {actualReasons.map((reason, i) => (
+                                <li key={i} style={{ marginBottom: '4px', color: '#fff' }}>{reason}</li>
+                              ))}
+                            </ul>
+                            <div style={{
+                              fontSize: '11px',
+                              color: '#ff9800',
+                              marginTop: '8px',
+                              padding: '8px',
+                              background: 'rgba(255, 152, 0, 0.1)',
+                              borderRadius: '4px',
+                              borderLeft: '3px solid #ff9800'
+                            }}>
+                              ⓘ Only {actualReasons.length} of 4 possible indicators detected. Weak evidence - change detection is uncertain.
+                            </div>
+                          </div>
+                        )}
+                        <div style={{
+                          marginTop: '10px',
+                          fontSize: '11px',
+                          fontStyle: 'italic',
+                          color: 'var(--text-secondary)',
+                          borderTop: '1px solid rgba(255, 152, 0, 0.2)',
+                          paddingTop: '8px'
+                        }}>
+                          ⓘ Change detection is PROBABILISTIC, not certain. Heuristics can be wrong.
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
 
               </>
             ) : null}
@@ -483,9 +473,9 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
           <>
             {renderField('Address', data.address || metadata.address, true)}
             {renderField('Cluster ID', metadata.cluster_id)}
-            
+
             {/* Show address statistics */}
-            {!addressDetailsLoaded && !loading && (
+            {!addressDetailsLoaded && !loading && !addressError && (
               <div
                 style={{
                   marginTop: '12px',
@@ -497,46 +487,9 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                   color: 'var(--text-secondary)',
                 }}
               >
-                Address balances are paused. Click "Load Address Details" to fetch on demand.
+                Loading address details...
               </div>
             )}
-
-            <div
-              style={{
-                marginTop: '16px',
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '12px',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
-                <input
-                  type="checkbox"
-                  checked={autoFetchAddressDetails}
-                  onChange={(e) => setAutoFetchAddressDetails(e.target.checked)}
-                />
-                Auto-load address details
-              </label>
-              <button
-                onClick={() => loadAddressDetails()}
-                disabled={loading || !currentAddress}
-                style={{
-                  padding: '8px 14px',
-                  backgroundColor: loading ? '#555' : '#64b5f6',
-                  border: 'none',
-                  borderRadius: '6px',
-                  color: '#fff',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  opacity: loading ? 0.7 : 1,
-                }}
-              >
-                {loading ? 'Loading…' : 'Load Address Details'}
-              </button>
-            </div>
 
             {addressError && (
               <div
@@ -571,21 +524,21 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                   <span className="detail-label">TX Count:</span>
                   <span className="detail-value">{addressInfo.tx_count}</span>
                 </div>
-                
+
                 {/* Transaction History */}
                 {addressInfo.transactions.length > 0 && (
                   <div style={{ marginTop: '16px' }}>
                     <h3 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px', color: '#64b5f6' }}>
                       📜 Transaction History (Recent {Math.min(10, addressInfo.transactions.length)})
                     </h3>
-                    <div style={{ 
-                      maxHeight: '200px', 
-                      overflowY: 'auto', 
+                    <div style={{
+                      maxHeight: '200px',
+                      overflowY: 'auto',
                       fontSize: '11px',
                       fontFamily: 'monospace'
                     }}>
                       {addressInfo.transactions.slice(0, 10).map((txid, idx) => (
-                        <div 
+                        <div
                           key={idx}
                           style={{
                             padding: '6px 8px',
@@ -602,17 +555,17 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                     </div>
                   </div>
                 )}
-                
+
                 {/* UTXO List Section */}
                 {addressInfo.utxos && addressInfo.utxos.length > 0 && (
                   <CollapsibleSection title={`UTXOs (${addressInfo.utxos.length})`} defaultOpen={false}>
-                    <div style={{ 
-                      maxHeight: '250px', 
+                    <div style={{
+                      maxHeight: '250px',
                       overflowY: 'auto',
                       marginTop: '8px'
                     }}>
                       {addressInfo.utxos.map((utxo) => (
-                        <div 
+                        <div
                           key={`${utxo.txid}-${utxo.vout}`}
                           style={{
                             padding: '10px',
@@ -623,14 +576,14 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                             fontSize: '12px'
                           }}
                         >
-                          <div style={{ 
-                            display: 'flex', 
+                          <div style={{
+                            display: 'flex',
                             justifyContent: 'space-between',
                             marginBottom: '6px',
                             alignItems: 'center'
                           }}>
-                            <span style={{ 
-                              fontWeight: 'bold', 
+                            <span style={{
+                              fontWeight: 'bold',
                               color: '#4caf50',
                               fontFamily: 'monospace'
                             }}>
@@ -640,8 +593,8 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                               {utxo.confirmations} conf{utxo.confirmations !== 1 ? 's' : ''}
                             </span>
                           </div>
-                          <div style={{ 
-                            fontSize: '11px', 
+                          <div style={{
+                            fontSize: '11px',
                             fontFamily: 'monospace',
                             color: 'var(--text-secondary)',
                             wordBreak: 'break-all'
@@ -667,8 +620,8 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                             </div>
                           </div>
                           {utxo.height !== null && (
-                            <div style={{ 
-                              fontSize: '10px', 
+                            <div style={{
+                              fontSize: '10px',
                               color: 'var(--text-secondary)',
                               marginTop: '4px'
                             }}>
@@ -680,7 +633,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                     </div>
                   </CollapsibleSection>
                 )}
-                
+
                 {/* Address Details Section */}
                 {(addressInfo.first_seen || addressInfo.last_seen || addressInfo.script_type) && (
                   <CollapsibleSection title="Address Details" defaultOpen={false}>
@@ -700,7 +653,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                       {addressInfo.script_type && (
                         <div className="detail-row">
                           <span className="detail-label">Script Type:</span>
-                          <span className="detail-value" style={{ 
+                          <span className="detail-value" style={{
                             textTransform: 'uppercase',
                             fontFamily: 'monospace',
                             color: '#64b5f6'
@@ -714,7 +667,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                 )}
               </div>
             ) : null}
-            
+
             {/* Show change explanation if this address is marked as change */}
             {metadata.is_change && (
               <div style={{
@@ -724,9 +677,9 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                 borderRadius: '8px',
                 borderLeft: '3px solid var(--accent-orange)'
               }}>
-                <div style={{ 
-                  fontWeight: 'bold', 
-                  marginBottom: '10px', 
+                <div style={{
+                  fontWeight: 'bold',
+                  marginBottom: '10px',
                   color: '#ffa726',
                   fontSize: '13px'
                 }}>
@@ -740,7 +693,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                   <p style={{ margin: '0 0 10px 0' }}>
                     This address was identified as a <strong>change output</strong> based on blockchain heuristics.
                   </p>
-                  <div style={{ 
+                  <div style={{
                     fontSize: '11px',
                     color: 'var(--text-secondary)',
                     background: 'rgba(0, 0, 0, 0.3)',
@@ -756,9 +709,9 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                       <li>Positioned after main payment output</li>
                     </ul>
                   </div>
-                  <div style={{ 
-                    marginTop: '10px', 
-                    fontSize: '11px', 
+                  <div style={{
+                    marginTop: '10px',
+                    fontSize: '11px',
                     fontStyle: 'italic',
                     color: 'var(--text-secondary)',
                     borderTop: '1px solid rgba(255, 152, 0, 0.2)',
@@ -769,7 +722,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
                 </div>
               </div>
             )}
-            
+
             {!metadata.is_change && (
               <div style={{
                 marginTop: '16px',
@@ -790,7 +743,7 @@ export function EntityPanel({ entity, onClose, onExpand }: EntityPanelProps) {
             <Expand size={16} />
             Expand Node
           </button>
-          
+
           <a
             href={`https://mempool.space/${isTransaction ? 'tx' : 'address'}/${data.txid || data.address || metadata.txid || metadata.address}`}
             target="_blank"

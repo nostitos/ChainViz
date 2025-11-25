@@ -41,8 +41,20 @@ REDIS_PORT=6379
 
 ### Run Development Server
 
+**Option 1: Use the startup script (recommended - shows logs)**
 ```bash
-poetry run uvicorn app.main:app --reload
+./start.sh
+```
+
+**Option 2: Manual start with logs**
+```bash
+source venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info --access-log --reload
+```
+
+**Option 3: Using poetry**
+```bash
+poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info --access-log --reload
 ```
 
 API will be available at `http://localhost:8000`

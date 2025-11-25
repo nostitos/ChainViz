@@ -20,14 +20,21 @@ class MempoolHttpClientFactory:
     def __init__(self) -> None:
         self._clients: Dict[str, httpx.AsyncClient] = {}
         self._lock = asyncio.Lock()
-        self._timeout = settings.electrum_request_timeout
+        self._timeout = settings.mempool_request_timeout
+        self._min_timeout = settings.mempool_min_request_timeout
 
     async def get_client(self, endpoint: MempoolEndpointState) -> httpx.AsyncClient:
         async with self._lock:
             if endpoint.config.base_url not in self._clients:
+                timeout = max(self._min_timeout, endpoint.config.request_timeout or self._timeout)
                 self._clients[endpoint.config.base_url] = httpx.AsyncClient(
                     base_url=endpoint.config.base_url,
-                    timeout=self._timeout,
+                    timeout=timeout,
+                    headers={
+                        "User-Agent": settings.mempool_http_user_agent,
+                        "Accept": "application/json",
+                        "Accept-Language": settings.mempool_http_accept_language,
+                    },
                 )
             return self._clients[endpoint.config.base_url]
 

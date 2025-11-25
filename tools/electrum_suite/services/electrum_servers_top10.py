@@ -6,7 +6,7 @@ Selected for reliability, speed, and uptime.
 """
 
 from datetime import datetime
-from app.services.electrum_servers import ElectrumServerInfo
+from tools.electrum_suite.services.electrum_servers import ElectrumServerInfo
 
 TOP_10_SERVERS = [
     # Blockstream - Enterprise grade, highly reliable

@@ -75,6 +75,22 @@ Solutions to common problems when using ChainViz.
    - Try with SSL enabled/disabled
    - Use "🧪 Test Connection" to verify
 
+#### Updating the curated fallback servers
+
+Electrum support now lives under `tools/electrum_suite/`. The curated list is stored in `tools/electrum_suite/services/electrum_servers.py`. To refresh it:
+
+1. Run the federated stress harness (network access required):
+   ```bash
+   PYTHONPATH=backend backend/venv/bin/pytest \
+     tools/electrum_suite/tests/test_electrum_servers.py \
+     -k stress --maxfail=1 --disable-warnings
+   ```
+   Set `RUN_ELECTRUM_NETWORK_TESTS=1` if you want to execute the probes.
+2. Pick at least five hosts that report `status=pass`.
+3. Update `_CURATED_SSL_SERVERS` in the suite and note the verification date.
+
+Because the suite is decoupled from the runtime, you can port it to a standalone repo or run it as an ops-side diagnostic service without touching the mempool-only backend.
+
 ### Backend Stuck at "Loading blockchain data..."
 
 **Symptoms**:

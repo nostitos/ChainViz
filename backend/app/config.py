@@ -16,6 +16,11 @@ class MempoolEndpointConfig:
     base_url: str
     priority: int  # 0 = local, 1 = additional, 2 = public
     max_concurrent: int
+    initial_concurrent: int
+    min_concurrent: int
+    max_concurrent_ceiling: int
+    request_timeout: float
+    min_request_timeout: float
     request_delay: float = 0.0
     enabled: bool = True
     api_key_env: Optional[str] = None
@@ -50,11 +55,36 @@ class Settings(BaseSettings):
     mempool_additional_urls: List[str] = [
         "https://mempool.jaonoctus.dev/api",
         "https://mempool.emzy.de/api",
-        "https://iu1b96e.glddns.com:3006/api",
+        "http://iu1b96e.glddns.com:3006/api",
+        "https://mempool.visvirial.com/api",
+        "https://mempool.nixbitcoin.org/api",
+        "https://mempool.learnbitcoin.com/api",
+        "https://memepool.space/api",
+        "http://51.159.70.154:8081/api",
+        "http://54.39.8.22:8139/api",
+        "http://34.84.66.29:8889/api",
+        "http://62.171.130.134:8081/api",
     ]
     mempool_public_url: str = "https://mempool.space/api"  # Backwards compatibility
-    mempool_public_urls: List[str] = ["https://mempool.space/api"]
-    mempool_endpoint_disabled: List[str] = []  # Allow disabling via config/env
+    mempool_public_urls: List[str] = []  # DISABLED: Public API rate-limited to ~20 req/hour
+    mempool_endpoint_disabled: List[str] = ["https://mempool.space/api"]  # Explicitly disable public API
+    mempool_http_user_agent: str = "ChainVizMempoolClient/0.1"
+    mempool_http_accept_language: str = "en-US,en;q=0.9"
+    mempool_request_timeout: float = 1.5
+    mempool_min_request_timeout: float = 0.5
+    mempool_hard_request_timeout: float = 2.5
+    mempool_request_total_timeout: float = 6.0
+    mempool_global_max_inflight: int = 50
+    mempool_endpoint_min_concurrent: int = 1
+    mempool_endpoint_max_concurrent: int = 6
+    mempool_local_initial_concurrent: int = 6
+    mempool_additional_initial_concurrent: int = 3
+    mempool_public_initial_concurrent: int = 2
+    mempool_concurrency_adjust_window: int = 25
+    mempool_concurrency_success_target: float = 0.9
+    mempool_concurrency_latency_target: float = 1.0
+    mempool_concurrency_failure_threshold: int = 2
+    mempool_failure_cooldown_seconds: int = 5
     
     # Rate limiting for public API
     mempool_public_max_concurrent: int = 10  # Max parallel requests to public API
@@ -63,6 +93,7 @@ class Settings(BaseSettings):
     mempool_additional_request_delay: float = 0.1
     mempool_local_max_concurrent: int = 50
     mempool_local_request_delay: float = 0.0
+    mempool_default_page_size: int = 50  # Requested page size per server
     
     # Large TX threshold (when to use public instead of local)
     mempool_large_tx_input_threshold: int = 100  # TXs with 100+ inputs go to public
@@ -96,7 +127,7 @@ class Settings(BaseSettings):
     cors_origins: List[str] = ["http://localhost:5173", "http://localhost:3000"]
 
     # Logging
-    log_level: str = "DEBUG"
+    log_level: str = "INFO"
 
     # Address data fetching
     address_auto_fetch_balance: bool = False

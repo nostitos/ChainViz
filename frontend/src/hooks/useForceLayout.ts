@@ -69,7 +69,7 @@ export function useForceLayout(
       .forceSimulation(simNodes)
       // Repulsion force - push nodes apart
       .force('charge', d3.forceManyBody()
-        .strength(-300) // Strong repulsion
+        .strength(options.strength ?? -100) // Weaker repulsion (was -300)
         .distanceMax(400)) // Limit range for performance
       // Collision force - prevent overlap
       .force('collision', d3.forceCollide()
@@ -80,50 +80,52 @@ export function useForceLayout(
       .velocityDecay(0.4); // Increased from 0.2 (more damping, faster stop)
 
     // Update positions on each tick
+    // Use requestAnimationFrame for smoother updates
+    let animationFrameId: number;
+
     simulation.on('tick', () => {
       tickCountRef.current++;
-
-      // Prevent re-entry
-      if (isUpdatingRef.current) return;
-      isUpdatingRef.current = true;
 
       // Stop simulation after max ticks or low energy
       if (tickCountRef.current >= maxTicks || simulation.alpha() < 0.01) {
         simulation.stop();
-        simulation.on('tick', null); // Remove tick handler to prevent memory leak
-        isUpdatingRef.current = false;
         return;
       }
 
-      // Update React Flow nodes (batched update to reduce renders)
-      // IMPORTANT: Use functional update to avoid capturing stale nodes in closure
-      setNodes((currentNodes) => {
-        let hasChanges = false;
-        const updated = currentNodes.map((node) => {
-          const simNode = simNodes.find((n: any) => n.id === node.id) as any;
-          if (simNode) {
-            // Only update if position changed significantly (>1px)
-            const dx = Math.abs(simNode.x - node.position.x);
-            const dy = Math.abs(simNode.y - node.position.y);
-            if (dx > 1 || dy > 1) {
-              hasChanges = true;
-              return {
-                ...node,
-                position: {
-                  x: simNode.x,
-                  y: simNode.y,
-                },
-              };
-            }
-          }
-          return node;
-        });
-        
-        // If no significant changes, return original array to prevent re-render
-        return hasChanges ? updated : currentNodes;
-      });
+      // Update React Flow nodes using requestAnimationFrame to decouple from tick rate
+      animationFrameId = requestAnimationFrame(() => {
+        if (isUpdatingRef.current) return;
+        isUpdatingRef.current = true;
 
-      isUpdatingRef.current = false;
+        setNodes((currentNodes) => {
+          let hasChanges = false;
+          const updated = currentNodes.map((node) => {
+            // Skip dragged nodes (they are controlled by user)
+            if (node.type === 'node' && node.dragging) return node;
+
+            const simNode = simNodes.find((n: any) => n.id === node.id) as any;
+            if (simNode) {
+              // Only update if position changed significantly (>0.5px for smoother look)
+              const dx = Math.abs(simNode.x - node.position.x);
+              const dy = Math.abs(simNode.y - node.position.y);
+              if (dx > 0.5 || dy > 0.5) {
+                hasChanges = true;
+                return {
+                  ...node,
+                  position: {
+                    x: simNode.x,
+                    y: simNode.y,
+                  },
+                };
+              }
+            }
+            return node;
+          });
+
+          isUpdatingRef.current = false;
+          return hasChanges ? updated : currentNodes;
+        });
+      });
     });
 
     simulationRef.current = simulation;
@@ -135,13 +137,16 @@ export function useForceLayout(
         simulationRef.current.on('tick', null); // Remove all event listeners
         simulationRef.current = null;
       }
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
     };
   }, [nodes.length, enabled, collisionRadius, maxTicks]); // setNodes is stable, don't include it
 
   // Manual reheat on drag - separate from main simulation
   const reheatSimulation = useCallback(() => {
     if (!simulationRef.current || !enabled) return;
-    
+
     // Sync positions from React Flow to simulation
     const simNodes = simulationRef.current.nodes() as any[];
     nodes.forEach(node => {
@@ -153,7 +158,7 @@ export function useForceLayout(
         simNode.vy = 0;
       }
     });
-    
+
     // Restart with low energy (don't fully reheat)
     tickCountRef.current = 0;
     simulationRef.current.alpha(0.1).restart();

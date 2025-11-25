@@ -10,8 +10,9 @@ from datetime import datetime
 from collections import deque
 from enum import Enum
 
-from app.services.electrum_client import ElectrumClient
-from app.services.electrum_servers import ElectrumServerInfo, get_server_manager
+from tools.electrum_suite.services.electrum_client import ElectrumClient
+from tools.electrum_suite.services.electrum_servers import ElectrumServerInfo, get_server_manager
+from tools.electrum_suite.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -746,11 +747,12 @@ class ElectrumConnectionPool:
                 if conn.state != ConnectionState.CONNECTED:
                     continue
                 
+                # Calculate idle time (default to large value if never used)
+                idle_time = current_time - (conn.metrics.last_request_time or 0)
+                
                 # Skip if recently used (< 2 minutes ago)
-                if conn.metrics.last_request_time:
-                    idle_time = current_time - conn.metrics.last_request_time
-                    if idle_time < idle_threshold:
-                        continue
+                if conn.metrics.last_request_time and idle_time < idle_threshold:
+                    continue
                 
                 # Skip if recently checked (< 2 minutes ago)
                 if conn.last_health_check:
@@ -809,7 +811,6 @@ def get_connection_pool() -> ElectrumConnectionPool:
     """Get or create global connection pool"""
     global _pool
     if _pool is None:
-        from app.config import settings
         _pool = ElectrumConnectionPool(
             pool_size=getattr(settings, 'electrum_pool_size', 30),
             pool_min_size=getattr(settings, 'electrum_pool_min_size', 15),

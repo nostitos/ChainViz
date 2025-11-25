@@ -3,7 +3,10 @@
 import asyncio
 import logging
 from typing import Any, Dict, List, Optional
-from app.services.electrum_pool import get_connection_pool
+
+from tools.electrum_suite.services.electrum_client import ElectrumClient
+from tools.electrum_suite.services.electrum_pool import get_connection_pool
+from tools.electrum_suite.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -71,13 +74,11 @@ class ElectrumMultiplexer:
     
     async def get_balance(self, address: str) -> Dict[str, int]:
         """Get address balance"""
-        from app.services.electrum_client import ElectrumClient
         script_hash = ElectrumClient._address_to_scripthash(address)
         return await self._call("blockchain.scripthash.get_balance", [script_hash])
     
     async def get_history(self, address: str) -> List[Dict[str, Any]]:
         """Get address transaction history"""
-        from app.services.electrum_client import ElectrumClient
         script_hash = ElectrumClient._address_to_scripthash(address)
         return await self._call("blockchain.scripthash.get_history", [script_hash])
     
@@ -111,7 +112,6 @@ class ElectrumMultiplexer:
         
         Automatically chunks large batches to prevent timeouts and rate limiting
         """
-        from app.services.electrum_client import ElectrumClient
         MAX_BATCH_SIZE = 50  # Tested: 50 is optimal (25 causes MORE failures due to per-second limits)
         
         if len(addresses) <= MAX_BATCH_SIZE:
@@ -135,7 +135,6 @@ class ElectrumMultiplexer:
         
         Automatically chunks large batches to prevent timeouts and rate limiting
         """
-        from app.services.electrum_client import ElectrumClient
         MAX_BATCH_SIZE = 50  # Tested: 50 is optimal (25 causes MORE failures due to per-second limits)
         
         if len(addresses) <= MAX_BATCH_SIZE:
@@ -159,7 +158,6 @@ class ElectrumMultiplexer:
         
         Returns list of UTXO lists in same order as addresses
         """
-        from app.services.electrum_client import ElectrumClient
         MAX_BATCH_SIZE = 50  # Tested: 50 is optimal (25 causes MORE failures due to per-second limits)
         
         if len(addresses) <= MAX_BATCH_SIZE:
@@ -196,7 +194,6 @@ class ElectrumMultiplexer:
     @staticmethod
     def _address_to_scripthash(address: str) -> str:
         """Convert Bitcoin address to script hash"""
-        from app.services.electrum_client import ElectrumClient
         return ElectrumClient._address_to_scripthash(address)
     
     # Pool management methods
@@ -234,12 +231,10 @@ def get_electrum_client():
         return _multiplexer
     else:
         # Fallback to single-server client
-        from app.services.electrum_client import ElectrumClient
-        from app.config import settings
         return ElectrumClient(
             host=settings.electrum_host,
             port=settings.electrum_port,
-            use_ssl=settings.electrum_use_ssl,
+            use_ssl=getattr(settings, "electrum_use_ssl", True),
         )
 
 

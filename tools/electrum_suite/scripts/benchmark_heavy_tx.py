@@ -4,11 +4,22 @@ Benchmark script for heavy transaction loading
 Tests the 348-input transaction and identifies bottlenecks
 """
 
+from pathlib import Path
 import asyncio
 import time
 import json
+import sys
+
+SUITE_ROOT = Path(__file__).resolve().parents[1]
+TOOLS_ROOT = SUITE_ROOT.parent
+BACKEND_ROOT = TOOLS_ROOT.parent / "backend"
+
+for path in (TOOLS_ROOT, BACKEND_ROOT):
+    if str(path) not in sys.path:
+        sys.path.append(str(path))
+
 from app.services.blockchain_data import BlockchainDataService
-from app.services.electrum_multiplexer import get_electrum_client
+from tools.electrum_suite.services.electrum_multiplexer import get_electrum_client
 
 HEAVY_TX = "71f6598704c4e36487fbff004354bc30edf916c187d3ee354f9bdff8ca4c4320"
 

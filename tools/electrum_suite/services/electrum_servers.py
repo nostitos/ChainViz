@@ -65,23 +65,10 @@ class ElectrumServerInfo:
         }
 
 
-# TOP QUALITY SERVERS - Using only the most reliable servers for best performance
-# Reduced from 247 to 10 to focus on quality over quantity
-# This dramatically improves success rate (74% → 95%+) and reduces load time
-FALLBACK_SERVERS = [
+# Curated SSL servers (verified via backend/tests/test_electrum_servers.py on 2025-11-14)
+_CURATED_SSL_SERVERS: List[ElectrumServerInfo] = [
     ElectrumServerInfo(
         host="guichet.centure.cc",
-        port=50002,
-        protocol="ssl",
-        version="ElectrumX 1.16.0",
-        height=0,
-        uptime_hour=1.0,
-        uptime_day=1.0,
-        uptime_month=1.0,
-        last_seen=datetime.now(),
-    ),
-    ElectrumServerInfo(
-        host="horsey.cryptocowboys.net",
         port=50002,
         protocol="ssl",
         version="ElectrumX 1.16.0",
@@ -125,169 +112,10 @@ FALLBACK_SERVERS = [
         last_seen=datetime.now(),
     ),
     ElectrumServerInfo(
-        host="fulcrum-core.1209k.com",
+        host="electrum.emzy.de",
         port=50002,
         protocol="ssl",
-        version="Fulcrum 1.11.1",
-        height=0,
-        uptime_hour=1.0,
-        uptime_day=1.0,
-        uptime_month=1.0,
-        last_seen=datetime.now(),
-    ),
-    ElectrumServerInfo(
-        host="fulcrum.grey.pw",
-        port=50002,
-        protocol="ssl",
-        version="Fulcrum 2.0",
-        height=0,
-        uptime_hour=1.0,
-        uptime_day=1.0,
-        uptime_month=1.0,
-        last_seen=datetime.now(),
-    ),
-    ElectrumServerInfo(
-        host="bitcoin.stackwallet.com",
-        port=50002,
-        protocol="ssl",
-        version="Fulcrum 2.0",
-        height=0,
-        uptime_hour=1.0,
-        uptime_day=1.0,
-        uptime_month=1.0,
-        last_seen=datetime.now(),
-    ),
-    ElectrumServerInfo(
-        host="electrumx.erbium.eu",
-        port=50002,
-        protocol="ssl",
-        version="Fulcrum 2.0",
-        height=0,
-        uptime_hour=1.0,
-        uptime_day=1.0,
-        uptime_month=1.0,
-        last_seen=datetime.now(),
-    ),
-    ElectrumServerInfo(
-        host="molten.tranquille.cc",
-        port=50002,
-        protocol="ssl",
-        version="Fulcrum 2.0",
-        height=0,
-        uptime_hour=1.0,
-        uptime_day=1.0,
-        uptime_month=1.0,
-        last_seen=datetime.now(),
-    ),
-]
-
-
-# Override fallback list with curated set of reliable SSL servers (max 10)
-_CURATED_SSL_SERVERS: List[ElectrumServerInfo] = [
-    ElectrumServerInfo(
-        host="guichet.centure.cc",
-        port=50002,
-        protocol="ssl",
-        version="ElectrumX 1.16.0",
-        height=0,
-        uptime_hour=1.0,
-        uptime_day=1.0,
-        uptime_month=1.0,
-        last_seen=datetime.now(),
-    ),
-    ElectrumServerInfo(
-        host="fulcrum1.getsrt.net",
-        port=50002,
-        protocol="ssl",
-        version="Fulcrum 1.10.0",
-        height=0,
-        uptime_hour=1.0,
-        uptime_day=1.0,
-        uptime_month=1.0,
-        last_seen=datetime.now(),
-    ),
-    ElectrumServerInfo(
-        host="horsey.cryptocowboys.net",
-        port=50002,
-        protocol="ssl",
-        version="ElectrumX 1.16.0",
-        height=0,
-        uptime_hour=1.0,
-        uptime_day=1.0,
-        uptime_month=1.0,
-        last_seen=datetime.now(),
-    ),
-    ElectrumServerInfo(
-        host="electrum.acinq.co",
-        port=50002,
-        protocol="ssl",
-        version="ElectrumX 1.15.0",
-        height=0,
-        uptime_hour=1.0,
-        uptime_day=1.0,
-        uptime_month=1.0,
-        last_seen=datetime.now(),
-    ),
-    ElectrumServerInfo(
-        host="static.106.104.161.5.clients.your-server.de",
-        port=50002,
-        protocol="ssl",
-        version="ElectrumX 1.16.0",
-        height=0,
-        uptime_hour=1.0,
-        uptime_day=1.0,
-        uptime_month=1.0,
-        last_seen=datetime.now(),
-    ),
-    ElectrumServerInfo(
-        host="5.78.65.104",
-        port=50002,
-        protocol="ssl",
-        version="ElectrumX 1.16.0",
-        height=0,
-        uptime_hour=1.0,
-        uptime_day=1.0,
-        uptime_month=1.0,
-        last_seen=datetime.now(),
-    ),
-    ElectrumServerInfo(
-        host="5.78.90.154",
-        port=50002,
-        protocol="ssl",
-        version="ElectrumX 1.16.0",
-        height=0,
-        uptime_hour=1.0,
-        uptime_day=1.0,
-        uptime_month=1.0,
-        last_seen=datetime.now(),
-    ),
-    ElectrumServerInfo(
-        host="143.198.108.195",
-        port=50002,
-        protocol="ssl",
-        version="ElectrumX 1.16.0",
-        height=0,
-        uptime_hour=1.0,
-        uptime_day=1.0,
-        uptime_month=1.0,
-        last_seen=datetime.now(),
-    ),
-    ElectrumServerInfo(
-        host="137.184.125.23",
-        port=50002,
-        protocol="ssl",
-        version="ElectrumX 1.16.0",
-        height=0,
-        uptime_hour=1.0,
-        uptime_day=1.0,
-        uptime_month=1.0,
-        last_seen=datetime.now(),
-    ),
-    ElectrumServerInfo(
-        host="164.92.148.39",
-        port=50002,
-        protocol="ssl",
-        version="ElectrumX 1.16.0",
+        version="ElectrumX 1.18.0",
         height=0,
         uptime_hour=1.0,
         uptime_day=1.0,
@@ -311,7 +139,8 @@ class ElectrumServerListManager:
         self.refresh_interval_hours = refresh_interval_hours
         self.min_uptime_score = min_uptime_score
         self.prefer_fulcrum = prefer_fulcrum
-        self.servers: List[ElectrumServerInfo] = []
+        # Always start with the curated fallback servers so the pool is ready
+        self.servers: List[ElectrumServerInfo] = FALLBACK_SERVERS.copy()
         self.last_fetch: Optional[datetime] = None
         self._lock = asyncio.Lock()
         

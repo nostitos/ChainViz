@@ -1,7 +1,7 @@
 """Address lookup API endpoints"""
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
 
@@ -31,15 +31,19 @@ async def get_address(
         default=None,
         description="Set true to force balance/UTXO fetch, false to skip. Defaults to backend setting.",
     ),
+    max_transactions: Optional[int] = Query(
+        default=None,
+        description="Limit the number of transaction IDs returned. Counts are calculated from up to 500 transactions.",
+    ),
     blockchain_service: BlockchainDataService = Depends(get_blockchain_service),
 ):
     """
     Get comprehensive address information
 
     Returns balance, transaction history, UTXO list, cluster membership,
-    and first/last seen timestamps when detailed fetching is enabled.
+    receiving/spending transaction counts, and first/last seen timestamps when detailed fetching is enabled.
 
-    Example: GET /api/address/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa
+    Example: GET /api/address/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa?max_transactions=400
     """
     try:
         logger.info(f"Looking up address: {address}")
@@ -52,8 +56,9 @@ async def get_address(
         txids: List[str] = []
 
         if fetch_details:
-            address_info = await blockchain_service.fetch_address_info(address)
-            txids = await blockchain_service.fetch_address_history(address)
+            # Fetch balance/utxos/summary-derived counts only; do NOT fetch txids
+            address_info = await blockchain_service.fetch_address_info(address, max_transactions=max_transactions)
+            txids = []
         else:
             logger.debug(
                 "Skipping detailed fetch for %s (auto-fetch disabled, include_details=%s)",
@@ -78,6 +83,8 @@ async def get_address(
             script_type=(
                 str(address_info.script_type) if address_info and address_info.script_type else None
             ),
+            receiving_count=address_info.receiving_count if address_info else None,
+            spending_count=address_info.spending_count if address_info else None,
             details_included=fetch_details,
         )
 
@@ -109,16 +116,16 @@ async def get_addresses_batch(
     ```
     """
     try:
-        logger.info(f"📦 Batch lookup for {len(request.addresses)} addresses (using parallel fetch)")
-
         fetch_details = (
             request.include_details
             if request.include_details is not None
             else settings.address_auto_fetch_balance
         )
+        
+        logger.info(f"📦 Batch lookup: {len(request.addresses)} addresses (details={fetch_details})")
 
-        # Fetch all address histories in a single batch (parallel across multiple servers)
-        histories_dict = await blockchain_service.fetch_address_histories_batch(request.addresses)
+        # Skip transaction history for batch summaries to keep requests minimal
+        histories_dict: Dict[str, List[str]] = {}
 
         results = []
         for address in request.addresses:
@@ -126,6 +133,7 @@ async def get_addresses_batch(
                 address_info = None
                 if fetch_details:
                     address_info = await blockchain_service.fetch_address_info(address)
+                    logger.debug(f"Address {address[:12]}: receiving_count={address_info.receiving_count}, spending_count={address_info.spending_count}")
 
                 # Get transaction history from batched results
                 txids = histories_dict.get(address, [])
@@ -147,6 +155,8 @@ async def get_addresses_batch(
                             if address_info and address_info.script_type
                             else None
                         ),
+                        receiving_count=address_info.receiving_count if address_info else None,
+                        spending_count=address_info.spending_count if address_info else None,
                         details_included=fetch_details,
                     )
                 )
@@ -156,7 +166,7 @@ async def get_addresses_batch(
                 # Continue with other addresses even if one fails
                 continue
 
-        logger.info(f"✅ Batch lookup complete: {len(results)}/{len(request.addresses)} addresses fetched")
+        logger.info(f"✅ Batch complete: {len(results)}/{len(request.addresses)} addresses")
         return results
 
     except Exception as e:

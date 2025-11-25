@@ -1,0 +1,20 @@
+#!/usr/bin/expect -f
+set timeout 20
+set user "umbrel"
+set host "192.168.8.234"
+set password "Brell66"
+
+spawn ssh $user@$host
+expect {
+    "password:" {
+        send "$password\r"
+        exp_continue
+    }
+    "$ " {
+        interact
+    }
+    timeout {
+        puts "Connection timed out"
+        exit 1
+    }
+}
