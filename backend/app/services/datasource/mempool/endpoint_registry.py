@@ -171,8 +171,10 @@ class MempoolEndpointState:
                         "⚠️ Priority 0 endpoint %s has %d consecutive failures but will NOT be disabled (trusted source)",
                         self.name, self.consecutive_failures
                     )
-                    # Reset cooldown to keep it active
+                    # Reset cooldown and restore concurrency to keep it active
                     self.cooldown_until = None
+                    # Restore concurrency_limit to min_concurrency to allow requests
+                    self.concurrency_limit = max(1, self.min_concurrency)
                 else:
                     logger.warning(
                         "Disabling %s after %d consecutive failures", self.name, self.consecutive_failures
