@@ -30,14 +30,17 @@ import { EntityPanel } from './components/EntityPanel';
 import { StatsPanel } from './components/StatsPanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import { AboutPanel } from './components/AboutPanel';
+import { ConfirmationModal } from './components/ConfirmationModal';
+import { InputModal } from './components/InputModal';
 import { PerformanceMonitor } from './components/PerformanceMonitor';
 import { EdgeLegend } from './components/EdgeLegend';
 import { ProgressLogger } from './components/ProgressLogger';
+import { MultiAddressInputModal } from './components/MultiAddressInputModal';
 import { traceFromAddress, traceFromUTXO, traceFromAddressWithStats, traceFromUTXOWithStats } from './services/api';
 import { buildGraphFromTraceDataBipartite, optimizeNodePositions } from './utils/graphBuilderBipartite';
 import { findRootNode } from './utils/treeLayout';
 import { buildFlowLayout } from './utils/flowLayout';
-import { expandTransactionNode, expandAddressNode, expandAddressNodeWithFetch, loadMoreTransactions } from './utils/expansionHelpers';
+import { expandTransactionNode, expandAddressNode, expandAddressNodeWithFetch, loadMoreTransactions, type ExpandResult } from './utils/expansionHelpers';
 import { useForceLayout } from './hooks/useForceLayout';
 import { useEdgeTension } from './hooks/useEdgeTension';
 import { useGraphHistory } from './hooks/useGraphHistory';
@@ -55,7 +58,7 @@ const edgeTypes = {
   default: BezierEdge,
 };
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 function AppContent() {
   const [nodes, setNodes, onNodesChange] = useNodesState([] as Node[]);
@@ -67,8 +70,79 @@ function AppContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [confirmationModal, setConfirmationModal] = useState<{
+    isOpen: boolean;
+    message: string;
+    onConfirm: () => void;
+  }>({ isOpen: false, message: '', onConfirm: () => { } });
+
+  const [inputModal, setInputModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    defaultValue: string;
+    onConfirm: (value: string) => void;
+  }>({ isOpen: false, title: '', message: '', defaultValue: '', onConfirm: () => { } });
 
   const { takeSnapshot, undo, redo, canUndo, canRedo } = useGraphHistory();
+
+  // Helper to show confirmation modal with Promise
+  const confirmResolveRef = useRef<((value: boolean) => void) | null>(null);
+
+  const requestConfirmation = useCallback((message: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      confirmResolveRef.current = resolve;
+      setConfirmationModal({
+        isOpen: true,
+        message,
+        onConfirm: () => {
+          setConfirmationModal({ isOpen: false, message: '', onConfirm: () => { } });
+          if (confirmResolveRef.current) {
+            confirmResolveRef.current(true);
+            confirmResolveRef.current = null;
+          }
+        },
+      });
+    });
+  }, []);
+
+  const handleConfirmCancel = useCallback(() => {
+    setConfirmationModal({ isOpen: false, message: '', onConfirm: () => { } });
+    if (confirmResolveRef.current) {
+      confirmResolveRef.current(false);
+      confirmResolveRef.current = null;
+    }
+  }, []);
+
+  // Helper to show input modal with Promise
+  const inputResolveRef = useRef<((value: string | null) => void) | null>(null);
+
+  const requestInput = useCallback((title: string, message: string, defaultValue: string): Promise<string | null> => {
+    return new Promise((resolve) => {
+      inputResolveRef.current = resolve;
+      setInputModal({
+        isOpen: true,
+        title,
+        message,
+        defaultValue,
+        onConfirm: (value) => {
+          setInputModal({ isOpen: false, title: '', message: '', defaultValue: '', onConfirm: () => { } });
+          if (inputResolveRef.current) {
+            inputResolveRef.current(value);
+            inputResolveRef.current = null;
+          }
+        },
+      });
+    });
+  }, []);
+
+  const handleInputCancel = useCallback(() => {
+    setInputModal({ isOpen: false, title: '', message: '', defaultValue: '', onConfirm: () => { } });
+    if (inputResolveRef.current) {
+      inputResolveRef.current(null);
+      inputResolveRef.current = null;
+    }
+  }, []);
 
   // Get query from URL (reactive to changes)
   const [urlQuery, setUrlQuery] = useState(() => {
@@ -76,6 +150,7 @@ function AppContent() {
     return params.get('q') || '';
   });
   const [showAbout, setShowAbout] = useState(false);
+  const [showMultiAddressInput, setShowMultiAddressInput] = useState(false);
   const [edgeAnimation, setEdgeAnimation] = useState(true);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [edgeScaleMax, setEdgeScaleMax] = useState(() => {
@@ -274,10 +349,10 @@ function AppContent() {
   }, [history, setNodes, setEdges]);
 
   // Save graph to JSON file
-  const handleSaveGraph = useCallback(() => {
+  const handleSaveGraph = useCallback(async () => {
     // Prompt user for filename
     const defaultFilename = `chainviz-graph-${new Date().toISOString().split('T')[0]}`;
-    const userFilename = prompt('Enter filename for the graph:', defaultFilename);
+    const userFilename = await requestInput('Save Graph', 'Enter filename for the graph:', defaultFilename);
 
     // If user cancels, don't save
     if (userFilename === null) return;
@@ -475,17 +550,21 @@ function AppContent() {
       if (!rootNodeId) {
         rootNodeId = findRootNode(nds, edges);
       }
+      // Find ALL origin nodes (addresses with is_starting_point: true)
+      const originNodeIds = nds
+        .filter(n => n.data?.metadata?.is_starting_point === true)
+        .map(n => n.id);
 
-      if (!rootNodeId) {
-        console.warn('⚠️ No root node found');
+      if (originNodeIds.length === 0) {
+        console.warn('⚠️ No origin nodes found');
         setIsOptimizing(false);
         return nds;
       }
 
-      console.log(`🌊 Root node: ${rootNodeId}`);
+      console.log(`🌊 Found ${originNodeIds.length} origin node(s):`, originNodeIds.map(id => id.substring(0, 20)));
 
-      // Apply Flow Layout
-      const flowNodes = buildFlowLayout(nds, edges, rootNodeId, {
+      // Apply Flow Layout with multiple origins
+      const flowNodes = buildFlowLayout(nds, edges, originNodeIds, {
         horizontalSpacing: 450,
         verticalSpacing: 60,
       });
@@ -711,7 +790,7 @@ function AppContent() {
     // Estimate expansion size and warn if too large
     const estimated = estimateExpansionSize(node, direction as any);
     if (estimated > clusterThreshold) {
-      const proceed = window.confirm(
+      const proceed = await requestConfirmation(
         `This expansion will add approximately ${estimated} nodes.\n\n` +
         `This may impact graph performance.\n` +
         `Current threshold: ${clusterThreshold} (change in Settings)\n\n` +
@@ -727,7 +806,7 @@ function AppContent() {
     let lastApiRequest: string | null = null;
 
     try {
-      let result: { nodes: Node[]; edges: Edge[] };
+      let result: ExpandResult | { nodes: Node[]; edges: Edge[] } | { needsFetch: boolean; address: string };
 
       if (node.type === 'transaction') {
         // Check if we have the required metadata
@@ -853,6 +932,16 @@ function AppContent() {
               maxTransactions
             );
 
+            if ('info' in result && result.info) {
+              setConfirmationModal({
+                isOpen: true,
+                message: result.info,
+                onConfirm: () => setConfirmationModal({ isOpen: false, message: '', onConfirm: () => { } })
+              });
+              setIsLoading(false);
+              return;
+            }
+
             // Show warning toast if present (10-50 TX range)
             if ('warning' in result && result.warning) {
               setError(result.warning);
@@ -864,6 +953,10 @@ function AppContent() {
         }
       } else {
         console.warn('Unknown node type:', node.type);
+        return;
+      }
+
+      if (!('nodes' in result)) {
         return;
       }
 
@@ -1034,6 +1127,171 @@ function AppContent() {
       setIsLoading(false);
     }
   }, [edgeScaleMax, maxTransactions, hydrateAddressNodes]); // nodes/edges read from refs, setNodes/setEdges are stable from React Flow
+
+  // Handle trace from multiple addresses (cluster)
+  const handleTraceAddressCluster = useCallback(async (addresses: string[], hopsBefore: number = 1, hopsAfter: number = 1) => {
+    setIsLoading(true);
+    setError(null);
+    setShowMultiAddressInput(false);
+
+    // Don't clear graph - append to it
+    // setNodes([]); 
+    // setEdges([]);
+
+    addLog('info', `🔗 Starting cluster trace for ${addresses.length} addresses...`);
+
+    try {
+      // Trace each address sequentially using the existing single-address trace
+      for (let i = 0; i < addresses.length; i++) {
+        const address = addresses[i];
+        addLog('info', `📍 Tracing address ${i + 1}/${addresses.length}: ${address.substring(0, 20)}...`);
+
+        // Use EventSource for each address (preserve original case - Bitcoin addresses are case-sensitive!)
+        const eventSource = new EventSource(
+          `${API_BASE_URL}/trace/address/stream?address=${encodeURIComponent(address)}&hops_before=${hopsBefore}&hops_after=${hopsAfter}&max_transactions=${maxTransactions}`
+        );
+
+        // Wait for this address to complete before moving to next
+        await new Promise<void>((resolve, reject) => {
+          eventSource.addEventListener('batch', (e) => {
+            try {
+              const data = JSON.parse(e.data);
+
+              // Add nodes incrementally (avoiding duplicates)
+              if (data.nodes && data.nodes.length > 0) {
+                setNodes((nds) => {
+                  const existingIds = new Set(nds.map(n => n.id));
+                  const newNodes = data.nodes
+                    .filter((n: any) => !existingIds.has(n.id))
+                    .map((n: any, index: number) => {
+                      // Add position if missing
+                      const nodesPerRow = 5;
+                      const row = Math.floor((nds.length + index) / nodesPerRow);
+                      const col = (nds.length + index) % nodesPerRow;
+
+                      // Preserve original address case in node IDs
+                      const nodeId = n.id;
+
+                      return {
+                        id: nodeId,
+                        type: n.type,
+                        position: n.position || { x: col * 400, y: row * 200 },
+                        data: {
+                          label: n.label,
+                          type: n.type,
+                          value: n.value,
+                          metadata: n.metadata,
+                          // Attach expand handler like regular trace does
+                          onExpand: handleExpandNode,
+                          balanceFetchingEnabled,
+                          maxTransactions,
+                        }
+                      };
+                    });
+                  return [...nds, ...newNodes];
+                });
+              }
+
+              // Add edges incrementally (avoiding duplicates)
+              if (data.edges && data.edges.length > 0) {
+                setEdges((eds) => {
+                  const existingEdgeIds = new Set(eds.map(e => e.id));
+
+                  // Edge scaling constants (matching graphBuilderBipartite.ts)
+                  const minAmountSats = 100000; // 0.001 BTC
+                  const scaleMaxSats = edgeScaleMax * 100000000; // Convert BTC to satoshis
+                  const sqrtBase = Math.sqrt(scaleMaxSats / minAmountSats);
+
+                  const newEdges = data.edges
+                    .map((e: any) => {
+                      // Generate deterministic ID: source-target-vout
+                      const vout = e.metadata?.vout ?? '';
+
+                      // Preserve original address case in edge source/target
+                      const edgeSource = e.source;
+                      const edgeTarget = e.target;
+
+                      const id = e.id || `e-${edgeSource}-${edgeTarget}-${vout}`;
+
+                      // Calculate width based on amount
+                      const amount = e.amount || 0;
+                      let strokeWidth = 2;
+                      if (amount > minAmountSats) {
+                        const sqrtValue = Math.sqrt(amount / minAmountSats) / sqrtBase;
+                        strokeWidth = 2 + (sqrtValue * 68);
+                      }
+
+                      // Build edge object explicitly (don't spread to avoid conflicts)
+                      return {
+                        id,
+                        source: edgeSource,
+                        target: edgeTarget,
+                        type: 'default',
+                        animated: false, // Match buildGraphFromTraceDataBipartite - no animation
+                        style: {
+                          strokeWidth,
+                          stroke: '#4caf50',
+                          opacity: 0.8
+                        },
+                        label: amount > 0 ? `${(amount / 100000000).toFixed(8)} BTC` : undefined,
+                        labelStyle: {
+                          fill: '#fff',
+                          fontSize: 12,
+                          fontWeight: 700,
+                        },
+                        labelBgStyle: {
+                          fill: '#1a1a1a',
+                          fillOpacity: 0.9,
+                        },
+                        data: e.metadata || {},
+                      };
+                    })
+                    .filter((e: any) => !existingEdgeIds.has(e.id));
+
+                  return [...eds, ...newEdges];
+                });
+              }
+            } catch (err) {
+              console.error('Error parsing batch:', err);
+            }
+          });
+
+          eventSource.addEventListener('complete', () => {
+            eventSource.close();
+            addLog('success', `✅ Completed address ${i + 1}/${addresses.length}`);
+
+            // Hydrate address nodes to fetch balance data
+            setNodes((nds) => {
+              hydrateAddressNodes(nds);
+              return nds;
+            });
+
+            resolve();
+          });
+
+          eventSource.addEventListener('error', (e) => {
+            console.error('EventSource error:', e);
+            eventSource.close();
+            reject(new Error(`Failed to trace address ${address}`));
+          });
+        });
+      }
+
+      addLog('success', `✅ Cluster trace complete: ${addresses.length} addresses traced`);
+
+      // Fit view after completion
+      setTimeout(() => {
+        fitView({ padding: 0.2, duration: 400 });
+      }, 300);
+
+    } catch (error: any) {
+      console.error('❌ Error tracing address cluster:', error);
+      setError(error?.message || 'Failed to trace address cluster');
+      addLog('error', `❌ Failed: ${error?.message || 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [maxTransactions, fitView, setNodes, setEdges, addLog]);
 
   // Delete selected nodes
   const handleDeleteSelected = useCallback(() => {
@@ -1234,34 +1492,51 @@ function AppContent() {
     const selectedVisibleNodes = visibleNodes.filter(n => n.selected);
     const candidateNodes = selectedVisibleNodes.length > 0 ? selectedVisibleNodes : visibleNodes;
 
-    // Find origin node (search query or 0,0) to determine "left/right" split
-    const originNode = currentNodes.find(n => n.id === urlQuery) || currentNodes.find(n => Math.abs(n.position.x) < 1 && Math.abs(n.position.y) < 1);
-    const originX = originNode ? originNode.position.x : 0;
+    // Find ALL origin nodes (addresses with is_starting_point: true)
+    const originNodes = currentNodes.filter(n => n.data?.metadata?.is_starting_point === true);
+    const originNodeIds = new Set(originNodes.map(n => n.id));
 
-    // Filter to only unexpanded nodes to the LEFT of origin
+    // Get the leftmost origin position to determine the left boundary
+    const leftmostOriginX = originNodes.length > 0
+      ? Math.min(...originNodes.map(n => n.position.x))
+      : 0;
+
+    console.log(`📍 Found ${originNodes.length} origin node(s), leftmost at x=${leftmostOriginX}`);
+
+    // Filter to only unexpanded nodes to the LEFT of ANY origin (and not origins themselves)
     const nodesToExpand = candidateNodes.filter(n => {
-      // Only expand nodes that are physically to the left of the origin (with small tolerance)
-      if (n.position.x > originX + 10) return false;
+      // Don't expand origin nodes themselves
+      if (originNodeIds.has(n.id)) {
+        console.log(`⏭️ Skipping ${n.id.substring(0, 20)} - is an origin node`);
+        return false;
+      }
+
+      // Only expand nodes that are physically to the left of the leftmost origin
+      if (n.position.x > leftmostOriginX - 10) {
+        console.log(`⏭️ Skipping ${n.id.substring(0, 20)} - not to left of origins (x=${n.position.x})`);
+        return false;
+      }
+
       const direction = n.type === 'address' ? 'receiving' : 'inputs';
       const expandKey = `${n.id}-${direction}`;
       if (expandedNodes.has(expandKey)) {
-        console.log(`⏭️ Skipping ${n.id} - already expanded backward`);
+        console.log(`⏭️ Skipping ${n.id.substring(0, 20)} - already expanded backward`);
         return false;
       }
       return true;
     });
 
-    console.log(`Expanding ${nodesToExpand.length} leftmost unexpanded nodes`);
+    console.log(`Expanding ${nodesToExpand.length} unexpanded node(s) to the left of origin(s)`);
 
     if (nodesToExpand.length === 0) {
-      setError('All visible nodes already expanded backward');
+      setError('All visible nodes to the left already expanded');
       setTimeout(() => setError(null), 2000);
       return;
     }
 
     // Warn if too many nodes to expand
     if (nodesToExpand.length > 20) {
-      const proceed = window.confirm(
+      const proceed = await requestConfirmation(
         `This will expand ${nodesToExpand.length} nodes, which may take a while and add many new nodes to the graph.\n\n` +
         `Consider zooming in to show fewer nodes, or adjusting Max Outputs/Transactions settings.\n\n` +
         `Continue anyway?`
@@ -1338,35 +1613,52 @@ function AppContent() {
     const selectedVisibleNodes = visibleNodes.filter(n => n.selected);
     const candidateNodes = selectedVisibleNodes.length > 0 ? selectedVisibleNodes : visibleNodes;
 
-    // Find origin node (search query or 0,0) to determine "left/right" split
-    const originNode = currentNodes.find(n => n.id === urlQuery) || currentNodes.find(n => Math.abs(n.position.x) < 1 && Math.abs(n.position.y) < 1);
-    const originX = originNode ? originNode.position.x : 0;
+    // Find ALL origin nodes (addresses with is_starting_point: true)
+    const originNodes = currentNodes.filter(n => n.data?.metadata?.is_starting_point === true);
+    const originNodeIds = new Set(originNodes.map(n => n.id));
 
-    // Filter to only unexpanded nodes to the RIGHT of origin
+    // Get the rightmost origin position to determine the right boundary
+    const rightmostOriginX = originNodes.length > 0
+      ? Math.max(...originNodes.map(n => n.position.x))
+      : 0;
+
+    console.log(`📍 Found ${originNodes.length} origin node(s), rightmost at x=${rightmostOriginX}`);
+
+    // Filter to only unexpanded nodes to the RIGHT of ANY origin (and not origins themselves)
     const nodesToExpand = candidateNodes.filter(n => {
-      // Only expand nodes that are physically to the right of the origin (with small tolerance)
-      if (n.position.x < originX - 10) return false;
+      // Don't expand origin nodes themselves
+      if (originNodeIds.has(n.id)) {
+        console.log(`⏭️ Skipping ${n.id.substring(0, 20)} - is an origin node`);
+        return false;
+      }
+
+      // Only expand nodes that are physically to the right of the rightmost origin
+      if (n.position.x < rightmostOriginX + 10) {
+        console.log(`⏭️ Skipping ${n.id.substring(0, 20)} - not to right of origins (x=${n.position.x})`);
+        return false;
+      }
+
       const direction = n.type === 'address' ? 'spending' : 'outputs';
       const expandKey = `${n.id}-${direction}`;
       if (expandedNodes.has(expandKey)) {
-        console.log(`⏭️ Skipping ${n.id} - already expanded forward`);
+        console.log(`⏭️ Skipping ${n.id.substring(0, 20)} - already expanded forward`);
         return false;
       }
       return true;
     });
 
-    console.log(`Expanding ${nodesToExpand.length} rightmost unexpanded nodes`);
-    console.log('Node IDs to expand:', nodesToExpand.map(n => `${n.id} (${n.type})`));
+    console.log(`Expanding ${nodesToExpand.length} unexpanded node(s) to the right of origin(s)`);
+    console.log('Node IDs to expand:', nodesToExpand.map(n => `${n.id.substring(0, 20)} (${n.type})`));
 
     if (nodesToExpand.length === 0) {
-      setError('All visible nodes already expanded forward');
+      setError('All visible nodes to the right already expanded');
       setTimeout(() => setError(null), 2000);
       return;
     }
 
     // Warn if too many nodes to expand
     if (nodesToExpand.length > 20) {
-      const proceed = window.confirm(
+      const proceed = await requestConfirmation(
         `This will expand ${nodesToExpand.length} nodes, which may take a while and add many new nodes to the graph.\n\n` +
         `Consider zooming in to show fewer nodes, or adjusting Max Outputs/Transactions settings.\n\n` +
         `Continue anyway?`
@@ -1421,7 +1713,8 @@ function AppContent() {
 
   // Handle trace from address with recursive hops
   const handleTraceAddress = useCallback(async (address: string, hopsBefore: number = 1, hopsAfter: number = 1) => {
-    // Update URL with the address
+    // Preserve original case - Bitcoin addresses are case-sensitive (Base58Check encoding)
+    // Update URL with the original address
     window.history.pushState({}, '', `?q=${encodeURIComponent(address)}`);
     setUrlQuery(address); // Update state so SearchBar reflects the change
 
@@ -1832,10 +2125,37 @@ function AppContent() {
   const handleExpandNodeRef = useRef(handleExpandNode);
   const handleLoadMoreRef = useRef(handleLoadMore);
 
+  // Create stable onUpdateNodeData callback to prevent unnecessary re-fetches
+  const handleUpdateNodeData = useCallback((nodeId: string, updates: any) => {
+    setNodes((nds) => {
+      const updated = nds.map((n) => {
+        if (n.id === nodeId) {
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              metadata: {
+                ...n.data.metadata,
+                ...updates,
+              },
+            },
+          };
+        }
+        return n;
+      });
+      // Update ref immediately so expansion can use it
+      nodesRef.current = updated;
+      return updated;
+    });
+  }, [setNodes]);
+
+  const handleUpdateNodeDataRef = useRef(handleUpdateNodeData);
+
   useEffect(() => {
     handleExpandNodeRef.current = handleExpandNode;
     handleLoadMoreRef.current = handleLoadMore;
-  }, [handleExpandNode, handleLoadMore]);
+    handleUpdateNodeDataRef.current = handleUpdateNodeData;
+  }, [handleExpandNode, handleLoadMore, handleUpdateNodeData]);
 
   useEffect(() => {
     // Only run once when settings change, not on every render
@@ -1844,7 +2164,8 @@ function AppContent() {
         // Only create new object if callbacks are different
         const needsUpdate =
           node.data.onExpand !== handleExpandNodeRef.current ||
-          (node.type === 'loadMore' && node.data.onLoadMore !== handleLoadMoreRef.current);
+          (node.type === 'loadMore' && node.data.onLoadMore !== handleLoadMoreRef.current) ||
+          node.data.onUpdateNodeData !== handleUpdateNodeDataRef.current;
 
         if (!needsUpdate) {
           return node;
@@ -1856,28 +2177,7 @@ function AppContent() {
             ...node.data,
             onExpand: handleExpandNodeRef.current,
             onLoadMore: node.type === 'loadMore' ? handleLoadMoreRef.current : node.data.onLoadMore,
-            onUpdateNodeData: (nodeId: string, updates: any) => {
-              setNodes((nds) => {
-                const updated = nds.map((n) => {
-                  if (n.id === nodeId) {
-                    return {
-                      ...n,
-                      data: {
-                        ...n.data,
-                        metadata: {
-                          ...n.data.metadata,
-                          ...updates,
-                        },
-                      },
-                    };
-                  }
-                  return n;
-                });
-                // Update ref immediately so expansion can use it
-                nodesRef.current = updated;
-                return updated;
-              });
-            },
+            onUpdateNodeData: handleUpdateNodeDataRef.current,
           },
         };
       })
@@ -2058,6 +2358,7 @@ function AppContent() {
         isLoading={isLoading}
         onOpenSettings={() => setShowSettings(true)}
         onOpenAbout={() => setShowAbout(true)}
+        onOpenMultiAddress={() => setShowMultiAddressInput(true)}
         edgeScaleMax={edgeScaleMax}
         onEdgeScaleMaxChange={setEdgeScaleMax}
         onExpandBackward={handleExpandBackward}
@@ -2284,6 +2585,32 @@ function AppContent() {
           onClose={() => setShowAbout(false)}
         />
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmationModal.isOpen}
+        message={confirmationModal.message}
+        onConfirm={confirmationModal.onConfirm}
+        onCancel={handleConfirmCancel}
+      />
+
+      {/* Input Modal */}
+      <InputModal
+        isOpen={inputModal.isOpen}
+        title={inputModal.title}
+        message={inputModal.message}
+        defaultValue={inputModal.defaultValue}
+        onConfirm={inputModal.onConfirm}
+        onCancel={handleInputCancel}
+      />
+
+      {/* Multi-Address Input Modal */}
+      <MultiAddressInputModal
+        isOpen={showMultiAddressInput}
+        onClose={() => setShowMultiAddressInput(false)}
+        onTraceAddresses={handleTraceAddressCluster}
+        isLoading={isLoading}
+      />
 
       {/* Bottom Control Bar */}
       <div style={{

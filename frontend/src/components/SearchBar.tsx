@@ -7,6 +7,7 @@ interface SearchBarProps {
   isLoading: boolean;
   onOpenSettings: () => void;
   onOpenAbout: () => void;
+  onOpenMultiAddress?: () => void;
   edgeScaleMax: number;
   onEdgeScaleMaxChange: (value: number) => void;
   onExpandBackward?: () => void;
@@ -15,7 +16,7 @@ interface SearchBarProps {
   initialQuery?: string;
 }
 
-export const SearchBar = memo(function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpenSettings, onOpenAbout, edgeScaleMax, onEdgeScaleMaxChange, onExpandBackward, onExpandForward, hasGraph, initialQuery }: SearchBarProps) {
+export const SearchBar = memo(function SearchBar({ onTraceAddress, onTraceTransaction, isLoading, onOpenSettings, onOpenAbout, onOpenMultiAddress, edgeScaleMax, onEdgeScaleMaxChange, onExpandBackward, onExpandForward, hasGraph, initialQuery }: SearchBarProps) {
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<string[]>([]);
 
@@ -218,6 +219,32 @@ export const SearchBar = memo(function SearchBar({ onTraceAddress, onTraceTransa
               </>
             )}
           </button>
+
+          {onOpenMultiAddress && (
+            <button
+              type="button"
+              onClick={onOpenMultiAddress}
+              disabled={isLoading}
+              className="multi-address-button"
+              title="Add multiple addresses"
+              style={{
+                padding: '10px 14px',
+                background: 'rgba(156, 39, 176, 0.2)',
+                border: '1px solid rgba(156, 39, 176, 0.5)',
+                borderRadius: '6px',
+                color: '#ab47bc',
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                fontSize: '18px',
+                fontWeight: 600,
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              +
+            </button>
+          )}
         </form>
       </div>
 

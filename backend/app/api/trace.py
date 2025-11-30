@@ -680,6 +680,16 @@ async def trace_from_address(
                     metadata={
                         "txid": tx.txid,
                         "timestamp": tx.timestamp,
+                        "fee": tx.fee,
+                        "size": tx.size,
+                        "vsize": tx.vsize,
+                        "weight": tx.weight,
+                        "confirmations": tx.confirmations,
+                        "block_height": tx.block_height,
+                        "inputCount": len(tx.inputs),
+                        "outputCount": len(tx.outputs),
+                        "inputs": [{"address": inp.address or "Unknown", "value": inp.value or 0} for inp in tx.inputs],
+                        "outputs": [{"address": out.address or "Unknown", "value": out.value or 0} for out in tx.outputs],
                     }
                 ))
         

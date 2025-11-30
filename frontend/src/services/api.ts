@@ -193,3 +193,92 @@ export async function getConfig(): Promise<RuntimeConfigResponse> {
   }
   return response.json();
 }
+
+export interface ClusterTraceStreamHandler {
+  onMetadata?: (data: any) => void;
+  onBatch?: (data: { nodes: any[], edges: any[], batch_index: number, progress: number }) => void;
+  onProgress?: (data: any) => void;
+  onComplete?: (data: any) => void;
+  onError?: (error: string) => void;
+}
+
+export async function traceFromAddressCluster(
+  addresses: string[],
+  hopsBefore: number,
+  hopsAfter: number,
+  maxTransactions: number,
+  handlers: ClusterTraceStreamHandler
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/trace/address/cluster/stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      addresses,
+      hops_before: hopsBefore,
+      hops_after: hopsAfter,
+      max_transactions: maxTransactions,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+    throw new Error(error.detail || `HTTP ${response.status}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('No response body');
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.trim() || line.startsWith(':')) continue;
+
+        if (line.startsWith('event:')) {
+          const eventType = line.substring(6).trim();
+          continue;
+        }
+
+        if (line.startsWith('data:')) {
+          try {
+            const data = JSON.parse(line.substring(5).trim());
+
+            // Determine event type from data structure or previous event line
+            // Since SSE format has event: type before data: {...}
+            // We need to handle this differently
+            // For now, check data structure to infer type
+            if (data.status === 'starting' || data.address_count !== undefined) {
+              handlers.onMetadata?.(data);
+            } else if (data.nodes !== undefined && data.edges !== undefined) {
+              handlers.onBatch?.(data);
+            } else if (data.progress !== undefined || data.status) {
+              handlers.onProgress?.(data);
+            } else if (data.message === 'Cluster trace complete') {
+              handlers.onComplete?.(data);
+            } else if (data.type && data.message) {
+              handlers.onError?.(data.message);
+            }
+          } catch (e) {
+            console.error('Failed to parse SSE data:', e);
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+

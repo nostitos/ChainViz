@@ -12,26 +12,37 @@ interface FlowLayoutConfig {
  * - Outputs -> Right
  * - Change Addresses (Input & Output) -> Underneath Transaction
  * - Minimizes edge crossings using barycenter heuristic
+ * 
+ * @param nodes - All graph nodes
+ * @param edges - All graph edges
+ * @param rootNodeIds - Array of origin node IDs (supports multiple addresses)
+ * @param config - Layout configuration
  */
 export function buildFlowLayout(
     nodes: Node[],
     edges: Edge[],
-    rootNodeId: string,
+    rootNodeIds: string | string[], // Accept single or multiple roots
     config: FlowLayoutConfig = {
         horizontalSpacing: 450,
         verticalSpacing: 60,
     }
 ): Node[] {
-    console.log(`🌊 Building Flow Layout from root: ${rootNodeId} `);
+    // Normalize to array
+    const roots = Array.isArray(rootNodeIds) ? rootNodeIds : [rootNodeIds];
+
+    console.log(`🌊 Building Flow Layout from ${roots.length} root(s):`, roots.map(id => id.substring(0, 20)));
 
     const positions = new Map<string, { x: number; y: number }>();
     const processed = new Set<string>();
-    const queue: { id: string; rank: number }[] = [{ id: rootNodeId, rank: 0 }];
+
+    // Start BFS from all roots simultaneously, each at rank 0
+    const queue: { id: string; rank: number }[] = roots.map(id => ({ id, rank: 0 }));
+    const nodeRanks = new Map<string, number>();
+
+    // Initialize all roots at rank 0
+    roots.forEach(id => nodeRanks.set(id, 0));
 
     // 1. BFS to assign ranks (X positions)
-    const nodeRanks = new Map<string, number>();
-    nodeRanks.set(rootNodeId, 0);
-
     while (queue.length > 0) {
         const { id, rank } = queue.shift()!;
 
@@ -42,9 +53,13 @@ export function buildFlowLayout(
         edges
             .filter(e => e.source === id)
             .forEach(e => {
-                if (!nodeRanks.has(e.target)) {
-                    nodeRanks.set(e.target, rank + 1);
-                    queue.push({ id: e.target, rank: rank + 1 });
+                // Only assign rank if not yet assigned OR if new rank is closer to center (smaller absolute value)
+                const existingRank = nodeRanks.get(e.target);
+                const newRank = rank + 1;
+
+                if (existingRank === undefined || Math.abs(newRank) < Math.abs(existingRank)) {
+                    nodeRanks.set(e.target, newRank);
+                    queue.push({ id: e.target, rank: newRank });
                 }
             });
 
@@ -52,9 +67,12 @@ export function buildFlowLayout(
         edges
             .filter(e => e.target === id)
             .forEach(e => {
-                if (!nodeRanks.has(e.source)) {
-                    nodeRanks.set(e.source, rank - 1);
-                    queue.push({ id: e.source, rank: rank - 1 });
+                const existingRank = nodeRanks.get(e.source);
+                const newRank = rank - 1;
+
+                if (existingRank === undefined || Math.abs(newRank) < Math.abs(existingRank)) {
+                    nodeRanks.set(e.source, newRank);
+                    queue.push({ id: e.source, rank: newRank });
                 }
             });
     }

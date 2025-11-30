@@ -7,7 +7,7 @@ from typing import AsyncGenerator, Optional
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
-from app.models.api import NodeData, EdgeData
+from app.models.api import NodeData, EdgeData, AddressClusterTraceRequest
 from app.services.blockchain_data import get_blockchain_service, BlockchainDataService
 
 logger = logging.getLogger(__name__)
@@ -417,6 +417,282 @@ async def stream_trace_utxo(
             hops_before=hops_before,
             hops_after=hops_after,
             max_addresses_per_tx=max_addresses_per_tx,
+            blockchain_service=blockchain_service,
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+async def stream_address_cluster_trace(
+    addresses: list[str],
+    hops_before: int,
+    hops_after: int,
+    max_transactions: int,
+    blockchain_service: BlockchainDataService,
+) -> AsyncGenerator[str, None]:
+    """
+    Stream trace results for multiple addresses (cluster).
+    
+    Yields SSE events:
+    - metadata: Initial info about each address
+    - batch: Nodes and edges for batches
+    - progress: Progress updates
+    - complete: Final completion event
+    - error: Error events if something fails
+    """
+    try:
+        # Send initial metadata
+        yield await sse_event("metadata", {
+            "address_count": len(addresses),
+            "hops_before": hops_before,
+            "hops_after": hops_after,
+            "status": "starting"
+        })
+        
+        all_nodes = []
+        all_edges = []
+        all_txids_set = set()
+        node_ids_seen = set()
+        
+        # Create address nodes for all addresses
+        initial_nodes = []
+        for address in addresses:
+            addr_node_id = f"addr_{address}"
+            if addr_node_id not in node_ids_seen:
+                node_ids_seen.add(addr_node_id)
+                initial_nodes.append(NodeData(
+                    id=addr_node_id,
+                    label=address,
+                    type="address",
+                    value=None,
+                    metadata={
+                        "address": address,
+                        "is_change": False,
+                        "cluster_id": None,
+                        "is_starting_point": True
+                    }
+                ).model_dump())
+        
+        all_nodes.extend(initial_nodes)
+        
+        yield await sse_event("batch", {
+            "nodes": initial_nodes,
+            "edges": [],
+            "batch_index": 0,
+            "progress": 0
+        })
+        
+        # Process each address
+        total_addresses = len(addresses)
+        for addr_index, address in enumerate(addresses):
+            logger.info(f"Streaming trace for address {addr_index + 1}/{total_addresses}: {address[:20]}...")
+            
+            addr_node_id = f"addr_{address}"
+            
+            # Get transaction IDs for this address
+            txids = await blockchain_service.fetch_address_history(address, max_results=max_transactions)
+            
+            # Skip transactions we've already processed (from other addresses)
+            new_txids = [txid for txid in txids if txid not in all_txids_set]
+            all_txids_set.update(new_txids)
+            
+            total_txs = len(new_txids)
+            
+            if total_txs == 0:
+                logger.info(f"No new transactions for address {address}")
+                continue
+            
+            yield await sse_event("progress", {
+                "status": f"Processing address {addr_index + 1}/{total_addresses}",
+                "address": address,
+                "transactions_found": total_txs
+            })
+            
+            # Process transactions in batches
+            batch_size = 20
+            
+            for batch_start in range(0, total_txs, batch_size):
+                batch_end = min(batch_start + batch_size, total_txs)
+                batch_txids = new_txids[batch_start:batch_end]
+                
+                # Fetch this batch of transactions
+                transactions_raw = await blockchain_service.fetch_transactions_batch(batch_txids)
+                transactions = [tx for tx in transactions_raw if tx is not None]
+                
+                # Process transactions to create nodes and edges
+                batch_nodes = []
+                batch_edges = []
+                
+                for tx in transactions:
+                    # Check if this TX should be included based on hop direction
+                    has_output_to_addr = any(out.address == address for out in tx.outputs)
+                    has_input_from_addr = any(inp.address == address for inp in tx.inputs if inp.address)
+                    
+                    include_tx = False
+                    if has_output_to_addr and hops_before > 0:
+                        include_tx = True
+                    if has_input_from_addr and hops_after > 0:
+                        include_tx = True
+                    
+                    if not include_tx:
+                        continue
+                    
+                    # Create transaction node (if not already seen)
+                    tx_node_id = f"tx_{tx.txid}"
+                    if tx_node_id not in node_ids_seen:
+                        node_ids_seen.add(tx_node_id)
+                        
+                        # Prepare inputs and outputs for metadata
+                        inputs = []
+                        for inp in tx.inputs:
+                            inputs.append({
+                                "txid": inp.txid,
+                                "vout": inp.vout,
+                                "address": inp.address,
+                                "value": inp.value,
+                            })
+                        
+                        outputs = []
+                        for idx, out in enumerate(tx.outputs):
+                            outputs.append({
+                                "vout": idx,
+                                "address": out.address,
+                                "value": out.value,
+                            })
+                        
+                        tx_node = NodeData(
+                            id=tx_node_id,
+                            label=f"{tx.txid[:16]}...",
+                            type="transaction",
+                            value=None,
+                            metadata={
+                                "txid": tx.txid,
+                                "timestamp": tx.timestamp,
+                                "inputCount": len(tx.inputs),
+                                "outputCount": len(tx.outputs),
+                                "inputs": inputs,
+                                "outputs": outputs,
+                            }
+                        )
+                        batch_nodes.append(tx_node.model_dump())
+                    
+                    # Create edges based on hop direction
+                    if hops_before > 0:
+                        # TX → Address (receiving)
+                        for vout, output in enumerate(tx.outputs):
+                            if output.address == address:
+                                edge = EdgeData(
+                                    source=tx_node_id,
+                                    target=addr_node_id,
+                                    amount=output.value,
+                                    confidence=1.0,
+                                    metadata={"vout": vout}
+                                )
+                                edge_dict = edge.model_dump()
+                                # Add unique ID
+                                edge_dict['id'] = f"{tx_node_id}-{addr_node_id}-{vout}"
+                                batch_edges.append(edge_dict)
+                    
+                    if hops_after > 0:
+                        # Address → TX (sending)
+                        if has_input_from_addr:
+                            total_amount = sum(
+                                inp.value for inp in tx.inputs 
+                                if inp.address == address and inp.value is not None
+                            )
+                            edge = EdgeData(
+                                source=addr_node_id,
+                                target=tx_node_id,
+                                amount=total_amount,
+                                confidence=1.0,
+                                metadata={}
+                            )
+                            edge_dict = edge.model_dump()
+                            # Add unique ID
+                            edge_dict['id'] = f"{addr_node_id}-{tx_node_id}"
+                            batch_edges.append(edge_dict)
+                
+                # Send this batch
+                all_nodes.extend(batch_nodes)
+                all_edges.extend(batch_edges)
+                
+                addr_progress = int(((addr_index + (batch_end / total_txs)) / total_addresses) * 100)
+                
+                yield await sse_event("batch", {
+                    "nodes": batch_nodes,
+                    "edges": batch_edges,
+                    "batch_index": addr_index * 100 + (batch_start // batch_size) + 1,
+                    "progress": addr_progress
+                })
+                
+                # Small delay to prevent overwhelming the client
+                await asyncio.sleep(0.05)
+        
+        # Send completion event
+        yield await sse_event("complete", {
+            "total_nodes": len(all_nodes),
+            "total_edges": len(all_edges),
+            "total_transactions": len(all_txids_set),
+            "total_addresses": total_addresses,
+            "message": "Cluster trace complete"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error streaming address cluster trace: {e}", exc_info=True)
+        yield await sse_event("error", {
+            "message": str(e),
+            "type": type(e).__name__
+        })
+
+
+@router.post("/address/cluster/stream")
+async def stream_trace_address_cluster(
+    request: AddressClusterTraceRequest,
+    blockchain_service: BlockchainDataService = Depends(get_blockchain_service),
+):
+    """
+    Stream trace results for multiple addresses (cluster) using Server-Sent Events (SSE).
+    
+    Request body:
+    ```json
+    {
+        "addresses": ["address1", "address2", ...],
+        "hops_before": 1,
+        "hops_after": 1,
+        "max_transactions": 1000
+    }
+    ```
+    
+    Returns a stream of events:
+    - metadata: Initial information
+    - batch: Nodes and edges for each batch
+    - progress: Progress updates
+    - complete: Completion event
+    - error: Error events
+    """
+    if not request.addresses or len(request.addresses) == 0:
+        return StreamingResponse(
+            iter([await sse_event("error", {"message": "No addresses provided"})]),
+            media_type="text/event-stream",
+        )
+    
+    if len(request.addresses) > 100:
+        return StreamingResponse(
+            iter([await sse_event("error", {"message": "Maximum 100 addresses per request"})]),
+            media_type="text/event-stream",
+        )
+    
+    return StreamingResponse(
+        stream_address_cluster_trace(
+            addresses=request.addresses,
+            hops_before=request.hops_before,
+            hops_after=request.hops_after,
+            max_transactions=request.max_transactions,
             blockchain_service=blockchain_service,
         ),
         media_type="text/event-stream",

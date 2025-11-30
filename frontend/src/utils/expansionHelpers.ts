@@ -11,6 +11,7 @@ export interface ExpandResult {
   nodes: Node[];
   edges: Edge[];
   warning?: string; // Optional warning message for 10-50 TX range
+  info?: string; // Optional info message (e.g. no transactions found)
 }
 
 /**
@@ -379,8 +380,8 @@ export async function expandAddressNodeWithFetch(
     const directionText = direction === 'receiving' ? 'receiving' : 'spending';
     console.log(`ℹ️ Address has no ${directionText} transactions`);
     const shortAddress = address.length > 20 ? `${address.substring(0, 10)}...${address.substring(address.length - 10)}` : address;
-    alert(`Address ${shortAddress} has no ${directionText} transactions.\n\n${direction === 'spending' ? 'This address has only received funds and never spent them.' : 'This address has only spent funds and never received them.'}`);
-    return { nodes: [], edges: [] };
+    const info = `Address ${shortAddress} has no ${directionText} transactions.\n\n${direction === 'spending' ? 'This address has only received funds and never spent them.' : 'This address has only spent funds and never received them.'}`;
+    return { nodes: [], edges: [], info };
   }
 
   // HYBRID CLUSTERING THRESHOLDS:
@@ -538,7 +539,9 @@ export async function expandAddressNodeWithFetch(
     return { nodes: [], edges: [] };
   }
 
-  // Position TX nodes (only the new ones)
+  // Position TX nodes based on direction:
+  // - receiving: transactions on the LEFT (money flows INTO address from left)
+  // - spending: transactions on the RIGHT (money flows OUT OF address to right)
   const spacing = 90;
   const xOffset = direction === 'receiving' ? -480 : 480;
   const startY = -(txNodes.length - 1) * spacing / 2;

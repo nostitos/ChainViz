@@ -60,15 +60,15 @@ class Settings(BaseSettings):
         "https://mempool.nixbitcoin.org/api",
         "https://mempool.learnbitcoin.com/api",
         "https://memepool.space/api",
-        "http://51.159.70.154:8081/api",
+
         "http://54.39.8.22:8139/api",
-        "http://34.84.66.29:8889/api",
+
         "http://62.171.130.134:8081/api",
     ]
     mempool_public_url: str = "https://mempool.space/api"  # Backwards compatibility
     mempool_public_urls: List[str] = []  # DISABLED: Public API rate-limited to ~20 req/hour
     mempool_endpoint_disabled: List[str] = ["https://mempool.space/api"]  # Explicitly disable public API
-    mempool_http_user_agent: str = "ChainVizMempoolClient/0.1"
+    mempool_http_user_agent: str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     mempool_http_accept_language: str = "en-US,en;q=0.9"
     mempool_request_timeout: float = 1.5
     mempool_min_request_timeout: float = 0.5

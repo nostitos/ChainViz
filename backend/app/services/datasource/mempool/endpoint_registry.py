@@ -165,9 +165,18 @@ class MempoolEndpointState:
                     self.concurrency_limit,
                 )
             if disable:
-                logger.warning(
-                    "Disabling %s after %d consecutive failures", self.name, self.consecutive_failures
-                )
+                # Never disable priority 0 endpoints (local/trusted nodes)
+                if self.config.priority == 0:
+                    logger.warning(
+                        "⚠️ Priority 0 endpoint %s has %d consecutive failures but will NOT be disabled (trusted source)",
+                        self.name, self.consecutive_failures
+                    )
+                    # Reset cooldown to keep it active
+                    self.cooldown_until = None
+                else:
+                    logger.warning(
+                        "Disabling %s after %d consecutive failures", self.name, self.consecutive_failures
+                    )
 
     def _maybe_adjust_locked(self, decrease_only: bool = False) -> None:
         if self.concurrency_limit <= 0:

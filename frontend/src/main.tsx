@@ -8,6 +8,7 @@ import LeaderboardDashboard from './pages/LeaderboardDashboard'
 import IndexPage from './pages/IndexPage'
 import ServerListPage from './pages/ServerListPage'
 import XpubHistoryPage from './pages/XpubHistoryPage'
+import ServerHealthDashboard from './pages/ServerHealthDashboard'
 import './index.css'
 
 // Check URL to decide which component to render
@@ -19,6 +20,7 @@ const isLeaderboard = path === '/leaderboard';
 const isIndex = path === '/index';
 const isServerList = path === '/servers';
 const isXpubHistory = path === '/xpub-history';
+const isServerHealth = path === '/server-health';
 
 let ComponentToRender = App;
 if (isTestHeavy) ComponentToRender = TestReactHeavy;
@@ -28,10 +30,9 @@ if (isLeaderboard) ComponentToRender = LeaderboardDashboard;
 if (isIndex) ComponentToRender = IndexPage;
 if (isServerList) ComponentToRender = ServerListPage;
 if (isXpubHistory) ComponentToRender = XpubHistoryPage;
+if (isServerHealth) ComponentToRender = ServerHealthDashboard;
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <ComponentToRender />
-  </React.StrictMode>,
+  <ComponentToRender />
 )
 

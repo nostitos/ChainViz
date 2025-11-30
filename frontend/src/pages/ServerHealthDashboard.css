@@ -1,0 +1,233 @@
+.server-health-dashboard {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  color: #e2e8f0;
+}
+
+.dashboard-header {
+  margin-bottom: 2rem;
+}
+
+.dashboard-header h1 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  color: #fff;
+}
+
+.dashboard-controls {
+  background: #1e293b;
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  margin-bottom: 2rem;
+  border: 1px solid #334155;
+}
+
+.input-group {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.input-field {
+  flex: 1;
+  min-width: 300px;
+}
+
+.input-field label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  color: #94a3b8;
+}
+
+.input-field input {
+  width: 100%;
+  padding: 0.5rem;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 0.25rem;
+  color: #fff;
+  font-family: monospace;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: #3b82f6;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #2563eb;
+}
+
+.btn-secondary {
+  background: #475569;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background: #334155;
+}
+
+.server-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+.server-card {
+  background: #1e293b;
+  border-radius: 0.5rem;
+  border: 1px solid #334155;
+  overflow: hidden;
+  transition: transform 0.2s;
+}
+
+.server-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.server-header {
+  padding: 1rem;
+  background: #0f172a;
+  border-bottom: 1px solid #334155;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.server-name {
+  font-weight: 600;
+  color: #fff;
+}
+
+.server-url {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 0.25rem;
+}
+
+.server-body {
+  padding: 1rem;
+}
+
+.test-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.test-btn {
+  padding: 0.5rem;
+  background: #334155;
+  border: none;
+  border-radius: 0.25rem;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 0.875rem;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.test-btn:hover {
+  background: #475569;
+}
+
+.status-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #64748b;
+}
+
+.status-success {
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+}
+
+.status-failure {
+  background: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.status-timeout {
+  background: #eab308;
+  box-shadow: 0 0 8px rgba(234, 179, 8, 0.4);
+}
+
+.status-loading {
+  background: #3b82f6;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.result-details {
+  margin-top: 1rem;
+  border-top: 1px solid #334155;
+  padding-top: 1rem;
+}
+
+.result-summary {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.latency {
+  font-family: monospace;
+  color: #94a3b8;
+}
+
+.json-viewer {
+  background: #0f172a;
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  font-family: monospace;
+  font-size: 0.75rem;
+  overflow-x: auto;
+  max-height: 200px;
+  white-space: pre-wrap;
+  color: #a5b4fc;
+}
+
+.expand-btn {
+  width: 100%;
+  padding: 0.25rem;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 0.75rem;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.expand-btn:hover {
+  color: #94a3b8;
+}

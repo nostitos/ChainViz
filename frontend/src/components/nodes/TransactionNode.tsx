@@ -3,6 +3,9 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { ArrowRightLeft, Clock, ShieldAlert, Activity, Copy } from 'lucide-react';
 import { formatBTC } from '@/services/graphBuilder';
 
+// Global deduplication map to prevent duplicate fetches across all instances
+const fetchingTransactions = new Map<string, Promise<any>>();
+
 interface TransactionNodeData {
   txid?: string;
   metadata?: {
@@ -11,8 +14,14 @@ interface TransactionNodeData {
     inputCount?: number;
     outputCount?: number;
     is_starting_point?: boolean;
-    inputs?: Array<{address: string; value: number}>;
-    outputs?: Array<{address: string; value: number}>;
+    inputs?: Array<{ address: string; value: number }>;
+    outputs?: Array<{ address: string; value: number }>;
+    fee?: number;
+    size?: number;
+    vsize?: number;
+    weight?: number;
+    confirmations?: number;
+    block_height?: number;
   };
   onExpand?: (nodeId: string, direction: 'inputs' | 'outputs') => void;
   onUpdateNodeData?: (nodeId: string, updates: any) => void;
@@ -46,28 +55,56 @@ export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
   const txid = nodeData.txid || nodeData.metadata?.txid || 'Unknown';
   const timestamp = nodeData.metadata?.timestamp;
   const isStartingPoint = nodeData.metadata?.is_starting_point ?? false;
-  const [hoverData, setHoverData] = useState<HoverDetails | null>(null);
+
+  const [hoverData, setHoverData] = useState<HoverDetails | null>(() => {
+    // Initialize from metadata if available to avoid redundant fetch
+    if (nodeData.metadata?.inputs && nodeData.metadata?.outputs) {
+      const inputs = nodeData.metadata.inputs;
+      const outputs = nodeData.metadata.outputs;
+      const totalInputValue = inputs.reduce((sum, entry) => sum + (entry.value || 0), 0);
+      const totalOutputValue = outputs.reduce((sum, entry) => sum + (entry.value || 0), 0);
+
+      return {
+        inputCount: nodeData.metadata.inputCount ?? inputs.length,
+        outputCount: nodeData.metadata.outputCount ?? outputs.length,
+        inputs,
+        outputs,
+        fee: nodeData.metadata.fee ?? null,
+        feeRate: null,
+        size: nodeData.metadata.size,
+        vsize: nodeData.metadata.vsize,
+        weight: nodeData.metadata.weight,
+        totalInputValue,
+        totalOutputValue,
+        confirmations: nodeData.metadata.confirmations,
+        blockHeight: nodeData.metadata.block_height,
+        coinjoinInfo: undefined,
+        changeOutput: null,
+      };
+    }
+    return null;
+  });
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [hoverError, setHoverError] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const expandTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-  
-  const formattedDate = timestamp 
-    ? new Date(timestamp * 1000).toLocaleString([], { 
-        month: 'short', 
-        day: 'numeric', 
-        year: 'numeric',
-        hour: '2-digit', 
-        minute: '2-digit' 
-      })
+
+  const formattedDate = timestamp
+    ? new Date(timestamp * 1000).toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
     : '';
-  
+
   // Show only first and last 6 characters
-  const shortTxid = txid.length > 12 
+  const shortTxid = txid.length > 12
     ? `${txid.substring(0, 6)}...${txid.substring(txid.length - 6)}`
     : txid;
-  
+
   const handleCopyTxid = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -106,7 +143,7 @@ export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
   };
 
   // Remove hover-driven TX fetch; we’ll fetch once on mount below
-  
+
   const handleMouseEnter = useCallback((e: React.MouseEvent) => {
     const target = e.target as Element | null;
     if (target?.closest('.expand-handle-btn')) {
@@ -131,20 +168,20 @@ export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
       setIsExpanded(false);
     }
   }, []);
-  
+
   const handleMouseLeave = useCallback((e: React.MouseEvent) => {
     // Don't clear if moving to a button
     const relatedTarget = (e.nativeEvent as MouseEvent).relatedTarget as HTMLElement;
     if (relatedTarget?.closest('.expand-handle-btn')) {
       return;
     }
-    
+
     // Clear the expansion timeout if mouse leaves before delay completes
     if (expandTimeoutRef.current) {
       clearTimeout(expandTimeoutRef.current);
       expandTimeoutRef.current = null;
     }
-    
+
     // Reset expanded state (keep hoverData cached for re-expansion)
     setIsExpanded(false);
   }, []);
@@ -166,44 +203,79 @@ export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
   useEffect(() => {
     let aborted = false;
     (async () => {
-      if (!txid || hoverData) return;
+      if (!txid || txid === 'Unknown' || hoverData) return;
+
+      // Check if this transaction is already being fetched
+      if (fetchingTransactions.has(txid)) {
+        try {
+          // Wait for the existing fetch to complete
+          const result = await fetchingTransactions.get(txid);
+          if (aborted || !result) return;
+          setHoverData(result.hoverData);
+          if (nodeData.onUpdateNodeData && result.updates) {
+            nodeData.onUpdateNodeData(id, result.updates);
+          }
+        } catch (err) {
+          if (!aborted) setHoverError('Failed to load details');
+        }
+        return;
+      }
+
       try {
         setLoadingDetails(true);
         setHoverError(null);
-        const response = await fetch(`${apiBase}/transaction/${txid}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const payload = await response.json();
+
+        // Create the fetch promise and store it in the deduplication map
+        const fetchPromise = (async () => {
+          const response = await fetch(`${apiBase}/transaction/${txid}`);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const payload = await response.json();
+          const tx = payload.transaction;
+          const inputs: AddressEntry[] = (tx.inputs || [])
+            .filter((inp: any) => inp.address)
+            .map((inp: any) => ({ address: inp.address, value: inp.value ?? 0 }));
+          const outputs: AddressEntry[] = (tx.outputs || [])
+            .filter((out: any) => out.address)
+            .map((out: any) => ({ address: out.address, value: out.value ?? 0 }));
+          const totalInputValue = inputs.reduce((sum, entry) => sum + (entry.value || 0), 0);
+          const totalOutputValue = outputs.reduce((sum, entry) => sum + (entry.value || 0), 0);
+
+          const hoverData = {
+            inputCount: tx.inputs?.length ?? 0,
+            outputCount: tx.outputs?.length ?? 0,
+            inputs,
+            outputs,
+            fee: tx.fee ?? null,
+            feeRate: payload.fee_rate ?? null,
+            size: tx.size,
+            vsize: tx.vsize,
+            weight: tx.weight,
+            totalInputValue,
+            totalOutputValue,
+            confirmations: tx.confirmations,
+            blockHeight: tx.block_height,
+            coinjoinInfo: payload.coinjoin_info,
+            changeOutput: payload.change_output ?? null,
+          };
+
+          return { hoverData, updates: { inputs, outputs } };
+        })();
+
+        fetchingTransactions.set(txid, fetchPromise);
+
+        const result = await fetchPromise;
+
+        // Clean up the promise from the map after completion
+        fetchingTransactions.delete(txid);
+
         if (aborted) return;
-        const tx = payload.transaction;
-        const inputs: AddressEntry[] = (tx.inputs || [])
-          .filter((inp: any) => inp.address)
-          .map((inp: any) => ({ address: inp.address, value: inp.value ?? 0 }));
-        const outputs: AddressEntry[] = (tx.outputs || [])
-          .filter((out: any) => out.address)
-          .map((out: any) => ({ address: out.address, value: out.value ?? 0 }));
-        const totalInputValue = inputs.reduce((sum, entry) => sum + (entry.value || 0), 0);
-        const totalOutputValue = outputs.reduce((sum, entry) => sum + (entry.value || 0), 0);
-        setHoverData({
-          inputCount: tx.inputs?.length ?? 0,
-          outputCount: tx.outputs?.length ?? 0,
-          inputs,
-          outputs,
-          fee: tx.fee ?? null,
-          feeRate: payload.fee_rate ?? null,
-          size: tx.size,
-          vsize: tx.vsize,
-          weight: tx.weight,
-          totalInputValue,
-          totalOutputValue,
-          confirmations: tx.confirmations,
-          blockHeight: tx.block_height,
-          coinjoinInfo: payload.coinjoin_info,
-          changeOutput: payload.change_output ?? null,
-        });
+
+        setHoverData(result.hoverData);
         if (nodeData.onUpdateNodeData) {
-          nodeData.onUpdateNodeData(id, { inputs, outputs });
+          nodeData.onUpdateNodeData(id, result.updates);
         }
       } catch (err) {
+        fetchingTransactions.delete(txid);
         if (!aborted) setHoverError('Failed to load details');
       } finally {
         if (!aborted) setLoadingDetails(false);
@@ -215,10 +287,10 @@ export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
         clearTimeout(expandTimeoutRef.current);
       }
     };
-  }, [apiBase, txid, hoverData, id, nodeData.onUpdateNodeData]);
+  }, [apiBase, txid, id, nodeData.onUpdateNodeData]);
 
   return (
-    <div 
+    <div
       className={`transaction-node ${selected ? 'selected' : ''} ${isStartingPoint ? 'starting-point' : ''} ${isExpanded ? 'expanded' : ''}`}
       onMouseEnter={handleMouseEnter}
       onMouseMove={handleMouseMove}
@@ -233,33 +305,33 @@ export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
       {/* Handles for connections - auto positioning */}
       <Handle type="target" position={Position.Left} style={{ background: '#4caf50' }} />
       <Handle type="source" position={Position.Right} style={{ background: '#ff9800' }} />
-      
+
       <div className="node-header">
         {/* TOP LEFT expand button */}
-        <button 
-          className="expand-handle-btn top-left nodrag" 
+        <button
+          className="expand-handle-btn top-left nodrag"
           onClick={handleExpandInputs}
           title="Expand inputs"
         >
           <span className="io-count">{displayedInputMetric}</span>
           <span className="arrow">◀</span>
         </button>
-        
+
         <div className="header-content">
-        <ArrowRightLeft size={18} />
-        <span className="node-value" title={txid}>{shortTxid}</span>
-          <button 
-            className="copy-txid-btn nodrag" 
-            onClick={handleCopyTxid} 
+          <ArrowRightLeft size={18} />
+          <span className="node-value" title={txid}>{shortTxid}</span>
+          <button
+            className="copy-txid-btn nodrag"
+            onClick={handleCopyTxid}
             title="Copy TXID"
           >
             <Copy size={12} />
           </button>
         </div>
-        
+
         {/* TOP RIGHT expand button */}
-        <button 
-          className="expand-handle-btn top-right nodrag" 
+        <button
+          className="expand-handle-btn top-right nodrag"
           onClick={handleExpandOutputs}
           title="Expand outputs"
         >
@@ -267,20 +339,20 @@ export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
           <span className="io-count">{displayedOutputMetric}</span>
         </button>
       </div>
-      
+
       <div className="node-content">
         {timestamp && (
-        <div className="node-meta">
+          <div className="node-meta">
             <span className="node-time">
               <Clock size={11} /> {formattedDate}
             </span>
           </div>
         )}
-        
+
         <div className="tx-hover-details">
           {loadingDetails && <div className="tx-loading">Loading details…</div>}
           {hoverError && <div className="tx-error">{hoverError}</div>}
-          
+
           {hoverData && (
             <>
               <div className="tx-stat-row">
@@ -295,9 +367,9 @@ export const TransactionNode = memo(({ id, data, selected }: NodeProps) => {
                     <span className="label">Size</span>
                     <span className="value">{hoverData.vsize ?? hoverData.size} vB</span>
                   </div>
-          )}
-        </div>
-        
+                )}
+              </div>
+
               {hoverData.confirmations !== undefined && hoverData.confirmations > 0 && (
                 <div className="tx-stat-row">
                   <div className="tx-stat">

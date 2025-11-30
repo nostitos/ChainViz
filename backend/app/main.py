@@ -63,6 +63,8 @@ app.include_router(bulk.router, prefix="/api/bulk", tags=["Bulk"])
 app.include_router(xpub.router, prefix="/api/xpub", tags=["XPub"])
 app.include_router(config.router, prefix="/api", tags=["Config"])
 app.include_router(metrics.router, prefix="/api", tags=["Metrics"])
+from app.api import servers
+app.include_router(servers.router, prefix="/api", tags=["Servers"])
 
 
 @app.get("/")

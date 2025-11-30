@@ -259,9 +259,15 @@ class MempoolDataSource:
     ) -> List[Optional[Dict[str, Any]]]:
         txid_list = list(dict.fromkeys(txids))  # preserve order, dedupe
         tasks = [self.get_transaction(txid, min_priority=min_priority) for txid in txid_list]
-        results = await asyncio.gather(*tasks, return_exceptions=False)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
         # Map back to original order in case duplicates were removed
-        tx_map = {txid: result for txid, result in zip(txid_list, results)}
+        tx_map = {}
+        for txid, result in zip(txid_list, results):
+            if isinstance(result, Exception):
+                logger.debug(f"Failed to fetch {txid}: {result}")
+                tx_map[txid] = None
+            else:
+                tx_map[txid] = result
         return [tx_map.get(txid) for txid in txids]
 
     async def get_address_txids(
@@ -309,12 +315,16 @@ class MempoolDataSource:
             # Try multiple servers if we get empty data - some servers have pagination limits
             data = None
             servers_tried = 0
-            max_server_attempts = 10  # Try up to 10 different servers before giving up
             failed_servers_at_offset.clear()  # Reset for this offset
             
+            # Get all endpoints once to determine max attempts
+            all_endpoints_list = await self._router.all_endpoints()
+            max_server_attempts = len(all_endpoints_list)
+
             while servers_tried < max_server_attempts:
                 try:
                     # Get all available endpoints to manually try them
+                    # Note: We re-fetch or filter this each time because failed_servers_at_offset grows
                     all_endpoints = await self._router.all_endpoints()
                     available_endpoints = [ep for ep in all_endpoints if ep.is_available() and ep.name not in failed_servers_at_offset]
                     
@@ -322,25 +332,35 @@ class MempoolDataSource:
                         logger.debug(f"get_address_txids: No more available servers to try at offset {offset}")
                         break
                     
-                    # Try each available endpoint directly
-                    endpoint = available_endpoints[servers_tried % len(available_endpoints)]
-                    logger.debug(f"get_address_txids: Trying {endpoint.name} for offset {offset} (attempt {servers_tried + 1})")
+                    # Try the first available endpoint (since we filter out failed ones, this rotates through them)
+                    endpoint = available_endpoints[0]
+                    logger.debug(f"get_address_txids: Trying {endpoint.name} for offset {offset} (attempt {servers_tried + 1}/{max_server_attempts})")
                     
                     result = await self._perform_request(endpoint, path, settings.mempool_hard_request_timeout)
+                    
                     
                     if result is not None:
                         if isinstance(result, list):
                             if len(result) > 0:
-                                # Got valid data with transactions
+                                # Got valid data with transactions - accept immediately
                                 data = result
                                 logger.debug(f"get_address_txids: Got {len(result)} transactions from {endpoint.name} at offset {offset}")
                                 break
                             else:
-                                # Empty list - mark this server as failed for this offset and try next
-                                logger.debug(f"get_address_txids: {endpoint.name} returned empty list at offset {offset}, trying next server...")
-                                failed_servers_at_offset.add(endpoint.name)
-                                servers_tried += 1
-                                continue
+                                # Empty list - could mean no transactions OR temporary issue
+                                # Only accept empty if we've tried all servers or max attempts
+                                all_endpoints_count = len(await self._router.all_endpoints())
+                                if servers_tried + 1 >= max_server_attempts or servers_tried + 1 >= all_endpoints_count:
+                                    # Tried enough servers, accept empty as final answer
+                                    data = result
+                                    logger.debug(f"get_address_txids: {endpoint.name} returned empty list at offset {offset} after trying {servers_tried + 1} servers (accepting as final)")
+                                    break
+                                else:
+                                    # Try next server - this might be temporary rate limiting or cache miss
+                                    logger.debug(f"get_address_txids: {endpoint.name} returned empty list at offset {offset}, trying next server ({servers_tried + 1}/{all_endpoints_count})...")
+                                    failed_servers_at_offset.add(endpoint.name)
+                                    servers_tried += 1
+                                    continue
                         else:
                             logger.warning(f"get_address_txids: {endpoint.name} returned non-list: {type(result)}, trying next server...")
                             servers_tried += 1
@@ -452,7 +472,9 @@ class MempoolDataSource:
             f"get_address_txids: Collected {len(collected)}/{effective_max} txids for {address[:12]}* "
             f"(expected_total={expected_total}, requested={max_results}, effective_max={effective_max})"
         )
-        return collected[:max_results]
+        # Return all collected txids even if they exceed max_results
+        # (Some servers ignore limit=N and return more; user wants to see them)
+        return collected
 
     async def get_address_txs_page(
         self,

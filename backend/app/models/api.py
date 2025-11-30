@@ -45,6 +45,15 @@ class BulkAddressImportRequest(BaseModel):
     )
 
 
+class AddressClusterTraceRequest(BaseModel):
+    """Request to trace multiple addresses as a cluster"""
+
+    addresses: List[str] = Field(..., min_length=1, max_length=100, description="List of Bitcoin addresses to trace")
+    hops_before: int = Field(default=1, ge=0, le=10, description="Number of hops to trace backward")
+    hops_after: int = Field(default=1, ge=0, le=10, description="Number of hops to trace forward")
+    max_transactions: int = Field(default=1000, ge=1, le=10000, description="Max transactions per address")
+
+
 class XPubDeriveRequest(BaseModel):
     """Request to derive addresses from xpub"""
 

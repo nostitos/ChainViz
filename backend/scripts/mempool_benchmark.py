@@ -4,6 +4,7 @@ import json
 import logging
 import sys
 import time
+import httpx
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Sequence
@@ -137,6 +138,55 @@ async def _probe_addresses(addresses: Sequence[str], max_results: int) -> dict:
     }
 
 
+async def benchmark_individual_servers(addresses: List[str]) -> None:
+    datasource = get_mempool_datasource()
+    endpoints = await datasource.get_endpoints()
+    await datasource.close()
+
+    print(f"\n=== Individual Server Health Check ({len(addresses)} addresses) ===")
+    print(f"{'Server':<30} {'Summary OK':<12} {'Txs OK':<12} {'Avg Latency':<12}")
+    print("-" * 70)
+
+    async def check_server(endpoint):
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            summary_success = 0
+            txs_success = 0
+            total_latency = 0.0
+            req_count = 0
+
+            for addr in addresses:
+                # Test Summary
+                try:
+                    start = time.perf_counter()
+                    resp = await client.get(f"{endpoint.config.base_url}/address/{addr}")
+                    if resp.status_code == 200:
+                        summary_success += 1
+                    req_count += 1
+                    total_latency += time.perf_counter() - start
+                except Exception:
+                    pass
+
+                # Test Txs
+                try:
+                    start = time.perf_counter()
+                    resp = await client.get(f"{endpoint.config.base_url}/address/{addr}/txs?limit=1")
+                    if resp.status_code == 200 and isinstance(resp.json(), list):
+                        txs_success += 1
+                    req_count += 1
+                    total_latency += time.perf_counter() - start
+                except Exception:
+                    pass
+            
+            avg_latency = (total_latency / req_count) if req_count > 0 else 0.0
+            return f"{endpoint.name[:30]:<30} {summary_success}/{len(addresses):<11} {txs_success}/{len(addresses):<11} {avg_latency:.3f}s"
+
+    tasks = [check_server(ep) for ep in endpoints]
+    results = await asyncio.gather(*tasks)
+    
+    for result in results:
+        print(result)
+
+
 def derive_addresses(xpub: str, count: int, change: int) -> List[str]:
     addresses = XpubService.derive_addresses(
         xpub=xpub,
@@ -153,9 +203,14 @@ async def run_benchmark(args: argparse.Namespace) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("asyncio").setLevel(logging.WARNING)
+    
     addresses = derive_addresses(args.xpub, args.count, args.change)
     if args.count < len(addresses):
         addresses = addresses[: args.count]
+
+    if args.health_check:
+        await benchmark_individual_servers(addresses)
+        return
 
     result = await _probe_addresses(addresses, args.max_results)
     throughput = (
@@ -207,6 +262,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         help="Number of transactions to fetch per address when deriving history (unused for summary).",
     )
     parser.add_argument("--json", action="store_true", help="Print JSON summary in addition to human output.")
+    parser.add_argument("--health-check", action="store_true", help="Run individual server health check instead of multiplexer benchmark.")
     return parser.parse_args(argv)
 
 

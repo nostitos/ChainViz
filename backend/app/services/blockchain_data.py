@@ -113,14 +113,17 @@ class BlockchainDataService:
         # Try mempool endpoints (local/additional/public routing handled by datasource)
         mempool = get_mempool_client()
         expected_count = None
+        
+        # Always try to get summary first to know expected count
+        # This prevents "try all servers" storm when we reach the end of history
         summary_priorities = (0, 1, 2)
         for priority in summary_priorities:
             try:
                 summary = await mempool.get_address_summary(address, min_priority=priority)
                 if summary:
                     expected_count = (
-                        summary.get("chain_stats", {}).get("tx_count")
-                        + summary.get("mempool_stats", {}).get("tx_count", 0)
+                        (summary.get("chain_stats", {}) or {}).get("tx_count", 0)
+                        + (summary.get("mempool_stats", {}) or {}).get("tx_count", 0)
                     )
                     logger.debug(
                         "Address %s summary indicates %s total txs (priority %s)",
@@ -160,7 +163,10 @@ class BlockchainDataService:
                 if len(txids) > len(best_txids):
                     best_txids = txids
 
-                if expected_count and len(txids) >= expected_count:
+                # If we found data, stop! Don't retry other priorities unless we suspect missing data.
+                # If expected_count is known, we check against it.
+                # If expected_count is unknown, we accept what we got (better than fetching 3 times).
+                if (expected_count and len(txids) >= expected_count) or (not expected_count and len(txids) > 0):
                     logger.debug(
                         "Address %s resolved via mempool priority %s (%s txs)",
                         address[:10],
