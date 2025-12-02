@@ -167,10 +167,12 @@ class MempoolEndpointState:
             if disable:
                 # Never disable priority 0 endpoints (local/trusted nodes)
                 if self.config.priority == 0:
-                    logger.warning(
-                        "⚠️ Priority 0 endpoint %s has %d consecutive failures but will NOT be disabled (trusted source)",
-                        self.name, self.consecutive_failures
-                    )
+                    # Only log warning periodically to avoid log spam (every 100 failures)
+                    if self.consecutive_failures % 100 == 0 or self.consecutive_failures == settings.mempool_concurrency_failure_threshold:
+                        logger.warning(
+                            "⚠️ Priority 0 endpoint %s has %d consecutive failures but will NOT be disabled (trusted source)",
+                            self.name, self.consecutive_failures
+                        )
                     # Reset cooldown and restore concurrency to keep it active
                     self.cooldown_until = None
                     # Restore concurrency_limit to min_concurrency to allow requests

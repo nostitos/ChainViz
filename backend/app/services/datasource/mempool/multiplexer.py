@@ -97,7 +97,12 @@ class MempoolDataSource:
             except Exception as exc:
                 latency = time.perf_counter() - started
                 await endpoint.record_failure(latency)
-                logger.warning("Mempool endpoint %s failed for %s: %s", endpoint.name, path, exc)
+                # Reduce log verbosity for priority 0 endpoints that are consistently failing
+                # (they're already logged periodically in endpoint_registry)
+                if endpoint.priority == 0 and endpoint.consecutive_failures > 10:
+                    logger.debug("Mempool endpoint %s failed for %s: %s", endpoint.name, path, exc)
+                else:
+                    logger.warning("Mempool endpoint %s failed for %s: %s", endpoint.name, path, exc)
         finally:
             if slot_acquired:
                 await endpoint.release_slot()
