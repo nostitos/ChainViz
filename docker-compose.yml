@@ -16,6 +16,7 @@ services:
       - ELECTRUM_FALLBACK_PORT=50002
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - MEMPOOL_LOCAL_FALLBACK_URLS=["http://iu1b96e.glddns.com:3006/api"]
     depends_on:
       - redis
     restart: always
