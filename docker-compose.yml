@@ -16,7 +16,8 @@ services:
       - ELECTRUM_FALLBACK_PORT=50002
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - MEMPOOL_LOCAL_FALLBACK_URLS=["http://iu1b96e.glddns.com:3006/api"]
+      # Use iu1b96e as primary since 192.168.8.234 is not accessible from AWS
+      - MEMPOOL_LOCAL_URL=http://iu1b96e.glddns.com:3006/api
     depends_on:
       - redis
     restart: always
