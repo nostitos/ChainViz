@@ -273,6 +273,33 @@ def build_mempool_endpoints() -> List[MempoolEndpointState]:
             )
         )
 
+    # Local fallback tier - same priority 0, auto-swaps when primary fails
+    for idx, url in enumerate(settings.mempool_local_fallback_urls):
+        norm_url = _normalize_url(url)
+        if norm_url in disabled:
+            continue
+        max_ceiling = min(settings.mempool_local_max_concurrent, settings.mempool_endpoint_max_concurrent)
+        parsed = urlparse(norm_url)
+        display_name = parsed.netloc or parsed.path or f"local-fallback-{idx}"
+        config = MempoolEndpointConfig(
+            name=display_name,
+            base_url=norm_url,
+            priority=0,  # Same priority as primary local - router picks healthiest
+            max_concurrent=settings.mempool_local_max_concurrent,
+            initial_concurrent=min(max_ceiling, settings.mempool_local_initial_concurrent),
+            min_concurrent=settings.mempool_endpoint_min_concurrent,
+            max_concurrent_ceiling=max_ceiling,
+            request_timeout=settings.mempool_request_timeout,
+            min_request_timeout=settings.mempool_min_request_timeout,
+            request_delay=settings.mempool_local_request_delay,
+        )
+        endpoints.append(
+            MempoolEndpointState(
+                config=config,
+                semaphore=asyncio.Semaphore(settings.mempool_local_max_concurrent),
+            )
+        )
+
     # Additional tier
     for idx, url in enumerate(settings.mempool_additional_urls):
         norm_url = _normalize_url(url)

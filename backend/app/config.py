@@ -52,10 +52,13 @@ class Settings(BaseSettings):
     # Mempool.space Configuration (Primary data source for TX fetching)
     mempool_local_enabled: bool = True
     mempool_local_url: str = "http://192.168.8.234:3006/api"
+    # Fallback local URLs - same priority 0 as local, will auto-swap when primary fails
+    mempool_local_fallback_urls: List[str] = [
+        "http://iu1b96e.glddns.com:3006/api",
+    ]
     mempool_additional_urls: List[str] = [
         "https://mempool.jaonoctus.dev/api",
         "https://mempool.emzy.de/api",
-        "http://iu1b96e.glddns.com:3006/api",
         "https://mempool.visvirial.com/api",
         "https://mempool.nixbitcoin.org/api",
         "https://mempool.learnbitcoin.com/api",

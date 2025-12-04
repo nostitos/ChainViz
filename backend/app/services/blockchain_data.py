@@ -163,15 +163,16 @@ class BlockchainDataService:
                 if len(txids) > len(best_txids):
                     best_txids = txids
 
-                # If we found data, stop! Don't retry other priorities unless we suspect missing data.
-                # If expected_count is known, we check against it.
-                # If expected_count is unknown, we accept what we got (better than fetching 3 times).
-                if (expected_count and len(txids) >= expected_count) or (not expected_count and len(txids) > 0):
+                # Stop as soon as we get ANY transactions from a priority
+                # Don't retry other priorities just because we got fewer than expected_count
+                # (all servers have same API limits, so they'll all return the same amount)
+                if len(txids) > 0:
                     logger.debug(
-                        "Address %s resolved via mempool priority %s (%s txs)",
+                        "Address %s resolved via mempool priority %s (%s txs, expected=%s)",
                         address[:10],
                         priority,
                         len(txids),
+                        expected_count or "unknown",
                     )
                     # Only cache if we fetched all transactions (no limit)
                     if max_results is None:
